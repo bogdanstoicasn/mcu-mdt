@@ -1,0 +1,51 @@
+commands:
+  READ_BYTE:
+    id: 0x01
+    description: "Read byte from address"
+    params:
+      - { name: "address", type: "uint32" }
+
+
+  WRITE_BYTE:
+    id: 0x02
+    description: "Write byte to address"
+    params:
+      - { name: "address", type: "uint32" }
+      - { name: "data", type: "uint8" }
+
+
+  READ_BULK:
+    id: 0x03
+    description: "Read n bytes from address"
+    params:
+      - { name: "address", type: "uint32" }
+      - { name: "len", type: "uint32" }
+
+
+  WRITE_BULK:
+    id: 0x04
+    description: "Write n bytes to address"
+    params:
+      - { name: "address", type: "uint32" }
+      - { name: "len", type: "uint32" }
+      - { name: "data", type: "bytes" }
+
+
+  READ_REG:
+    id: 0x05
+    description: "Read a register"
+    params:
+      - { name: "address", type: "uint32" }
+
+
+  WRITE_REG:
+    id: 0x06
+    description: "Write to a register"
+    params:
+      - { name: "address", type: "uint32" }
+      - { name: "data", type: "uint32" } # precaution on 8 bit mcu's
+
+
+  PING:
+    id: 0x07
+    description: "Check communication link"
