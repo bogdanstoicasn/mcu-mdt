@@ -49,3 +49,16 @@ commands:
   PING:
     id: 0x07
     description: "Check communication link"
+  
+  RESET:
+    id: 0x08
+    description: "Reset the device"
+  
+  EXIT: # used only on the PC side
+    id: 0x09
+    description: "Exit the program"
+  
+  HELP: # used only on the PC side
+    id: 0x0A
+    description: "Show this help message"
+    
