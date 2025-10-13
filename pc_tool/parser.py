@@ -1,35 +1,74 @@
 from logger import log, LogLevel
 from common.dataclasses import Command
 
-def parse_line(line: str, command_dict: dict) -> Command | None:
-    """ Parse line into command and arguments."""
+def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None:
+    """
+    Parse CLI line into a Command object according to YAML definition.
+    """
     tokens = line.strip().split()
     if not tokens:
         return None
-    
-    try:
-        name = tokens[0].upper()
 
-        if name not in command_dict:
-            return None
-        
-        id = command_dict[name]['id']
-        address = int(tokens[1], 16) if len(tokens) > 1 else 0
-        length = int(tokens[2]) if len(tokens) > 2 else None
-
-        # Parse data if present and convert to bytes
-        # Data must be in hex format without 0x prefix
-        data = bytes.fromhex(tokens[3]) if len(tokens) > 3 else None
-
-        if length is not None and data is not None and len(data) != length:
-            log(log_level=LogLevel.ERROR, module="parser", msg=f"Data length {len(data)} does not match expected length {length}", code=line)
-            return None
-
-        return Command(name=name, id=id, address=address, data=data, length=length)
-    except (KeyError, ValueError, IndexError) as e:
-        log(log_level=LogLevel.ERROR, module="parser", msg=f"Failed to parse line: {line}", code=str(e))
-
+    name = tokens[0].upper()
+    if name not in command_dict:
+        log(LogLevel.ERROR, "parser", f"Unknown command: {name}")
         return None
-    
 
-    
+    cmd_info = command_dict[name]
+    params = cmd_info.get("params", [])
+    id_ = cmd_info["id"]
+
+    # Check argument count
+    expected_args = len(params)
+    provided_args = len(tokens) - 1
+    if provided_args != expected_args:
+        log(LogLevel.ERROR, "parser",
+            f"{name} expects {expected_args} parameter(s), got {provided_args}",
+            code=line)
+        return None
+
+    # normalize mem_types keys to lowercase
+    mem_types_normalized = {k.lower(): v for k, v in mem_types.items()}
+
+    parsed_args = {}
+    try:
+        for i, param in enumerate(params):
+            pname = param["name"]
+            ptype = param["type"]
+            pvalue = tokens[i + 1]
+
+            if ptype.startswith("uint"):
+                parsed_args[pname] = int(pvalue, 0)
+
+            elif ptype == "bytes":
+                try:
+                    parsed_args[pname] = bytes.fromhex(pvalue)
+                except ValueError:
+                    log(LogLevel.ERROR, "parser", f"Invalid hex data for {pname}", code=pvalue)
+                    return None
+
+            elif ptype == "str" and pname == "mem_type":
+                # case-insensitive lookup
+                mem_key = pvalue.lower()
+                if mem_key not in mem_types_normalized:
+                    log(LogLevel.ERROR, "parser",
+                        f"Invalid memory type '{pvalue}'. Expected one of: {', '.join(mem_types.keys())}",
+                        code=line)
+                    return None
+                parsed_args[pname] = mem_types_normalized[mem_key]
+
+            else:
+                parsed_args[pname] = pvalue
+
+        return Command(
+            name=name,
+            id=id_,
+            mem=parsed_args.get("mem_type"),
+            address=parsed_args.get("address", 0),
+            length=parsed_args.get("len"),
+            data=parsed_args.get("data")
+        )
+
+    except (ValueError, IndexError, KeyError) as e:
+        log(LogLevel.ERROR, "parser", f"Failed to parse line: {line}", code=str(e))
+        return None
