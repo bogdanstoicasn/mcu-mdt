@@ -1,8 +1,9 @@
 *.o
 *.a
-vscode/
+.vscode/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
 *.swp
+plan.txt

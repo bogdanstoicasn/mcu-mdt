@@ -1,12 +1,14 @@
 from loader import load_configs
 from parser import parse_line
-from commander import execute_command
+from commander import execute_command, help_command, intro_text
 
 if __name__ == "__main__":
     yaml_command_data = load_configs('configs/commands.yaml')
     commands = yaml_command_data['commands']
     mem_types = yaml_command_data['mem_types']
     command_history = []
+
+    print(intro_text())
 
     while True:
         try:
@@ -26,8 +28,7 @@ if __name__ == "__main__":
                 print("Exiting...")
                 break
             elif command.name == "HELP":
-                # TODO: implement help
-                pass
+                help_command()
 
             print(f"Parsed Command: {command}")
 

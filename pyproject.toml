@@ -1,0 +1,11 @@
+[project]
+name = "mcu-mdt"
+version = "0.0.1"
+description = "Debugger for embedded microcontrollers"
+readme = "README.md"
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "W", "C90", "N", "B", "I", "Q000", "S"]
+ignore = ["E501"]
+exclude = ["build/", "dist/", ".venv/", "plan.txt"]

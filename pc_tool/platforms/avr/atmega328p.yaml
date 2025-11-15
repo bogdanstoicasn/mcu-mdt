@@ -1,0 +1,12 @@
+arch:
+  name: "ATmega328P"
+  arhitecture: "AVR"
+  frequency: 16000000  # 16 MHz
+  address_width: 16  # 16-bit addressing
+  endianess: "little"
+  word_size: 8  # 8-bit word size
+
+address_space:
+  RAM: { start: 0x0100, size: 2048 }        # 2KB SRAM
+  FLASH: { start: 0x0000, size: 32768 }    # 32KB Flash
+  EEPROM: { start: 0x0000, size: 1024 }    # 1KB EEPROM

@@ -9,6 +9,9 @@ ifndef MCU
 $(error MCU is not set. Example: MCU=atmega328p)
 endif
 
+# Optional: Port
+PORT ?= /dev/ttyACM0
+
 PLATFORM_MAKE := hal/$(PLATFORM)/Makefile
 
 ifeq ("$(wildcard $(PLATFORM_MAKE))","")
@@ -18,7 +21,7 @@ endif
 .PHONY: all clean
 
 all:
-	@$(MAKE) -f $(PLATFORM_MAKE) MCU=$(MCU)
+	@$(MAKE) -f $(PLATFORM_MAKE) MCU=$(MCU) PORT=$(PORT)
 
 clean:
-	@$(MAKE) -f $(PLATFORM_MAKE) MCU=$(MCU) clean
+	@$(MAKE) -f $(PLATFORM_MAKE) MCU=$(MCU) PORT=$(PORT) clean
