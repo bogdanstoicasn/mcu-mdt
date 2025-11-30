@@ -1,12 +1,15 @@
-from loader import load_configs
+from loader import load_configs, load_platforms
 from parser import parse_line
 from commander import execute_command, help_command, intro_text
 
 if __name__ == "__main__":
     yaml_command_data = load_configs('configs/commands.yaml')
+    yaml_platform_data = load_platforms('configs/platforms')
     commands = yaml_command_data['commands']
     mem_types = yaml_command_data['mem_types']
     command_history = []
+
+    print(yaml_platform_data)
 
     print(intro_text())
 

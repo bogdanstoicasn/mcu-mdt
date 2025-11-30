@@ -1,4 +1,5 @@
 from common.dataclasses import Command
+from common.protocol import serialize_command_packet, deserialize_ack_packet
 
 def intro_text():
 
@@ -24,4 +25,6 @@ Available Commands:
     print(help_text)
 
 def execute_command(command: Command):
+    byte_packet = serialize_command_packet(command)
+    print(f"Serialized Command Packet: {byte_packet.hex()}")
     pass
