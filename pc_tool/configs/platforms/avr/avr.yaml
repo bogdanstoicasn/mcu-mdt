@@ -1,0 +1,15 @@
+platform_name: "AVR"
+description: "Configuration for AVR microcontroller platforms."
+vendor: "Microchip Technology Inc."
+atdf_source:
+  type: "url"
+  links:
+    ATmega: "https://packs.download.microchip.com/#collapse-Microchip-ATmega-DFP-pdsc"
+
+supported_devices:
+  ATmega:
+    - "ATmega328P"
+notes: |
+  - This file points to the vendor ATDF pack (or .atpack) for AVR devices.
+  - The tool will download and extract ATDF files, then generate <device>.yaml 
+    for each supported MCU.
