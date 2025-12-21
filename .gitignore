@@ -8,3 +8,4 @@ __pycache__/
 *.swp
 build_info.yaml
 plan.txt
+build/
