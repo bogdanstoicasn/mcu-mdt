@@ -4,6 +4,5 @@
 void mcu_mdt_init(void)
 {
     // Initialization code for MCU MDT
-    (void)0;
-
+    hal_uart_init();
 }

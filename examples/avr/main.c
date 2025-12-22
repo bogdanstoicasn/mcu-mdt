@@ -1,4 +1,4 @@
-#include "../inc/mcu_mdt.h"
+#include "mcu_mdt.h"
 
 int main(void) {
     // AVR specific initialization code can go here

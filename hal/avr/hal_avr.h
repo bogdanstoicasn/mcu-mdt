@@ -1,12 +1,11 @@
 #ifndef HAL_AVR_H
 #define HAL_AVR_H
 
-#include "uart.h"
+#include <stdint.h>
 
-/* AVR specific HAL modules */
+/* AVR-private UART driver */
+void hal_uart_init(void);
+void hal_uart_tx(uint8_t byte);
+int  hal_uart_rx(uint8_t *byte);
 
-/* Platform-specific constants */
-
-/* Common type macros */
-
-#endif // HAL_AVR_H
+#endif /* HAL_AVR_H */
