@@ -9,6 +9,7 @@ OBJCOPY := avr-objcopy
 # Directories
 SRC_DIR := ../../src
 HAL_DIR := .
+BASE_HAL_DIR := ../
 BUILD_DIR := ../../build
 INC_DIR := ../../inc
 EXAMPLES_DIR := ../../examples/avr
@@ -31,7 +32,7 @@ ALL_OBJS := $(SRC_OBJS) $(HAL_OBJS)
 # Compiler flags
 CFLAGS := -mmcu=$(MCU)
 CFLAGS += -Wall -Wextra -Os
-CFLAGS += -I$(INC_DIR) -I$(HAL_DIR)
+CFLAGS += -I$(INC_DIR) -I$(HAL_DIR) -I$(BASE_HAL_DIR)
 CFLAGS += -DF_CPU=16000000UL
 CFLAGS += -DPLATFORM_AVR
 

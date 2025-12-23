@@ -2,12 +2,10 @@
 #define UART_H
 
 #include <stdint.h>
-#include "../../inc/mcu_mdt_config.h"
 
-/* UART initialization and low-level functions */
+/* AVR-private UART driver */
 void uart_init(uint32_t baudrate);
 void uart_putc(uint8_t data);
-uint8_t uart_getc(void);
-uint8_t uart_data_available(void);
+int  uart_getc_nonblocking(uint8_t *data);
 
 #endif // UART_H

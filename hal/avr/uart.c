@@ -1,16 +1,15 @@
-#include "uart.h"
 #include <avr/io.h>
 #include <avr/interrupt.h>
+#include "uart.h"
+#include "mcu_mdt_config.h"
 
-#define UART_RX_BUF_SIZE 128
-
-static volatile uint8_t rx_buf[UART_RX_BUF_SIZE];
+static volatile uint8_t rx_buf[MDT_RX_BUFFER_SIZE];
 static volatile uint8_t rx_head = 0;
 static volatile uint8_t rx_tail = 0;
 
 static inline void rx_push(uint8_t b)
 {
-    uint8_t next = (rx_head + 1) % UART_RX_BUF_SIZE;
+    uint8_t next = (rx_head + 1) % MDT_RX_BUFFER_SIZE;
     if (next != rx_tail) {
         rx_buf[rx_head] = b;
         rx_head = next;
@@ -42,7 +41,7 @@ int uart_getc_nonblocking(uint8_t *data)
         return 0;
 
     *data = rx_buf[rx_tail];
-    rx_tail = (rx_tail + 1) % UART_RX_BUF_SIZE;
+    rx_tail = (rx_tail + 1) % MDT_RX_BUFFER_SIZE;
     return 1;
 }
 

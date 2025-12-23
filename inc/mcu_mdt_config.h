@@ -8,8 +8,8 @@
 #define MDT_UART_PARITY      0  // 0=None, 1=Even, 2=Odd
 
 /* Buffer sizes */
-#define MDT_RX_BUFFER_SIZE   256
-#define MDT_TX_BUFFER_SIZE   256
+#define MDT_RX_BUFFER_SIZE   128
+#define MDT_TX_BUFFER_SIZE   128
 
 /* Protocol settings */
 #define MDT_PACKET_MAX_SIZE  128

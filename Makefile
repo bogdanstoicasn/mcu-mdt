@@ -9,6 +9,10 @@ ifndef MCU
 $(error MCU is not set. Example: MCU=atmega328p)
 endif
 
+# Public include directories (exported to sub-makefiles)
+INCLUDES := -I$(CURDIR)/inc -I$(CURDIR)/hal
+export INCLUDES
+
 # Optional: Port
 PORT ?= /dev/ttyACM0
 
