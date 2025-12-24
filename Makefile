@@ -33,5 +33,8 @@ all:
 	@echo "mcu: $(MCU)" >> $(BUILD_INFO_FILE)
 	@echo "port: $(PORT)" >> $(BUILD_INFO_FILE)
 
+flash:
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) flash
+
 clean:
 	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) clean

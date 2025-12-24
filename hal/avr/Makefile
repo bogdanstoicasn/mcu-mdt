@@ -69,6 +69,7 @@ $(LIB_PATH): $(ALL_OBJS)
 copy_files:
 	@echo "Copying header and example files..."
 	@cp $(INC_DIR)/mcu_mdt.h $(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/main.c $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile $(BUILD_DIR)/Makefile.example
 

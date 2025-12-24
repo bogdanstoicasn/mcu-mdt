@@ -1,4 +1,5 @@
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_config.h"
 #include "uart.h"
 
 void hal_uart_init(void)

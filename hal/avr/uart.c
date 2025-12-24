@@ -3,19 +3,45 @@
 #include "uart.h"
 #include "mcu_mdt_config.h"
 
-static volatile uint8_t rx_buf[MDT_RX_BUFFER_SIZE];
-static volatile uint8_t rx_head = 0;
-static volatile uint8_t rx_tail = 0;
+static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
 
-static inline void rx_push(uint8_t b)
+static inline uint8_t rb_push(ring_buffer_t *rb, uint8_t data)
 {
-    uint8_t next = (rx_head + 1) % MDT_RX_BUFFER_SIZE;
-    if (next != rx_tail) {
-        rx_buf[rx_head] = b;
-        rx_head = next;
+    uint8_t next_head = (rb->head + 1) % MDT_RX_BUFFER_SIZE;
+
+    if (next_head == rb->tail)
+    {
+        return 0; // Buffer full
     }
+
+    rb->buf[rb->head] = data;
+    rb->head = next_head;
+    return 1; // Success
 }
 
+static inline uint8_t rb_pop(ring_buffer_t *rb, uint8_t *data)
+{
+    if (rb->head == rb->tail)
+    {
+        return 0; // Buffer empty
+    }
+
+    *data = rb->buf[rb->tail];
+    rb->tail = (rb->tail + 1) % MDT_RX_BUFFER_SIZE;
+    return 1; // Success
+}
+
+static inline uint8_t rb_is_empty(ring_buffer_t *rb)
+{
+    return rb->head == rb->tail;
+}
+
+static inline uint8_t rb_is_full(ring_buffer_t *rb)
+{
+    return ((rb->head + 1) % MDT_RX_BUFFER_SIZE) == rb->tail;
+}
+
+/* UART */
 void uart_init(uint32_t baudrate)
 {
     uint16_t ubrr = (F_CPU / (16UL * baudrate)) - 1;
@@ -35,17 +61,12 @@ void uart_putc(uint8_t data)
     UDR0 = data;
 }
 
-int uart_getc_nonblocking(uint8_t *data)
+uint8_t uart_getc_nonblocking(uint8_t *data)
 {
-    if (rx_head == rx_tail)
-        return 0;
-
-    *data = rx_buf[rx_tail];
-    rx_tail = (rx_tail + 1) % MDT_RX_BUFFER_SIZE;
-    return 1;
+    return rb_pop(&rx_buffer, data);
 }
 
 ISR(USART_RX_vect)
 {
-    rx_push(UDR0);
+    rb_push(&rx_buffer, UDR0);
 }
