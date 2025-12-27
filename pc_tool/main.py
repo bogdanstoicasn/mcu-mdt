@@ -1,15 +1,28 @@
-from loader import load_configs, load_platforms
-from parser import parse_line
+from loader import load_configs, load_platforms, load_atdf_for_mcu
+from parser import parse_line, parse_args
 from commander import execute_command, help_command, intro_text
 
 if __name__ == "__main__":
-    yaml_command_data = load_configs('configs/commands.yaml')
-    yaml_platform_data = load_platforms('configs/platforms')
-    commands = yaml_command_data['commands']
-    mem_types = yaml_command_data['mem_types']
-    command_history = []
+    args = parse_args()
 
-    print(yaml_platform_data)
+    build_info_path = args.build_info
+
+    yaml_build_data = load_configs(build_info_path)
+
+    yaml_command_data = load_configs('configs/commands.yaml')
+
+    yaml_platform_data = load_platforms('configs/platforms')
+
+    commands = yaml_command_data['commands']
+
+    mem_types = yaml_command_data['mem_types']
+
+    atdf_data = load_atdf_for_mcu(
+        yaml_build_data['mcu'],
+        atdf_root="atdf"
+    )
+
+    command_history = []
 
     print(intro_text())
 
@@ -32,6 +45,7 @@ if __name__ == "__main__":
                 break
             elif command.name == "HELP":
                 help_command()
+                continue
 
             print(f"Parsed Command: {command}")
 

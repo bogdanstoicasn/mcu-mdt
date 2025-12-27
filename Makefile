@@ -24,7 +24,7 @@ endif
 
 .PHONY: all clean
 
-BUILD_INFO_FILE := build_info.yaml
+BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
 
 all:
 	@echo "Building for PLATFORM=$(PLATFORM), MCU=$(MCU)"

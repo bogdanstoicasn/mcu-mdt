@@ -10,7 +10,7 @@ OBJCOPY := avr-objcopy
 SRC_DIR := ../../src
 HAL_DIR := .
 BASE_HAL_DIR := ../
-BUILD_DIR := ../../build
+BUILD_DIR := ../../build/$(MCU)
 INC_DIR := ../../inc
 EXAMPLES_DIR := ../../examples/avr
 
@@ -88,11 +88,5 @@ flash: all
 
 clean:
 	@echo "Cleaning AVR build..."
-	@rm -f $(BUILD_DIR)/*.o
-	@rm -f $(BUILD_DIR)/*.a
-	@rm -f $(BUILD_DIR)/*.elf
-	@rm -f $(BUILD_DIR)/*.hex
-	@rm -f $(BUILD_DIR)/*.h
-	@rm -f $(BUILD_DIR)/*.c
-	@rm -f $(BUILD_DIR)/Makefile.example
+	@rm -rf $(BUILD_DIR)/*
 	@if [ -d $(BUILD_DIR) ] && [ -z "$$(ls -A $(BUILD_DIR))" ]; then rmdir $(BUILD_DIR); fi

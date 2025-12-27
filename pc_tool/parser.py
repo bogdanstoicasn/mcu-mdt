@@ -1,5 +1,21 @@
+import argparse
 from logger import log, LogLevel
 from common.dataclasses import Command
+
+def parse_args():
+    """
+    Parse CLI line into list of arguments using argparse.
+    """
+    parser = argparse.ArgumentParser(
+        description="MCU MDT Debugger CLI"
+    )
+    parser.add_argument(
+        "build_info",
+        type=str,
+        help="Path to build_info.yaml file",
+    )
+
+    return parser.parse_args()
 
 def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None:
     """
