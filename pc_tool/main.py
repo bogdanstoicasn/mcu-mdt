@@ -1,6 +1,7 @@
 from loader import load_configs, load_platforms, load_atdf_for_mcu
 from parser import parse_line, parse_args
 from commander import execute_command, help_command, intro_text
+from validator import validate_commands
 
 if __name__ == "__main__":
     args = parse_args()
@@ -48,6 +49,10 @@ if __name__ == "__main__":
                 continue
 
             print(f"Parsed Command: {command}")
+
+            if not validate_commands(command, atdf_data):
+                print("Command validation failed.")
+                continue
 
             execute_command(command)
         except EOFError as end_of_file:
