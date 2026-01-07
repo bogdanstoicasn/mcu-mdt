@@ -46,6 +46,10 @@ all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example
 	@echo "Build complete!"
 	@echo "Library: $(BUILD_DIR)/$(LIB_NAME)"
 	@echo "Example: $(BUILD_DIR)/$(HEX_NAME)"
+	# create build_info.yaml here
+	@echo "platform: AVR" > $(BUILD_DIR)/build_info.yaml
+	@echo "mcu: $(MCU)" >> $(BUILD_DIR)/build_info.yaml
+	@echo "port: $(PORT)" >> $(BUILD_DIR)/build_info.yaml
 
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)

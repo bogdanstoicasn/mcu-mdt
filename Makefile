@@ -29,9 +29,6 @@ BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
 all:
 	@echo "Building for PLATFORM=$(PLATFORM), MCU=$(MCU)"
 	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT)
-	@echo "platform: $(PLATFORM)" > $(BUILD_INFO_FILE)
-	@echo "mcu: $(MCU)" >> $(BUILD_INFO_FILE)
-	@echo "port: $(PORT)" >> $(BUILD_INFO_FILE)
 
 flash:
 	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) flash

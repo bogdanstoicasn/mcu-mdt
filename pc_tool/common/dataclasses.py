@@ -17,7 +17,7 @@ class CommandPacket:
     address: int = 0 # 4 bytes
     length: int | None = None # 2 bytes (little endian)
     data: bytes | None = None # variable length
-    crc: int | None = None # at serialization time
+    crc: int | None = None # at serialization time, 2 bytes
 
     START_BYTE: int = 0xAA
     END_BYTE: int = 0x55

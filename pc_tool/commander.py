@@ -1,5 +1,6 @@
 from common.dataclasses import Command
-from common.protocol import serialize_command_packet, deserialize_ack_packet
+from common.protocol import serialize_command_packet
+from common.uart_io import send_packet_to_mcu
 
 def intro_text():
 
@@ -17,14 +18,40 @@ def help_command():
 Available Commands:
   HELP                Show this help message.
   EXIT                Exit the command line interface.
-  READ <mem_type> <address> <length>
+  READ_MEM <mem_type> <address> <length>
                       Read data from specified memory type and address.
-  WRITE <mem_type> <address> <data>
+  WRITE_MEM <mem_type> <address> <data>
                       Write data to specified memory type and address.
 """
     print(help_text)
 
-def execute_command(command: Command):
+def ping_command(command: Command, yaml_build_data=None):
     byte_packet = serialize_command_packet(command)
-    print(f"Serialized Command Packet: {byte_packet.hex()}")
-    pass
+    print(f"Serialized PING Command Packet: {byte_packet.hex()}")
+    send_packet_to_mcu(byte_packet=byte_packet, port=yaml_build_data['port'])
+
+def execute_command(command: Command):
+    if command.data is None or len(command.data) == 0:
+        # No data, just a single packet
+        byte_packet = serialize_command_packet(command)
+        print(f"Serialized Command Packet: {byte_packet.hex()}")
+        return
+
+    # Split data into 4-byte chunks
+    for i in range(0, len(command.data), 4):
+        chunk = command.data[i:i+4]
+        if len(chunk) != 4:
+            # Pad the last chunk with zeros if needed (optional)
+            chunk = chunk.ljust(4, b'\x00')
+
+        # Create a new command packet for this chunk
+        chunk_command = Command(
+            id=command.id,
+            mem=command.mem,
+            address=command.address + i,  # increment address
+            data=chunk
+        )
+
+        byte_packet = serialize_command_packet(chunk_command)
+        print(f"Serialized Command Packet: {byte_packet.hex()}")
+        # Here you would actually send byte_packet over UART
