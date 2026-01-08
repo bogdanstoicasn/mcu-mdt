@@ -1,13 +1,17 @@
 # MCU MDT Protocol Documentation
 
 Packet Format:
-    +------------+--------+--------+----------------+----------------+--------------+----------+
-    | Start Byte | Cmd ID |  Flags |   Mem ID (opt) |   Address      | Length (opt) | Data (opt) | CRC (opt) | End Byte |
-    +------------+--------+--------+----------------+----------------+--------------+----------+
-    |   1 byte   | 1 byte | 1 byte |   1 byte       |   4 bytes      | 2 bytes      | N bytes   | 2 byte    | 1 byte   |
-    +------------+--------+--------+----------------+----------------+--------------+----------+
-    |   0xAA     |        |        |                |                |              |          |  0x55    |
-    +------------+--------+--------+----------------+----------------+--------------+----------+
+
+    - start_byte: Constant value 0xAA indicating the start of the packet.
+    - cmd_id: Command identifier (1 byte).
+    - flags: Command flags (1 byte).
+    - mem_id: Optional memory identifier (1 byte), present if the command requires it.
+    - address: Target address (4 bytes, little-endian).
+    - length: Always present( 2 bytes, little-endian).
+    - data: Always present (4 bytes max).
+    - crc: Checksum (2 bytes), calculated over the entire packet except the start and end bytes.
+    - end_byte: Constant value 0x55 indicating the end of the packet.
+
 Fields:
 - Start Byte: Constant value 0xAA indicating the start of the packet.
 - Cmd ID: Command identifier (1 byte).

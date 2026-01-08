@@ -16,12 +16,17 @@ Type HELP for available commands.
 def help_command():
     help_text = """
 Available Commands:
-  HELP                Show this help message.
-  EXIT                Exit the command line interface.
-  READ_MEM <mem_type> <address> <length>
+    HELP                Show this help message.
+    EXIT                Exit the command line interface.
+    READ_MEM <mem_type> <address> <length>
                       Read data from specified memory type and address.
-  WRITE_MEM <mem_type> <address> <data>
+    WRITE_MEM <mem_type> <address> <data>
                       Write data to specified memory type and address.
+    READ_REG <register_address>
+                        Read data from specified register address.
+    WRITE_REG <register_address> <data>
+                        Write data to specified register address.
+    PING                Send a ping command to the connected MCU.
 """
     print(help_text)
 
