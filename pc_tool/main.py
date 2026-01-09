@@ -1,6 +1,6 @@
 from loader import load_configs, load_platforms, load_atdf_for_mcu
 from parser import parse_line, parse_args
-from commander import execute_command, help_command, intro_text, ping_command
+from commander import execute_command, help_command, intro_text, clear_command, ping_command
 from validator import validate_commands
 
 if __name__ == "__main__":
@@ -46,6 +46,9 @@ if __name__ == "__main__":
                 break
             elif command.name == "HELP":
                 help_command()
+                continue
+            elif command.name == "CLEAR":
+                clear_command()
                 continue
             elif command.name == "PING":
                 ping_command(command, yaml_build_data)

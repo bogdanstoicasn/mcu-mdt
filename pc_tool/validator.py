@@ -18,6 +18,7 @@ def validate_commands(operation: Command, atdf_data: dict) -> bool:
         return validate_read_mem(operation, atdf_data)
     elif operation.id == CommandId.WRITE_MEM:
         print(f"Validating WRITE_MEM command: {operation}")
+        return validate_write_mem(operation, atdf_data)
     elif operation.id == CommandId.READ_REG:
         print(f"Validating READ_REG command: {operation}")
         return validate_read_reg(operation, atdf_data)
@@ -136,5 +137,88 @@ def validate_read_reg(operation: Command, atdf_data: dict) -> bool:
     print(f"No register found at address 0x{operation.address:X}")
     return False
 
+def validate_write_mem(operation: Command, atdf_data: dict) -> bool:
+    """
+    Validate a WRITE_MEM command.
 
+    Args:
+        operation (Command): The WRITE_MEM command to validate.
+        atdf_data (dict): The ATDF data containing memory definitions.
+
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+
+    # Check if len differs from data length
+    if operation.length != len(operation.data):
+        print(f"Length field {operation.length} does not match data length {len(operation.data)}")
+        return False
+
+    try:
+        mem_type = MemType(operation.mem)
+    except ValueError:
+        print(f"Invalid memory type: {operation.mem}")
+        return False
+
+    memories = atdf_data.get("memories", {})
+    if not memories:
+        print("No memory-segment definitions found in ATDF data.")
+        return False
+
+    addr = operation.address
+    length = operation.length
+
+    memtype_to_atdf_type = {
+        MemType.RAM: "ram",
+        MemType.EEPROM: "eeprom",
+        MemType.FLASH: "flash",
+    }
+
+    wanted_type = memtype_to_atdf_type[mem_type]
+
+    # Find candidate segments
+    candidates = [
+        seg for seg in memories.values()
+        if seg.get("type") == wanted_type
+    ]
+
+    print(f"candidates: {candidates}")
+
+    if not candidates:
+        print(f"No memory segments found for type: {wanted_type}")
+        return False
     
+    for seg in candidates:
+        seg_start = seg.get("start")
+        seg_size = seg.get("size")
+
+        if seg_start is None or seg_size is None:
+            continue
+
+        if isinstance(seg_start, str):
+            seg_start = int(seg_start, 0)
+        if isinstance(seg_size, str):
+            seg_size = int(seg_size, 0)
+
+        seg_end = seg_start + seg_size
+
+        if addr >= seg_start and (addr + length) <= seg_end:
+
+            if mem_type == MemType.FLASH:
+                print(
+                    "WARNING: Writing to FLASH memory is platform-dependent "
+                    "(SPM / bootloader required). MCU may reject this command."
+                )
+                # TODO: Further FLASH-specific checks can be added here
+
+            print(
+                f"WRITE_MEM valid: {mem_type.name} "
+                f"0x{addr:X} .. 0x{addr + length - 1:X}"
+            )
+            return True
+
+    print(
+        f"WRITE_MEM out of range: {mem_type.name} "
+        f"addr=0x{addr:X} len={length}"
+    )
+    return False  

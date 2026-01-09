@@ -1,3 +1,4 @@
+import os
 from common.dataclasses import Command
 from common.protocol import serialize_command_packet
 from common.uart_io import send_packet_to_mcu
@@ -20,7 +21,7 @@ Available Commands:
     EXIT                Exit the command line interface.
     READ_MEM <mem_type> <address> <length>
                       Read data from specified memory type and address.
-    WRITE_MEM <mem_type> <address> <data>
+    WRITE_MEM <mem_type> <address> <length> <data>
                       Write data to specified memory type and address.
     READ_REG <register_address>
                         Read data from specified register address.
@@ -29,6 +30,9 @@ Available Commands:
     PING                Send a ping command to the connected MCU.
 """
     print(help_text)
+
+def clear_command():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 def ping_command(command: Command, yaml_build_data=None):
     byte_packet = serialize_command_packet(command)
@@ -51,6 +55,7 @@ def execute_command(command: Command):
 
         # Create a new command packet for this chunk
         chunk_command = Command(
+            name=command.name,
             id=command.id,
             mem=command.mem,
             address=command.address + i,  # increment address
