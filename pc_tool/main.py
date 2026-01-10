@@ -1,6 +1,6 @@
 from loader import load_configs, load_platforms, load_atdf_for_mcu
 from parser import parse_line, parse_args
-from commander import execute_command, help_command, intro_text, clear_command, ping_command
+from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command
 from validator import validate_commands
 
 if __name__ == "__main__":
@@ -23,7 +23,14 @@ if __name__ == "__main__":
         atdf_root="atdf"
     )
 
-    command_history = []
+    # Start the connection to the MCU
+    serial_link = serial_link_command(
+        port=yaml_build_data['port'],
+        baudrate=yaml_build_data.get('baudrate', 19200),
+        ping_command_id=commands['PING']['id']
+    )
+
+    serial_link.open()
 
     print(intro_text())
 
@@ -34,7 +41,6 @@ if __name__ == "__main__":
                 continue
 
             command = parse_line(line, commands, mem_types)
-            command_history.append(line)
 
             if not command:
                 print("Invalid command or parsing error.")
@@ -43,6 +49,7 @@ if __name__ == "__main__":
             # Handle the CLI commands(EXIT, HELP) directly here
             if command.name == "EXIT":
                 print("Exiting...")
+                serial_link.close()
                 break
             elif command.name == "HELP":
                 help_command()
@@ -51,7 +58,7 @@ if __name__ == "__main__":
                 clear_command()
                 continue
             elif command.name == "PING":
-                ping_command(command, yaml_build_data)
+                ping_command(command, yaml_build_data, serial_link)
                 continue
 
 

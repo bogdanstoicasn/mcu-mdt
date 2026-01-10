@@ -1,15 +1,15 @@
 import os
 from common.dataclasses import Command
 from common.protocol import serialize_command_packet
-from common.uart_io import send_packet_to_mcu
+from common.uart_io import send_packet_to_mcu, MCUSerialLink
+from common.enums import FenceType
 
 def intro_text():
 
     intro_string = """
-PC Tool Command Line Interface
-==========================
-Connect the device. If already connected, disconnect and reconnect.
-Type HELP for available commands.
+MCU-MDT - Microcontroller Memory Debug Tool
+---------------------------------------
+Type 'HELP' to see available commands.
 """
 
     return intro_string
@@ -31,13 +31,37 @@ Available Commands:
 """
     print(help_text)
 
+def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
+    """
+    Creates and returns an MCUSerialLink instance for the given port and baudrate.
+    """
+    
+    # We create here the startup ping to synchronize with the MCU
+    startup_ping_command = Command(
+        name="PING",
+        id=ping_command_id,
+        mem=None,
+        address=0,
+        data=None
+    )
+    startup_ping_packet = serialize_command_packet(startup_ping_command)
+
+    serial_link = MCUSerialLink(
+        port=port,
+        baudrate=baudrate,
+        startup_ping=startup_ping_packet
+    )
+
+    return serial_link
+
+
 def clear_command():
     os.system('cls' if os.name == 'nt' else 'clear')
 
-def ping_command(command: Command, yaml_build_data=None):
+def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None):
     byte_packet = serialize_command_packet(command)
-    print(f"Serialized PING Command Packet: {byte_packet.hex()}")
-    send_packet_to_mcu(byte_packet=byte_packet, port=yaml_build_data['port'])
+    ack = serial_link.send_packet(byte_packet)
+    print(f"Ping command sent. Echoed {len(ack)} bytes: {ack.hex()}")
 
 def execute_command(command: Command):
     if command.data is None or len(command.data) == 0:

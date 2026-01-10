@@ -14,3 +14,13 @@ class MemType(IntEnum):
     RAM = 0
     FLASH = 1
     EEPROM = 2
+
+class FenceType(IntEnum):
+    START_BYTE = 0x7E
+    END_BYTE = 0x7F
+
+class UtilEnum(IntEnum):
+    BAUDRATE_19200 = 19200
+    WORD_SIZE = 4
+    HALF_WORD_SIZE = 2
+    COMMUNICATION_TIMEOUT = 5.0  # in seconds

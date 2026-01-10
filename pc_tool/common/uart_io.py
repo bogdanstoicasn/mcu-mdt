@@ -1,50 +1,84 @@
 import serial
 import time
 
-def send_packet_to_mcu(byte_packet: bytes, port: str, baudrate: int = 19200):
-    """
-    Sends a packet to the MCU and reads back all echoed bytes.
-    Handles Arduino-style USB reset on port open.
+class MCUSerialLink:
+    def __init__(
+        self,
+        port: str,
+        baudrate: int = 19200,
+        timeout: float = 1.0,
+        reset_delay: float = 2.0,
+        startup_ping: bytes | None = None
+    ):
+        self.port = port
+        self.baudrate = baudrate
+        self.timeout = timeout
+        self.reset_delay = reset_delay
+        self.startup_ping = startup_ping
+        self.ser = None
     
-    Returns the echoed bytes (bytearray).
-    """
-    try:
-        with serial.Serial(
-            port,
-            baudrate,
-            timeout=2.0,      # wait for bytes if they arrive slowly
+    def open(self):
+        if self.ser is not None and self.ser.is_open:
+            return
+        
+        self.ser = serial.Serial(
+            self.port,
+            self.baudrate,
+            timeout=self.timeout,
             xonxoff=False,
             rtscts=False,
             dsrdtr=False
-        ) as ser:
+        )
 
-            # Delay for Arduino/ATmega328p auto-reset
-            time.sleep(2.0)
+        if self.reset_delay > 0:
+            time.sleep(self.reset_delay)
+        
+        if self.startup_ping:
+            self._synch_with_mcu()
+    
+    def close(self):
+        if self.ser:
+            try:
+                # flush input/output to avoid blocking
+                self.ser.reset_input_buffer()
+                self.ser.reset_output_buffer()
+            except Exception:
+                pass
+            self.ser.close()
+            self.ser = None
+        
+    def _synch_with_mcu(self):
+        self.ser.reset_input_buffer()
+        self.ser.reset_output_buffer()
 
-            # Send packet
-            ser.write(byte_packet)
-            ser.flush()
-            print(f"Sent {len(byte_packet)} bytes to MCU on {port}")
+        self.ser.write(self.startup_ping)
+        self.ser.flush()
 
-            # Read echoed bytes in a loop
-            echoed = bytearray()
-            start = time.time()
-            while len(echoed) < len(byte_packet):
-                if ser.in_waiting > 0:
-                    echoed += ser.read(ser.in_waiting)
+        echoed = bytearray()
+        start = time.time()
+        while len(echoed) < len(self.startup_ping):
+            if self.ser.in_waiting > 0:
+                echoed += self.ser.read(self.ser.in_waiting)
 
-                # Safety timeout
-                if time.time() - start > 5.0:  # 5 sec max
-                    break
+            if time.time() - start > 5.0:
+                break
+        if len(echoed) != len(self.startup_ping):
+            print(f"Warning: Startup ping echo mismatch: expected {len(self.startup_ping)}, got {len(echoed)}")
+    
+    def send_packet(self, byte_packet: bytes):
+        if self.ser is None or not self.ser.is_open:
+            raise RuntimeError("Serial port is not open.")
+        
+        self.ser.write(byte_packet)
+        self.ser.flush()
 
-            print(f"Received {len(echoed)} bytes")
-            print("Echoed bytes:", echoed.hex())
+        echoed = bytearray()
+        start = time.time()
+        while len(echoed) < len(byte_packet):
+            if self.ser.in_waiting > 0:
+                echoed += self.ser.read(self.ser.in_waiting)
 
-            if len(echoed) != len(byte_packet):
-                print(f"Mismatch: expected {len(byte_packet)}, got {len(echoed)}")
+            if time.time() - start > 5.0:
+                break
 
-            return echoed
-
-    except Exception as e:
-        print(f"Error sending packet: {e}")
-        return None
+        return echoed

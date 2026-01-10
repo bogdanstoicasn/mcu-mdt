@@ -41,3 +41,7 @@ To build the MCU-MDT project, follow these steps:
     cd ./pc_tool
     python3 main.py <path_to_config.yaml>
     ```
+
+## BEWARE
+
+To keep the microcontroller lightweight and portable across low-resource devices, all semantic validation (address ranges, memory legality, command correctness) is performed on the PC side using ATDF metadata. The MCU firmware implements only protocol framing, CRC validation, and command execution.
