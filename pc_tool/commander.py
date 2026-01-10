@@ -1,7 +1,7 @@
 import os
 from common.dataclasses import Command
 from common.protocol import serialize_command_packet
-from common.uart_io import send_packet_to_mcu, MCUSerialLink
+from common.uart_io import MCUSerialLink
 from common.enums import FenceType
 
 def intro_text():

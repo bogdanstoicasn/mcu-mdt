@@ -29,8 +29,11 @@ if __name__ == "__main__":
         baudrate=yaml_build_data.get('baudrate', 19200),
         ping_command_id=commands['PING']['id']
     )
-
-    serial_link.open()
+    try:
+        serial_link.open()
+    except Exception as e:
+        print(f"Failed to open serial link: {e}")
+        exit(1)
 
     print(intro_text())
 
