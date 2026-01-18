@@ -3,13 +3,17 @@ from common.dataclasses import Command, CommandPacket, AckPacket
 
 def calculate_crc16(data: bytes) -> int:
     crc = 0xFFFF
+
     for b in data:
-        crc ^= b
-        for _ in range(8):
-            if crc & 1:
-                crc = (crc >> 1) ^ 0xA001  # example CRC-16-IBM
-            else:
-                crc >>= 1
+        x = ((crc >> 8) ^ b) & 0xFF
+        x ^= (x >> 4)
+        crc = (
+            ((crc << 8) & 0xFFFF) ^
+            ((x << 12) & 0xFFFF) ^
+            ((x << 5) & 0xFFFF) ^
+            x
+        )
+
     return crc & 0xFFFF
 
 
