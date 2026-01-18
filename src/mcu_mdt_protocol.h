@@ -1,0 +1,54 @@
+#ifndef MCU_MDT_PROTOCOL_H
+#define MCU_MDT_PROTOCOL_H
+
+#include <stdint.h>
+#include "mcu_mdt_config.h"
+
+/* Protocol specific definitions */ 
+
+#define START_BYTE 0xAA
+#define END_BYTE   0x55
+
+/* For simplicity the packets with more data will be split in multiple packets
+ * Example: if data filed is 16 => the split is 16 / 4 = 4 packets
+ */
+#define MDT_PACKET_SIZE   17
+#define MDT_FENCE_SIZE  4
+#define MDT_PACKET_MAX_SIZE (MDT_PACKET_SIZE + MDT_FENCE_SIZE)
+
+#define MDT_DATA_MAX_SIZE 4
+
+#define MDT_OFFSET_CMD_ID  1
+#define MDT_OFFSET_FLAGS   2
+#define MDT_OFFSET_MEM_ID  3
+#define MDT_OFFSET_ADDRESS 4
+#define MDT_OFFSET_LENGTH  8
+#define MDT_OFFSET_DATA    10
+#define MDT_OFFSET_CRC     14
+
+typedef enum {
+    MDT_FLAG_MEM_ID_PRESENT = 0x01,
+    MDT_FLAG_LENGTH_PRESENT  = 0x02,
+    MDT_FLAG_ACK_NACK        = 0x04
+} mdt_flags_t;
+
+typedef enum {
+    MDT_CMD_READ_MEM    = 0x01,
+    MDT_CMD_WRITE_MEM   = 0x02,
+    MDT_CMD_READ_REG    = 0x03,
+    MDT_CMD_WRITE_REG   = 0x04,
+    MDT_CMD_PING        = 0x05,
+    MDT_CMD_RESET       = 0x06
+} mdt_cmd_t;
+
+typedef struct {
+    uint8_t cmd_id; /* Command ID */
+    uint8_t flags;  /* Flags */
+    uint8_t mem_id; /* Memory ID */
+    uint32_t address; /* Address */
+    uint16_t length;  /* Length */
+    uint8_t data[MDT_DATA_MAX_SIZE]; /* Data */
+    uint16_t crc;    /* CRC16 */
+} mdt_packet_t;
+
+#endif /* MCU_MDT_PROTOCOL_H */

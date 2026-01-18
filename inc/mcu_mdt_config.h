@@ -12,7 +12,6 @@
 #define MDT_TX_BUFFER_SIZE   128
 
 /* Protocol settings */
-#define MDT_PACKET_MAX_SIZE  128
 #define MDT_TIMEOUT_MS       1000
 
 #ifndef F_CPU

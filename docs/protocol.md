@@ -32,3 +32,8 @@ Deserialization:
 - The packet is deserialized by reading the fields in the order specified above.
 - The presence of optional fields is determined based on the command type and flags.
 - The CRC is verified if present, ensuring data integrity.
+
+Flags:
+- Bit 0: mem_id present
+- Bit 1: length present
+- Bit 2: ACK/NACK
