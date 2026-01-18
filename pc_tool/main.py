@@ -71,7 +71,7 @@ if __name__ == "__main__":
                 print("Command validation failed.")
                 continue
 
-            execute_command(command)
+            execute_command(command, serial_link)
         except EOFError as end_of_file:
             print("\nExiting...")
             break

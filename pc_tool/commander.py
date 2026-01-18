@@ -63,11 +63,14 @@ def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialL
     ack = serial_link.send_packet(byte_packet)
     print(f"Ping command sent. Echoed {len(ack)} bytes: {ack.hex()}")
 
-def execute_command(command: Command):
+def execute_command(command: Command, serial_link: MCUSerialLink = None):
     if command.data is None or len(command.data) == 0:
         # No data, just a single packet
         byte_packet = serialize_command_packet(command)
         print(f"Serialized Command Packet: {byte_packet.hex()}")
+        if serial_link:
+            ack = serial_link.send_packet(byte_packet)
+            print(f"Received ACK: {ack.hex() if ack else 'No response'}")
         return
 
     # Split data into 4-byte chunks
@@ -88,4 +91,6 @@ def execute_command(command: Command):
 
         byte_packet = serialize_command_packet(chunk_command)
         print(f"Serialized Command Packet: {byte_packet.hex()}")
-        # Here you would actually send byte_packet over UART
+        if serial_link:
+            ack = serial_link.send_packet(byte_packet)
+            print(f"Received ACK: {ack.hex() if ack else 'No response'}")
