@@ -16,6 +16,7 @@ Fields:
 - Start Byte: Constant value 0xAA indicating the start of the packet.
 - Cmd ID: Command identifier (1 byte).
 - Flags: Command flags (1 byte).
+- Sequence Number: when writing and the data is split in multiple packets, this field is used to identify the order of the packets (1 byte).
 - Mem ID: Optional memory identifier (1 byte), present if the command requires it.
 - Address: Target address (4 bytes, little-endian).
 - Length: Optional length field (2 bytes, little-endian), present if the command involves data transfer.

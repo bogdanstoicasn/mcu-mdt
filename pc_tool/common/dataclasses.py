@@ -13,6 +13,7 @@ class Command:
 class CommandPacket:
     cmd_id: int = 0 # 1 byte
     flags: int = 0 # 1 byte
+    seq: int = 0 # 1 byte
     mem_id: int | None = None # 1 byte
     address: int = 0 # 4 bytes
     length: int | None = None # 2 bytes (little endian)
@@ -21,12 +22,3 @@ class CommandPacket:
 
     START_BYTE: int = 0xAA
     END_BYTE: int = 0x55
-
-@dataclass
-class AckPacket:
-    status: int = 0 # 1 byte
-    cmd_id: int = 0 # 1 byte
-    crc: int | None = None # at serialization time
-
-    START_BYTE: int = 0xCC
-    END_BYTE: int = 0x33

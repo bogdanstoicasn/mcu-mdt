@@ -3,6 +3,22 @@ import os
 import xml.etree.ElementTree as ET
 from logger import log, LogLevel
 
+class ConfigLoader:
+    def __init__(
+        self,
+        build_info_path: str,
+        commands_path: str = "configs/commands.yaml",
+        platforms_path: str = "configs/platforms",
+    ):
+        self.yaml_build_data = load_configs(build_info_path)
+        self.yaml_command_data = load_configs(commands_path)
+        self.yaml_platform_data = load_platforms(platforms_path)
+        self.atdf_data = load_atdf_for_mcu(
+            self.yaml_build_data['mcu'],
+            atdf_root="atdf"
+        )
+
+
 def load_configs(file_path: str) -> dict:
     """Load configurations from a YAML file."""
     with open(file_path, 'r') as f:

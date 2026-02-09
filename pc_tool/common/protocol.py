@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from common.dataclasses import Command, CommandPacket, AckPacket
+from common.dataclasses import Command, CommandPacket
 
 def calculate_crc16(data: bytes) -> int:
     crc = 0xFFFF
@@ -17,9 +17,10 @@ def calculate_crc16(data: bytes) -> int:
     return crc & 0xFFFF
 
 
-def serialize_command_packet(command: Command) -> bytes:
+def serialize_command_packet(command: Command, seq: int) -> bytes:
     packet = CommandPacket(
         cmd_id=command.id,
+        seq=seq,
         mem_id=command.mem,
         address=command.address,
         length=4,             # always 4 bytes
@@ -39,6 +40,8 @@ def serialize_command_packet(command: Command) -> bytes:
         flags |= 0x01  # mem_id present
     flags |= 0x02      # length always present
     serialized.append(flags)
+
+    serialized.append(packet.seq)              # seq
 
     serialized.append(packet.mem_id if packet.mem_id is not None else 0x00)  # mem_id
 

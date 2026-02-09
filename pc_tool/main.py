@@ -1,4 +1,4 @@
-from loader import load_configs, load_platforms, load_atdf_for_mcu
+from loader import ConfigLoader
 from parser import parse_line, parse_args
 from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command
 from validator import validate_commands
@@ -8,25 +8,18 @@ if __name__ == "__main__":
 
     build_info_path = args.build_info
 
-    yaml_build_data = load_configs(build_info_path)
+    loader = ConfigLoader(build_info_path)
 
-    yaml_command_data = load_configs('configs/commands.yaml')
+    commands = loader.yaml_command_data['commands']
 
-    yaml_platform_data = load_platforms('configs/platforms')
+    mem_types = loader.yaml_command_data['mem_types']
 
-    commands = yaml_command_data['commands']
-
-    mem_types = yaml_command_data['mem_types']
-
-    atdf_data = load_atdf_for_mcu(
-        yaml_build_data['mcu'],
-        atdf_root="atdf"
-    )
+    atdf_data = loader.atdf_data
 
     # Start the connection to the MCU
     serial_link = serial_link_command(
-        port=yaml_build_data['port'],
-        baudrate=yaml_build_data.get('baudrate', 19200),
+        port=loader.yaml_build_data['port'],
+        baudrate=loader.yaml_build_data.get('baudrate', 19200),
         ping_command_id=commands['PING']['id']
     )
     try:
@@ -61,7 +54,7 @@ if __name__ == "__main__":
                 clear_command()
                 continue
             elif command.name == "PING":
-                ping_command(command, yaml_build_data, serial_link)
+                ping_command(command, loader.yaml_build_data, serial_link)
                 continue
 
 
