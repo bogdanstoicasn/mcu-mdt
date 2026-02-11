@@ -44,4 +44,4 @@ To build the MCU-MDT project, follow these steps:
 
 ## BEWARE
 
-To keep the microcontroller lightweight and portable across low-resource devices, all semantic validation (address ranges, memory legality, command correctness) is performed on the PC side using ATDF metadata. The MCU firmware implements only protocol framing, CRC validation, and command execution.
+To keep the microcontroller lightweight and portable across low-resource devices, all semantic validation (address ranges, memory legality, command correctness) is performed on the PC side using ATDF/SVD metadata. The MCU firmware implements only protocol framing, CRC validation, and command execution.

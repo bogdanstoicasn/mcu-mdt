@@ -105,6 +105,8 @@ void mcu_mdt_poll(void)
         /* Full packet received */
         if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
+            // put the ack byte to 1
+            rx_packet.buf[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
             /* Echo back the packet */
             for (uint16_t i = 0; i < MDT_PACKET_SIZE; i++)
             {

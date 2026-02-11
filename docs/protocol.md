@@ -38,3 +38,5 @@ Flags:
 - Bit 0: mem_id present
 - Bit 1: length present
 - Bit 2: ACK/NACK
+- Bit 3: Sequence number present
+- Bit 4: Last packet in sequence (when sequence number is used)

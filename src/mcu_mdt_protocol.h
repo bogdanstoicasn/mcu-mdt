@@ -18,18 +18,23 @@
 
 #define MDT_DATA_MAX_SIZE 4
 
-#define MDT_OFFSET_CMD_ID  1
-#define MDT_OFFSET_FLAGS   2
-#define MDT_OFFSET_MEM_ID  3
-#define MDT_OFFSET_ADDRESS 4
-#define MDT_OFFSET_LENGTH  8
-#define MDT_OFFSET_DATA    10
-#define MDT_OFFSET_CRC     14
+#define MDT_OFFSET_START     0
+#define MDT_OFFSET_CMD_ID    1
+#define MDT_OFFSET_FLAGS     2
+#define MDT_OFFSET_SEQ       3
+#define MDT_OFFSET_MEM_ID    4
+#define MDT_OFFSET_ADDRESS   5
+#define MDT_OFFSET_LENGTH    9
+#define MDT_OFFSET_DATA      11
+#define MDT_OFFSET_CRC       15
+#define MDT_OFFSET_END       17
 
 typedef enum {
     MDT_FLAG_MEM_ID_PRESENT = 0x01,
     MDT_FLAG_LENGTH_PRESENT  = 0x02,
-    MDT_FLAG_ACK_NACK        = 0x04
+    MDT_FLAG_ACK_NACK        = 0x04,
+    MDT_FLAG_SEQ_PRESENT     = 0x08,
+    MDT_FLAG_LAST_PACKET     = 0x10
 } mdt_flags_t;
 
 typedef enum {
@@ -44,6 +49,7 @@ typedef enum {
 typedef struct {
     uint8_t cmd_id; /* Command ID */
     uint8_t flags;  /* Flags */
+    uint8_t seq;    /* Sequence number for multi-packet commands */
     uint8_t mem_id; /* Memory ID */
     uint32_t address; /* Address */
     uint16_t length;  /* Length */
