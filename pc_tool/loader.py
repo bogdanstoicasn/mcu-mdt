@@ -2,6 +2,7 @@ import yaml
 import os
 import xml.etree.ElementTree as ET
 from logger import log, LogLevel
+from common.enums import MCUPlatforms
 
 class ConfigLoader:
     def __init__(
@@ -13,10 +14,12 @@ class ConfigLoader:
         self.yaml_build_data = load_configs(build_info_path)
         self.yaml_command_data = load_configs(commands_path)
         self.yaml_platform_data = load_platforms(platforms_path)
-        self.atdf_data = load_atdf_for_mcu(
-            self.yaml_build_data['mcu'],
-            atdf_root="atdf"
-        )
+
+        mcu = self.yaml_build_data.get('mcu')
+        platform = self.yaml_build_data.get('platform')
+
+
+        self.mcu_metadata = load_mcu_metadata(mcu, platform)
 
 
 def load_configs(file_path: str) -> dict:
@@ -227,3 +230,26 @@ def load_atdf_for_mcu(mcu_name: str, atdf_root: str) -> dict:
                 })
 
     return result
+
+def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
+    """
+    Placeholder for SVD parsing logic for ARM Cortex-M MCUs.
+    Similar structure to ATDF but with ARM-specific details.
+    """
+    raise NotImplementedError("SVD parsing not implemented yet")
+
+def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
+
+    platform = mcu_platform.lower()
+
+    if platform == MCUPlatforms.AVR:
+        return load_atdf_for_mcu(mcu_name, atdf_root="mcu_db")
+    elif platform == MCUPlatforms.PIC:
+        # Placeholder for PIC metadata loading logic
+        raise NotImplementedError("PIC platform support not implemented yet")
+    elif platform == MCUPlatforms.STM:
+        # Placeholder for STM metadata loading logic
+        raise NotImplementedError("STM platform support not implemented yet")
+    else:
+        raise ValueError(f"Unsupported MCU platform: {platform}")
+

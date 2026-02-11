@@ -17,7 +17,7 @@ def calculate_crc16(data: bytes) -> int:
     return crc & 0xFFFF
 
 
-def serialize_command_packet(command: Command, seq: int) -> bytes:
+def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool) -> bytes:
     packet = CommandPacket(
         cmd_id=command.id,
         seq=seq,
@@ -39,6 +39,12 @@ def serialize_command_packet(command: Command, seq: int) -> bytes:
     if packet.mem_id is not None:
         flags |= 0x01  # mem_id present
     flags |= 0x02      # length always present
+
+    if multi:
+        flags |= 0x08  # sequence number present
+        if last:
+            flags |= 0x10  # last packet in sequence
+
     serialized.append(flags)
 
     serialized.append(packet.seq)              # seq

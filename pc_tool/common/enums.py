@@ -1,4 +1,4 @@
-from enum import IntEnum
+from enum import IntEnum,  StrEnum
 
 class CommandId(IntEnum):
     READ_MEM = 0x01
@@ -18,6 +18,11 @@ class MemType(IntEnum):
 class FenceType(IntEnum):
     START_BYTE = 0x7E
     END_BYTE = 0x7F
+
+class MCUPlatforms(StrEnum):
+    AVR = "avr"
+    PIC = "pic"
+    STM = "stm"
 
 class UtilEnum(IntEnum):
     BAUDRATE_19200 = 19200

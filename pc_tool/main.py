@@ -14,7 +14,7 @@ if __name__ == "__main__":
 
     mem_types = loader.yaml_command_data['mem_types']
 
-    atdf_data = loader.atdf_data
+    mcu_metadata = loader.mcu_metadata
 
     # Start the connection to the MCU
     serial_link = serial_link_command(
@@ -60,7 +60,7 @@ if __name__ == "__main__":
 
             print(f"Parsed Command: {command}")
 
-            if not validate_commands(command, atdf_data):
+            if not validate_commands(command, mcu_metadata):
                 print("Command validation failed.")
                 continue
 

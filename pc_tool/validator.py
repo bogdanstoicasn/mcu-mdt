@@ -2,26 +2,26 @@ from click import command
 from common.dataclasses import Command
 from common.enums import CommandId, MemType
 
-def validate_commands(operation: Command, atdf_data: dict) -> bool:
+def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate the command against the ATDF data.
 
     Args:
         operation (Command): The command to validate.
-        atdf_data (dict): The ATDF data containing registers, memories, etc.
+        mcu_metadata (dict): The MCU metadata containing registers, memories, etc.
 
     Raises:
         TODO:
     """
     if operation.id == CommandId.READ_MEM:
         print(f"Validating READ_MEM command: {operation}")
-        return validate_read_mem(operation, atdf_data)
+        return validate_read_mem(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_MEM:
         print(f"Validating WRITE_MEM command: {operation}")
-        return validate_write_mem(operation, atdf_data)
+        return validate_write_mem(operation, mcu_metadata)
     elif operation.id == CommandId.READ_REG:
         print(f"Validating READ_REG command: {operation}")
-        return validate_read_reg(operation, atdf_data)
+        return validate_read_reg(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_REG:
         print(f"Validating WRITE_REG command: {operation}")
     else:
@@ -29,13 +29,13 @@ def validate_commands(operation: Command, atdf_data: dict) -> bool:
 
     return False
 
-def validate_read_mem(operation: Command, atdf_data: dict) -> bool:
+def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate a READ_MEM command.
 
     Args:
         operation (Command): The READ_MEM command to validate.
-        atdf_data (dict): The ATDF data containing memory definitions.
+        mcu_metadata (dict): The MCU metadata containing memory definitions.
 
     Returns:
         bool: True if valid, False otherwise.
@@ -47,10 +47,10 @@ def validate_read_mem(operation: Command, atdf_data: dict) -> bool:
         print(f"Invalid memory type: {operation.mem}")
         return False
     
-    memories = atdf_data.get('memories', {})
+    memories = mcu_metadata.get('memories', {})
 
     if not memories:
-        print("No memory definitions found in ATDF data.")
+        print("No memory definitions found in MCU metadata.")
         return False
     
     addr = operation.address
@@ -95,20 +95,20 @@ def validate_read_mem(operation: Command, atdf_data: dict) -> bool:
 
     return False
 
-def validate_read_reg(operation: Command, atdf_data: dict) -> bool:
+def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate a READ_REG command by absolute address.
     Assumes reading the full register (length = register size).
 
     Args:
         operation (Command): Command with .address
-        atdf_data (dict): Parsed ATDF
+        mcu_metadata (dict): Parsed ATDF
 
     Returns:
         bool: True if the address corresponds to a readable register, False otherwise
     """
     addr = operation.address
-    modules = atdf_data.get("modules", {})
+    modules = mcu_metadata.get("modules", {})
 
     for module_name, module in modules.items():
         for rg_name, rg in module.get("register_groups", {}).items():
@@ -137,13 +137,13 @@ def validate_read_reg(operation: Command, atdf_data: dict) -> bool:
     print(f"No register found at address 0x{operation.address:X}")
     return False
 
-def validate_write_mem(operation: Command, atdf_data: dict) -> bool:
+def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate a WRITE_MEM command.
 
     Args:
         operation (Command): The WRITE_MEM command to validate.
-        atdf_data (dict): The ATDF data containing memory definitions.
+        mcu_metadata (dict): The MCU metadata containing memory definitions.
 
     Returns:
         bool: True if valid, False otherwise.
@@ -160,9 +160,9 @@ def validate_write_mem(operation: Command, atdf_data: dict) -> bool:
         print(f"Invalid memory type: {operation.mem}")
         return False
 
-    memories = atdf_data.get("memories", {})
+    memories = mcu_metadata.get("memories", {})
     if not memories:
-        print("No memory-segment definitions found in ATDF data.")
+        print("No memory-segment definitions found in MCU metadata.")
         return False
 
     addr = operation.address

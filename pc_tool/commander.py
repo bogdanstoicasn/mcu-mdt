@@ -44,7 +44,7 @@ def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int =
         address=0,
         data=None
     )
-    startup_ping_packet = serialize_command_packet(startup_ping_command, seq=0)  # seq can be 0 for startup ping
+    startup_ping_packet = serialize_command_packet(startup_ping_command, seq=0, multi=False, last=False)  # seq can be 0 for startup ping
 
     serial_link = MCUSerialLink(
         port=port,
@@ -59,14 +59,14 @@ def clear_command():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None):
-    byte_packet = serialize_command_packet(command, seq=0)  # seq can be 0 for ping command
+    byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)  # seq can be 0 for ping command
     ack = serial_link.send_packet(byte_packet)
     print(f"Ping command sent. Echoed {len(ack)} bytes: {ack.hex()}")
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
     if command.data is None or len(command.data) == 0:
         # No data, just a single packet
-        byte_packet = serialize_command_packet(command, seq=0)  # seq can be 0 for simple commands
+        byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)  # seq can be 0 for simple commands
         print(f"Serialized Command Packet: {byte_packet.hex()}")
         if serial_link:
             ack = serial_link.send_packet(byte_packet)
@@ -91,7 +91,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
             data=chunk
         )
 
-        byte_packet = serialize_command_packet(chunk_command, seq=seq)
+        byte_packet = serialize_command_packet(chunk_command, seq=seq, multi=True, last=(i + 4 >= len(command.data)))
         print(f"Serialized Command Packet: {byte_packet.hex()}")
         if serial_link:
             ack = serial_link.send_packet(byte_packet)
