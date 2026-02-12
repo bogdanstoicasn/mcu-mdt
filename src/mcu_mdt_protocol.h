@@ -6,8 +6,8 @@
 
 /* Protocol specific definitions */ 
 
-#define START_BYTE 0xAA
-#define END_BYTE   0x55
+#define MDT_START_BYTE 0xAA
+#define MDT_END_BYTE   0x55
 
 /* For simplicity the packets with more data will be split in multiple packets
  * Example: if data filed is 16 => the split is 16 / 4 = 4 packets

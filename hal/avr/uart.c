@@ -5,6 +5,8 @@
 
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
 
+static ring_buffer_t tx_buffer = { .head = 0, .tail = 0 };
+
 static inline uint8_t rb_push(ring_buffer_t *rb, uint8_t data)
 {
     uint8_t next_head = (rb->head + 1) % MDT_RX_BUFFER_SIZE;
@@ -55,10 +57,16 @@ void uart_init(uint32_t baudrate)
     sei();
 }
 
-void uart_putc(uint8_t data)
+uint8_t uart_putc(uint8_t data)
 {
-    while (!(UCSR0A & (1 << UDRE0)));
-    UDR0 = data;
+    if (!rb_push(&tx_buffer, data))
+    {
+        return 0; // Buffer full, drop data
+    }
+    
+    UCSR0B |= (1 << UDRIE0); // Enable Data Register Empty Interrupt
+
+    return 1; // Success
 }
 
 uint8_t uart_getc_nonblocking(uint8_t *data)
@@ -66,7 +74,22 @@ uint8_t uart_getc_nonblocking(uint8_t *data)
     return rb_pop(&rx_buffer, data);
 }
 
+/* Interrupt Service Routines */
+
 ISR(USART_RX_vect)
 {
     rb_push(&rx_buffer, UDR0);
+}
+
+ISR(USART_UDRE_vect)
+{
+    uint8_t data;
+    if (rb_pop(&tx_buffer, &data))
+    {
+        UDR0 = data; // Send next byte
+    }
+    else
+    {
+        UCSR0B &= ~(1 << UDRIE0); // No more data to send, disable interrupt
+    }
 }

@@ -57,7 +57,7 @@ static uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
         return 0;
     }
 
-    if (buf[0] != START_BYTE || buf[len - 1] != END_BYTE)
+    if (buf[0] != MDT_START_BYTE || buf[len - 1] != MDT_END_BYTE)
     {
         return 0;
     }
@@ -81,42 +81,82 @@ void mcu_mdt_poll(void)
 {
     uint8_t byte;
 
-    /* Keep reading all available bytes */
     while (hal_uart_rx(&byte))
     {
-        /* Start collecting packet if not started */
+        /* Wait for START byte */
         if (!rx_packet.started)
         {
+            if (byte != MDT_START_BYTE)
+                continue;
+
             rx_packet.started = 1;
             rx_packet.idx = 0;
+            rx_packet.buf[rx_packet.idx++] = byte;
+            continue;
         }
 
-        /* Prevent overflow (should never happen) */
+        /* Prevent overflow */
         if (rx_packet.idx >= MDT_PACKET_MAX_SIZE)
         {
             rx_packet.started = 0;
             rx_packet.idx = 0;
-            return; // buffer overrun
+            continue;
         }
 
-        /* Store received byte */
+        /* Store byte */
         rx_packet.buf[rx_packet.idx++] = byte;
 
         /* Full packet received */
-        if (rx_packet.idx >= MDT_PACKET_SIZE)
+        if (rx_packet.idx == MDT_PACKET_SIZE)
         {
-            // put the ack byte to 1
-            rx_packet.buf[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
-            /* Echo back the packet */
-            for (uint16_t i = 0; i < MDT_PACKET_SIZE; i++)
+            uint8_t valid = 1;
+
+            /* END byte check */
+            if (rx_packet.buf[MDT_OFFSET_END] != MDT_END_BYTE)
+            {
+                valid = 0;
+            }
+
+            /* CRC check */
+            if (valid)
+            {
+                uint16_t rx_crc =
+                    rx_packet.buf[MDT_OFFSET_CRC] |
+                    ((uint16_t)rx_packet.buf[MDT_OFFSET_CRC + 1] << 8);
+
+                uint16_t calc_crc =
+                    mdt_crc16(
+                        &rx_packet.buf[MDT_OFFSET_CMD_ID],
+                        MDT_PACKET_SIZE
+                        - MDT_OFFSET_CMD_ID
+                        - 2   /* CRC */
+                        - 1   /* END */
+                    );
+
+                if (rx_crc != calc_crc)
+                    valid = 0;
+            }
+
+            /* ACK / NACK */
+            if (valid)
+            {
+                rx_packet.buf[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
+                /* TODO: command dispatch */
+            }
+            else
+            {
+                rx_packet.buf[MDT_OFFSET_FLAGS] &= ~MDT_FLAG_ACK_NACK;
+            }
+
+            /* Send reply */
+            for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
             {
                 hal_uart_tx(rx_packet.buf[i]);
             }
 
-            /* Reset for next packet */
+            /* Reset RX state */
             rx_packet.started = 0;
             rx_packet.idx = 0;
-            mdt_memset(rx_packet.buf, 0, MDT_PACKET_MAX_SIZE);
         }
     }
 }
