@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from common.dataclasses import Command, CommandPacket
+from common.enums import MDT_PACKET_SIZE, MDTOffset
 
 def calculate_crc16(data: bytes) -> int:
     crc = 0xFFFF
@@ -68,3 +69,33 @@ def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool
     serialized.append(packet.END_BYTE)
 
     return bytes(serialized)
+
+def validate_command_packet(packet: bytes) -> bool:
+    """Validate an MDT packet received from the MCU."""
+    if len(packet) != MDT_PACKET_SIZE:
+        print(f"Invalid packet length: {len(packet)}. Expected: {MDT_PACKET_SIZE}")
+        return False
+
+    if packet[MDTOffset.START] != CommandPacket.START_BYTE:
+        print(f"Invalid start byte: {packet[MDTOffset.START]:02X}. Expected: {CommandPacket.START_BYTE:02X}")
+        return False
+
+    if packet[MDTOffset.END] != CommandPacket.END_BYTE:
+        print(f"Invalid end byte: {packet[MDTOffset.END]:02X}. Expected: {CommandPacket.END_BYTE:02X}")
+        return False
+
+    # Validate CRC16
+    crc_received = int.from_bytes(packet[MDTOffset.CRC : MDTOffset.CRC + 2], byteorder="little")
+    crc_calculated = calculate_crc16(packet[MDTOffset.CMD_ID : MDTOffset.CRC])
+
+    if crc_received != crc_calculated:
+        print(f"CRC mismatch: received {crc_received:04X}, calculated {crc_calculated:04X}")
+        return False
+
+    # Check if the command error/status bit is set (5th bit of flags)
+    flags = packet[MDTOffset.FLAGS]
+    if flags & 0x20:  # MDT_FLAG_ERROR / custom status bit
+        print("Command execution error indicated by status flag.")
+        return False
+
+    return True

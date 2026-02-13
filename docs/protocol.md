@@ -40,3 +40,4 @@ Flags:
 - Bit 2: ACK/NACK
 - Bit 3: Sequence number present
 - Bit 4: Last packet in sequence (when sequence number is used)
+- Bit 5: Command status (0 = success, 1 = error)

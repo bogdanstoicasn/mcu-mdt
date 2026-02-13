@@ -1,6 +1,6 @@
 import os
 from common.dataclasses import Command
-from common.protocol import serialize_command_packet
+from common.protocol import serialize_command_packet, validate_command_packet
 from common.uart_io import MCUSerialLink
 from common.enums import FenceType, UtilEnum
 
@@ -60,8 +60,11 @@ def clear_command():
 
 def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None):
     byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)  # seq can be 0 for ping command
+    print(f"Serialized Ping Command Packet: {byte_packet.hex()}")
     ack = serial_link.send_packet(byte_packet)
     print(f"Ping command sent. Echoed {len(ack)} bytes: {ack.hex()}")
+    if validate_command_packet(ack):
+        print("Command packet validation successful.")
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
     if command.data is None or len(command.data) == 0:
@@ -71,6 +74,8 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
         if serial_link:
             ack = serial_link.send_packet(byte_packet)
             print(f"Received ACK: {ack.hex() if ack else 'No response'}")
+            if validate_command_packet(ack):
+                print("Command packet validation successful.")
         return
 
     seq = 0

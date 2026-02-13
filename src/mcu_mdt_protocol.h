@@ -34,7 +34,8 @@ typedef enum {
     MDT_FLAG_LENGTH_PRESENT  = 0x02,
     MDT_FLAG_ACK_NACK        = 0x04,
     MDT_FLAG_SEQ_PRESENT     = 0x08,
-    MDT_FLAG_LAST_PACKET     = 0x10
+    MDT_FLAG_LAST_PACKET     = 0x10,
+    MDT_FLAG_STATUS_ERROR    = 0x20
 } mdt_flags_t;
 
 typedef enum {
@@ -56,5 +57,12 @@ typedef struct {
     uint8_t data[MDT_DATA_MAX_SIZE]; /* Data */
     uint16_t crc;    /* CRC16 */
 } mdt_packet_t;
+
+uint16_t mdt_crc16(const uint8_t *data, uint16_t len);
+
+/* Function to validate a MDT packet */
+uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len);
+
+uint8_t mdt_dispatch(uint8_t *buf);
 
 #endif /* MCU_MDT_PROTOCOL_H */
