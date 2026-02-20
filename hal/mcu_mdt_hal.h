@@ -22,4 +22,14 @@ void hal_uart_tx(uint8_t byte);
  */
 int hal_uart_rx(uint8_t *byte);
 
+/**
+ * @brief Read memory from the target device
+ * @param mem_zone Memory zone to read from (SRAM, FLASH, EEPROM)
+ * @param address Address to read from
+ * @param buffer Buffer where read data will be stored
+ * @param length Number of bytes to read
+ * @return 1 on success, 0 on failure
+ */
+uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length);
+
 #endif /* MCU_MDT_HAL_H */

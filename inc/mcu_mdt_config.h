@@ -15,7 +15,14 @@
 #define MDT_TIMEOUT_MS       1000
 
 #ifndef F_CPU
-#define F_CPU 16000000UL  // Default CPU frequency
+    #define F_CPU 16000000UL  // Default CPU frequency
 #endif
+
+/* Enum with the memory zones */
+typedef enum {
+    MDT_MEM_ZONE_SRAM = 0x00,
+    MDT_MEM_ZONE_FLASH = 0x01,
+    MDT_MEM_ZONE_EEPROM = 0x02
+} mdt_mem_zone_t;
 
 #endif // MCU_MDT_CONFIG_H

@@ -1,7 +1,6 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "uart.h"
-#include "mcu_mdt_config.h"
 
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
 

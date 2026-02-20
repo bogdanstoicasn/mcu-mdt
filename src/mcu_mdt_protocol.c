@@ -1,4 +1,5 @@
 #include "mcu_mdt_protocol.h"
+#include "mcu_mdt_hal.h"
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
 {
@@ -118,13 +119,21 @@ uint8_t mdt_dispatch(uint8_t *buf)
     switch (pkt.cmd_id)
     {
         case MDT_CMD_PING:
-            status = 1;
-            break;
+            return 1; /* Just ACK */
+
+        case MDT_CMD_READ_MEM:
+        {
+            status = hal_read_memory(pkt.mem_id, pkt.address, pkt.data, pkt.length);
+            if(!status)
+                return 0; /* Read failed */
+            mdt_encode(buf, &pkt); /* Reuse buffer for response */
+            return 1;
+        }
 
         default:
-            status = 0;
-            break;
+            return 0; /* Unknown command */
     }
 
-    return status;
+    return 0;
 }
+

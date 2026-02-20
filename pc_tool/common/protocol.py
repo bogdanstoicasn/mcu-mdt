@@ -24,7 +24,7 @@ def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool
         seq=seq,
         mem_id=command.mem,
         address=command.address,
-        length=4,             # always 4 bytes
+        length=min(command.length if command.length is not None else 0, 4),  # Ensure length does not exceed 4
         data=command.data if command.data is not None else b'\x00\x00\x00\x00'
     )
 
@@ -56,7 +56,7 @@ def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool
     serialized += packet.address.to_bytes(4, byteorder="little")
 
     # length field (always 4)
-    serialized += (4).to_bytes(2, byteorder="little")
+    serialized += packet.length.to_bytes(2, byteorder="little")
 
     # data (4 bytes)
     serialized += packet.data
