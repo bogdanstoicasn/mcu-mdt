@@ -119,21 +119,24 @@ uint8_t mdt_dispatch(uint8_t *buf)
     switch (pkt.cmd_id)
     {
         case MDT_CMD_PING:
-            return 1; /* Just ACK */
+            status = 1; /* Always succeed */
+            break;
 
         case MDT_CMD_READ_MEM:
-        {
             status = hal_read_memory(pkt.mem_id, pkt.address, pkt.data, pkt.length);
-            if(!status)
-                return 0; /* Read failed */
-            mdt_encode(buf, &pkt); /* Reuse buffer for response */
-            return 1;
-        }
+            break;
+
+        case MDT_CMD_READ_REG:
+            status = hal_read_register(pkt.address, pkt.data);
+            break;
 
         default:
-            return 0; /* Unknown command */
+            status = 0; /* Unknown command */
+            break;
     }
 
-    return 0;
+    mdt_encode(buf, &pkt); /* Re-encode response (ACK/NACK and data) */
+
+    return status;
 }
 

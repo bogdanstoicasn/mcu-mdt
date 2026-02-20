@@ -22,3 +22,8 @@ uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uin
 {
     return read_memory(mem_zone, address, buffer, length);
 }
+
+uint32_t hal_read_register(uint32_t address, uint8_t *buffer)
+{
+    return read_register(address, buffer);
+}
