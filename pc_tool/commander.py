@@ -83,6 +83,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
     # Split data into 4-byte chunks
     for i in range(0, len(command.data), 4):
         chunk = command.data[i:i+4]
+        actual_length = len(chunk)
         if len(chunk) != 4:
             # Pad the last chunk with zeros if needed (optional)
             chunk = chunk.ljust(4, b'\x00')
@@ -93,6 +94,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
             id=command.id,
             mem=command.mem,
             address=command.address + i,  # increment address
+            length=actual_length,
             data=chunk
         )
 
@@ -101,5 +103,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
         if serial_link:
             ack = serial_link.send_packet(byte_packet)
             print(f"Received ACK: {ack.hex() if ack else 'No response'}")
+            if validate_command_packet(ack):
+                print("Command packet validation successful.")
 
         seq  = (seq + 1) % 0xFF  # Increment sequence number, wrap around at 256

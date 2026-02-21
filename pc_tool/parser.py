@@ -20,6 +20,7 @@ def parse_args():
 def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None:
     """
     Parse CLI line into a Command object according to YAML definition.
+    Supports uint (with or without 0x prefix) and bytes (also 0x optional).
     """
     tokens = line.strip().split()
     if not tokens:
@@ -43,7 +44,7 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
             code=line)
         return None
 
-    # normalize mem_types keys to lowercase
+    # Normalize mem_types keys to lowercase
     mem_types_normalized = {k.lower(): v for k, v in mem_types.items()}
 
     parsed_args = {}
@@ -54,17 +55,25 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
             pvalue = tokens[i + 1]
 
             if ptype.startswith("uint"):
-                parsed_args[pname] = int(pvalue, 0)
+                # Handle optional 0x prefix
+                try:
+                    parsed_args[pname] = int(pvalue, 0)
+                except ValueError:
+                    # fallback: interpret as plain hex
+                    parsed_args[pname] = int(pvalue, 16)
 
             elif ptype == "bytes":
+                # Strip 0x prefix if present
+                hex_str = pvalue.lower()
+                if hex_str.startswith("0x"):
+                    hex_str = hex_str[2:]
                 try:
-                    parsed_args[pname] = bytes.fromhex(pvalue)
+                    parsed_args[pname] = bytes.fromhex(hex_str)
                 except ValueError:
                     log(LogLevel.ERROR, "parser", f"Invalid hex data for {pname}", code=pvalue)
                     return None
 
             elif ptype == "str" and pname == "mem_type":
-                # case-insensitive lookup
                 mem_key = pvalue.lower()
                 if mem_key not in mem_types_normalized:
                     log(LogLevel.ERROR, "parser",

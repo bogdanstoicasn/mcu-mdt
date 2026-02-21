@@ -129,6 +129,14 @@ uint8_t mdt_dispatch(uint8_t *buf)
         case MDT_CMD_READ_REG:
             status = hal_read_register(pkt.address, pkt.data);
             break;
+        
+        case MDT_CMD_WRITE_MEM:
+            status = hal_write_memory(pkt.mem_id, pkt.address, pkt.data, pkt.length);
+            break;
+        
+        case MDT_CMD_WRITE_REG:
+            status = hal_write_register(pkt.address, pkt.data);
+            break;
 
         default:
             status = 0; /* Unknown command */

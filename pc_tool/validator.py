@@ -24,6 +24,7 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
         return validate_read_reg(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_REG:
         print(f"Validating WRITE_REG command: {operation}")
+        return validate_write_reg(operation, mcu_metadata)
     else:
         pass
 
@@ -221,4 +222,45 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         f"WRITE_MEM out of range: {mem_type.name} "
         f"addr=0x{addr:X} len={length}"
     )
-    return False  
+    return False
+
+def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
+    """
+    Validate a WRITE_REG command by absolute address.
+    Assumes writing the full register (length = register size).
+
+    Args:
+        operation (Command): Command with .address and .data
+        mcu_metadata (dict): Parsed ATDF
+
+    Returns:
+        bool: True if the address corresponds to a writable register, False otherwise
+    """
+    addr = operation.address
+    modules = mcu_metadata.get("modules", {})
+
+    for module_name, module in modules.items():
+        for rg_name, rg in module.get("register_groups", {}).items():
+
+            group_offset = rg.get("offset") or 0
+            if isinstance(group_offset, str):
+                group_offset = int(group_offset, 0)
+
+            for reg_name, reg in rg.get("registers", {}).items():
+
+                reg_offset = reg.get("offset") or 0
+                if isinstance(reg_offset, str):
+                    reg_offset = int(reg_offset, 0)
+
+                reg_size = reg.get("size") or 1
+                if isinstance(reg_size, str):
+                    reg_size = int(reg_size, 0)
+
+                absolute_start = group_offset + reg_offset
+                absolute_end = absolute_start + reg_size
+
+                if absolute_start <= operation.address < absolute_end:
+                    print(f"Found register {reg_name} in module {module_name} at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}")
+                    return True
+    print(f"WRITE_REG address 0x{operation.address:X} not found in any register")
+    return False

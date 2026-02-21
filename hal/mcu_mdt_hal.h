@@ -33,11 +33,29 @@ int hal_uart_rx(uint8_t *byte);
 uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length);
 
 /**
- * @brief read register
- * @param address Address to read from
- * @param buffer Buffer where read data will be stored
+ * @brief Read a register from the target device
+ * @param address Address of the register to read
+ * @param buffer Buffer where read data will be stored (1 byte)
  * @return 1 on success, 0 on failure
  */
-uint32_t hal_read_register(uint32_t address, uint8_t *buffer);
+uint8_t hal_read_register(uint32_t address, uint8_t *buffer);
+
+/**
+ * @brief Write memory to the target device
+ * @param mem_zone Memory zone to write to (SRAM, EEPROM)
+ * @param address Address to write to
+ * @param buffer Buffer containing data to write
+ * @param length Number of bytes to write
+ * @return 1 on success, 0 on failure
+ */
+uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, uint16_t length);
+
+/**
+ * @brief Write a register on the target device
+ * @param address Address of the register to write
+ * @param buffer Buffer containing data to write (1 byte)
+ * @return 1 on success, 0 on failure
+ */
+uint8_t hal_write_register(uint32_t address, const uint8_t *buffer);
 
 #endif /* MCU_MDT_HAL_H */
