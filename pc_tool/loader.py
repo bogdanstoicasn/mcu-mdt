@@ -233,10 +233,120 @@ def load_atdf_for_mcu(mcu_name: str, atdf_root: str) -> dict:
 
 def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
     """
-    Placeholder for SVD parsing logic for ARM Cortex-M MCUs.
-    Similar structure to ATDF but with ARM-specific details.
+    Parse an ARM Cortex-M SVD file and produce ATDF-compatible metadata.
+
+    Args:
+        mcu_name (str): MCU name, e.g., 'STM32F103C8'
+        svd_root (str): Folder containing the SVD file
+
+    Returns:
+        dict: metadata with keys: modules, memories, peripherals, interrupts
     """
-    raise NotImplementedError("SVD parsing not implemented yet")
+    mcu_name_lower = mcu_name.lower()
+    svd_file = None
+
+    # Locate SVD
+    for root, _, files in os.walk(svd_root):
+        for file in files:
+            if file.lower().endswith(".svd"):
+                file_stem = os.path.splitext(file)[0].lower()
+                if file_stem == mcu_name_lower:
+                    svd_file = os.path.join(root, file)
+                    break
+        if svd_file:
+            break
+
+    if not svd_file:
+        raise FileNotFoundError(f"SVD file for MCU '{mcu_name}' not found in {svd_root}")
+
+    # Parse XML
+    tree = ET.parse(svd_file)
+    root = tree.getroot()
+
+    result = {
+        "device": mcu_name_lower,
+        "architecture": root.findtext("cpu/name"),
+        "family": root.findtext("cpu/description"),
+        "peripherals": {},
+        "modules": {},
+        "memories": {},
+        "interrupts": {},
+    }
+
+    # 1. Parse memories (Flash, SRAM)
+    memory_map = root.findall(".//memory")
+    for mem in memory_map:
+        name = mem.get("name")
+        start = int(mem.get("startAddress") or mem.get("baseAddress") or 0, 0)
+        size = int(mem.get("size") or 0, 0)
+        mem_type = mem.get("access")  # optional, map to 'flash' or 'ram'
+        mem_type_str = "flash" if "flash" in (name or "").lower() else "ram"
+        result["memories"][name] = {
+            "start": start,
+            "size": size,
+            "type": mem_type_str,
+            "pagesize": mem.get("pageSize"),
+        }
+
+    # 2. Parse peripherals and registers
+    for peripheral in root.findall(".//peripheral"):
+        periph_name = peripheral.findtext("name")
+        if not periph_name:
+            continue
+
+        # Module
+        result["modules"][periph_name] = {
+            "caption": peripheral.findtext("description"),
+            "instances": [],
+            "register_groups": {},
+        }
+
+        # Base address
+        base_addr = int(peripheral.findtext("baseAddress") or 0, 0)
+
+        # Registers
+        rg_name = "REG_GROUP"
+        result["modules"][periph_name]["register_groups"][rg_name] = {
+            "name_in_module": rg_name,
+            "caption": rg_name,
+            "offset": 0,
+            "registers": {},
+        }
+
+        for reg in peripheral.findall("registers/register"):
+            reg_name = reg.findtext("name")
+            if not reg_name:
+                continue
+            reg_offset = int(reg.findtext("addressOffset") or 0, 0)
+            reg_size = int(reg.findtext("size") or 32, 0)  # default 32-bit
+            reg_rw = reg.findtext("access") or "read-write"
+
+            # Bitfields
+            bitfields = {}
+            for bf in reg.findall("fields/field"):
+                bf_name = bf.findtext("name")
+                if not bf_name:
+                    continue
+                bf_mask = bf.findtext("bitRange") or bf.findtext("bitOffset")
+                bf_values = {}
+                for val in bf.findall("enumeratedValues/enumeratedValue"):
+                    val_name = val.findtext("name")
+                    if val_name:
+                        bf_values[val_name] = {
+                            "caption": val.findtext("description"),
+                            "value": val.findtext("value"),
+                        }
+                bitfields[bf_name] = {"caption": bf.findtext("description"), "mask": bf_mask, "values": bf_values}
+
+            result["modules"][periph_name]["register_groups"][rg_name]["registers"][reg_name] = {
+                "caption": reg.findtext("description"),
+                "offset": reg_offset,
+                "size": reg_size,
+                "rw": reg_rw,
+                "bitfields": bitfields,
+            }
+
+    return result
 
 def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
 
