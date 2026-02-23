@@ -9,7 +9,7 @@ void mcu_mdt_init(void)
     hal_uart_init();
 }
 
-static mdt_buffer_t rx_packet = { 0 };
+static mdt_buffer_t rx_packet = MDT_BUFFER_INIT;
 
 static uint8_t mdt_memset(uint8_t *buf, uint8_t value, uint16_t len)
 {
@@ -59,7 +59,7 @@ void mcu_mdt_poll(void)
         /* ----------------------------- */
         /* Prevent buffer overflow       */
         /* ----------------------------- */
-        if (rx_packet.idx >= MDT_PACKET_MAX_SIZE)
+        if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
             rx_packet.started = 0;
             rx_packet.idx = 0;

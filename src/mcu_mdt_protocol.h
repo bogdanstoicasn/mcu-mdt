@@ -13,8 +13,6 @@
  * Example: if data filed is 16 => the split is 16 / 4 = 4 packets
  */
 #define MDT_PACKET_SIZE   18
-#define MDT_FENCE_SIZE  4
-#define MDT_PACKET_MAX_SIZE (MDT_PACKET_SIZE + MDT_FENCE_SIZE)
 
 #define MDT_DATA_MAX_SIZE 4
 

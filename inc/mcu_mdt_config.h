@@ -7,7 +7,10 @@
 #define MDT_UART_STOP_BITS   1
 #define MDT_UART_PARITY      0  // 0=None, 1=Even, 2=Odd
 
-/* Buffer sizes */
+/**
+ * Buffer sizes
+ * Bare-metal side
+ */
 #define MDT_RX_BUFFER_SIZE   128
 #define MDT_TX_BUFFER_SIZE   128
 
@@ -24,5 +27,11 @@ typedef enum {
     MDT_MEM_ZONE_FLASH = 0x01,
     MDT_MEM_ZONE_EEPROM = 0x02
 } mdt_mem_zone_t;
+
+/* Fence define zone */
+#define MDT_FENCE_ENABLE 0
+#define MDT_FENCE_PATTERN 0xA5A5A5A5
+
+typedef uint32_t mdt_fence_t;
 
 #endif // MCU_MDT_CONFIG_H

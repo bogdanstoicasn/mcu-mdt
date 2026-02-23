@@ -7,11 +7,24 @@
 
 /* Buffer structure */
 typedef struct {
-    uint8_t buf[MDT_PACKET_MAX_SIZE];
+
+#ifdef MDT_FENCE_ENABLE
+    mdt_fence_t fence_pre;
+#endif
+
     uint16_t idx;
     uint8_t started;
+    uint8_t buf[MDT_PACKET_SIZE];
+
+#ifdef MDT_FENCE_ENABLE
+    mdt_fence_t fence_post;
+#endif
 } mdt_buffer_t;
 
-uint32_t handle_command(uint8_t *packet);
+#ifdef MDT_FENCE_ENABLE
+#define MDT_BUFFER_INIT { .fence_pre = MDT_FENCE_PATTERN, .fence_post = MDT_FENCE_PATTERN}
+#else
+#define MDT_BUFFER_INIT { 0 }
+#endif
 
 #endif /* MCU_MDT_PRIVATE_H */
