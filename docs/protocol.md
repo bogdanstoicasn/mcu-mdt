@@ -41,3 +41,4 @@ Flags:
 - Bit 3: Sequence number present
 - Bit 4: Last packet in sequence (when sequence number is used)
 - Bit 5: Command status (0 = success, 1 = error)
+- Bit 6: Buffer overflow (set by MCU when receiving data)

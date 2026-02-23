@@ -75,3 +75,9 @@ parse → validate → serialize → send
 - Memory validation maps logical memory types (RAM / FLASH / EEPROM) to ATDF memory segments.
 - FLASH writes are rejected by default unless explicitly enabled.
 
+
+## Ideeas to put into the thesis:
+
+Fencing is tightly coupled to the internal packet buffer structure and does not represent a reusable abstraction. Therefore it is implemented as a private core mechanism rather than a separate module.
+
+The user calls mcu_mdt_poll() in the main loop to maintain deterministic execution. This design avoids hidden interrupts or background threads, which keeps the library portable across MCUs with minimal dependencies and predictable timing.

@@ -29,9 +29,6 @@ typedef enum {
 } mdt_mem_zone_t;
 
 /* Fence define zone */
-#define MDT_FENCE_ENABLE 0
 #define MDT_FENCE_PATTERN 0xA5A5A5A5
-
-typedef uint32_t mdt_fence_t;
 
 #endif // MCU_MDT_CONFIG_H
