@@ -21,6 +21,8 @@
     #define F_CPU 16000000UL  // Default CPU frequency
 #endif
 
+/* Enums/Macros that can be modified */
+
 /* Enum with the memory zones */
 typedef enum {
     MDT_MEM_ZONE_SRAM = 0x00,
@@ -30,5 +32,8 @@ typedef enum {
 
 /* Fence define zone */
 #define MDT_FENCE_PATTERN 0xA5A5A5A5
+
+/* Maximum number of breakpoints */
+#define MDT_MAX_BREAKPOINTS 4
 
 #endif // MCU_MDT_CONFIG_H

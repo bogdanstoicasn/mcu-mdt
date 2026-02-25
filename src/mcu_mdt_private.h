@@ -1,7 +1,6 @@
 #ifndef MCU_MDT_PRIVATE_H
 #define MCU_MDT_PRIVATE_H
 
-#include "mcu_mdt_config.h"
 #include "mcu_mdt_protocol.h"
 #include <stdint.h>
 
