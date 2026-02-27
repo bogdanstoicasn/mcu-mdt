@@ -1,6 +1,6 @@
 from click import command
 from common.dataclasses import Command
-from common.enums import CommandId, MemType
+from common.enums import CommandId, MemType, BreakpointControl, MDT_MAX_BREAKPOINTS
 
 def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     """
@@ -25,8 +25,9 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     elif operation.id == CommandId.WRITE_REG:
         print(f"Validating WRITE_REG command: {operation}")
         return validate_write_reg(operation, mcu_metadata)
-    else:
-        pass
+    elif operation.id == CommandId.BREAKPOINT:
+        print(f"Validating BREAKPOINT command: {operation}")
+        return validate_breakpoint(operation)
 
     return False
 
@@ -264,3 +265,32 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
                     return True
     print(f"WRITE_REG address 0x{operation.address:X} not found in any register")
     return False
+
+def validate_breakpoint(operation: Command) -> bool:
+    """
+    Validate a BREAKPOINT command.
+
+    Args:
+        operation (Command): The BREAKPOINT command to validate.
+
+    Returns:
+        bool: True if valid, False otherwise.
+    """
+    if operation.address < 0 or operation.address >= MDT_MAX_BREAKPOINTS:
+        print(f"Invalid breakpoint ID: {operation.address}. Must be between 0 and {MDT_MAX_BREAKPOINTS - 1}.")
+        return False
+
+    try:
+        control_value = BreakpointControl(operation.mem)
+    except ValueError:
+        print(f"Invalid breakpoint control value: {operation.mem}")
+        return False
+
+    for control in BreakpointControl:
+        if control_value == control:
+            print(f"Valid breakpoint control value: {control.name} ({control.value})")
+            return True
+    
+    print(f"Invalid breakpoint control value: {operation.mem}")
+    return False
+    

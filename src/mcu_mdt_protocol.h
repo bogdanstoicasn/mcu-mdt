@@ -43,7 +43,8 @@ typedef enum {
     MDT_CMD_READ_REG    = 0x03,
     MDT_CMD_WRITE_REG   = 0x04,
     MDT_CMD_PING        = 0x05,
-    MDT_CMD_RESET       = 0x06
+    MDT_CMD_RESET       = 0x06,
+    MDT_CMD_BREAKPOINT    = 0x0A
 } mdt_cmd_t;
 
 typedef struct {

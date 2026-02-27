@@ -1,6 +1,7 @@
 from enum import IntEnum,  StrEnum
 
 MDT_PACKET_SIZE = 18
+MDT_MAX_BREAKPOINTS = 4
 
 class CommandId(IntEnum):
     READ_MEM = 0x01
@@ -11,6 +12,14 @@ class CommandId(IntEnum):
     RESET = 0x06
     EXIT = 0x07
     HELP = 0x08
+    CLEAR = 0x09
+    BREAKPOINT = 0x0A
+
+class BreakpointControl(IntEnum):
+    DISABLED = 0
+    ENABLED = 1
+    RESET = 2
+    NEXT = 3
 
 class MemType(IntEnum):
     RAM = 0

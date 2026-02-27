@@ -19,6 +19,14 @@ The goal of this architecture is to provide a **portable, deterministic, and ext
 
 ---
 
+## Core Principles
+
+Portable C code with HAL abstraction
+
+No MCU-side complexity
+
+Deterministic behavior
+
 ## System Overview
 
 The system consists of two main components:
@@ -81,3 +89,13 @@ parse → validate → serialize → send
 Fencing is tightly coupled to the internal packet buffer structure and does not represent a reusable abstraction. Therefore it is implemented as a private core mechanism rather than a separate module.
 
 The user calls mcu_mdt_poll() in the main loop to maintain deterministic execution. This design avoids hidden interrupts or background threads, which keeps the library portable across MCUs with minimal dependencies and predictable timing.
+
+This debugger implements cooperative software breakpoints, where execution is voluntarily paused by instrumented firmware code. Unlike hardware breakpoints (e.g., ARM FPB or AVR OCD), this method is fully portable and requires no debug hardware support.
+
+Breakpoints reside in static memory and rely on the C runtime zero-initialization of the .bss segment, ensuring deterministic disabled state at boot without requiring explicit initialization.
+
+The MCU MDT debugger is cooperative: it relies on the function mcu_mdt_poll() being called frequently in the main loop to service software breakpoints and PC commands.
+
+Both UART RX and TX are handled by ISRs, so mcu_mdt_poll() only processes completed packets (18 bytes each) and dispatches commands. This makes the poll function very fast, with negligible CPU overhead.
+
+As a result, it is safe and recommended for users to call mcu_mdt_poll() in their main loop. Blocking functions such as delay() will temporarily pause debugger responsiveness, but overall this design keeps the ISR small, safe, and the system portable across different MCUs.

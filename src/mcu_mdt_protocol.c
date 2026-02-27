@@ -1,5 +1,6 @@
 #include "mcu_mdt_protocol.h"
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_breakpoints.h"
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
 {
@@ -136,6 +137,10 @@ uint8_t mdt_dispatch(uint8_t *buf)
         
         case MDT_CMD_WRITE_REG:
             status = hal_write_register(pkt.address, pkt.data);
+            break;
+        
+        case MDT_CMD_BREAKPOINT:
+            status = mdt_breakpoint_dispatch(pkt.mem_id, pkt.address); /* Reuse address field for breakpoint ID */
             break;
 
         default:
