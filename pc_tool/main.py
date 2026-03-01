@@ -1,5 +1,5 @@
 from loader import ConfigLoader
-from parser import parse_line, parse_args
+from parser import parse_line, parse_args, CLIHistory
 from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command
 from validator import validate_commands
 
@@ -9,6 +9,8 @@ if __name__ == "__main__":
     build_info_path = args.build_info
 
     loader = ConfigLoader(build_info_path)
+
+    cli = CLIHistory()
 
     commands = loader.yaml_command_data['commands']
 
@@ -32,7 +34,7 @@ if __name__ == "__main__":
 
     while True:
         try:
-            line = input("> ").strip()
+            line = cli.input("> ").strip()
             if not line:
                 continue
 

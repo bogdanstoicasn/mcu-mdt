@@ -28,12 +28,14 @@ To build the MCU-MDT project, follow these steps:
     Replace `<platform_name>`, `<mcu_name>`, and `<uart_port>` with the appropriate values for your target platform, microcontroller, and UART port.
     Example:
     ```bash
-    make PLATFORM=stm32 MCU=stm32f103 PORT=/dev/ttyUSB0
+    make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0
+    make PLATFORM=avr MCU=ATmega328P PORT=/dev/ttyUSB0
     ```
 
 3. **Flash the firmware**:
     ```bash
-    make PLATFORM=stm32 MCU=stm32f103 PORT=/dev/ttyUSB0 flash
+    make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0 flash
+    make PLATFORM=avr MCU=ATmega328P PORT=/dev/ttyUSB0 flash
     ```
 
 4. **Run the host application**:

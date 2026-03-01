@@ -1,6 +1,48 @@
+import os
+import atexit
 import argparse
+from pathlib import Path
 from logger import log, LogLevel
 from common.dataclasses import Command
+
+try:
+    import readline
+except ImportError:
+    try:
+        import pyreadline3 as readline
+    except ImportError:
+        readline = None
+
+
+class CLIHistory:
+    def __init__(self, history_filename=".mdt_history", max_length=1000):
+        self.max_length = max_length
+
+        # Project root = mcu_mdt/
+        project_root = Path(__file__).resolve().parents[1]
+
+        self.history_file = project_root / history_filename
+
+        if readline:
+            readline.set_history_length(self.max_length)
+
+            if self.history_file.exists():
+                try:
+                    readline.read_history_file(str(self.history_file))
+                except Exception:
+                    pass
+
+            atexit.register(self._save_history)
+
+    def input(self, prompt="> "):
+        return input(prompt)
+
+    def _save_history(self):
+        if readline:
+            try:
+                readline.write_history_file(str(self.history_file))
+            except Exception:
+                pass
 
 def parse_args():
     """
