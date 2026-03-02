@@ -1,46 +1,11 @@
 #include <avr/io.h>
 #include <avr/interrupt.h>
 #include "uart.h"
+#include "ring_buffer.h"
 
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
 
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0 };
-
-static inline uint8_t rb_push(ring_buffer_t *rb, uint8_t data)
-{
-    uint8_t next_head = (rb->head + 1) % MDT_RX_BUFFER_SIZE;
-
-    if (next_head == rb->tail)
-    {
-        return 0; // Buffer full
-    }
-
-    rb->buf[rb->head] = data;
-    rb->head = next_head;
-    return 1; // Success
-}
-
-static inline uint8_t rb_pop(ring_buffer_t *rb, uint8_t *data)
-{
-    if (rb->head == rb->tail)
-    {
-        return 0; // Buffer empty
-    }
-
-    *data = rb->buf[rb->tail];
-    rb->tail = (rb->tail + 1) % MDT_RX_BUFFER_SIZE;
-    return 1; // Success
-}
-
-static inline uint8_t rb_is_empty(ring_buffer_t *rb)
-{
-    return rb->head == rb->tail;
-}
-
-static inline uint8_t rb_is_full(ring_buffer_t *rb)
-{
-    return ((rb->head + 1) % MDT_RX_BUFFER_SIZE) == rb->tail;
-}
 
 /* UART */
 void uart_init(uint32_t baudrate)

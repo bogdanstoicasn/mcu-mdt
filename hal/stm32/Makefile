@@ -24,7 +24,7 @@ HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup
 LINKER_SCRIPT := $(HAL_DIR)/linker.ld
-STARTUP_FILE := $(HAL_DIR)/startup_stm32f030xx.s
+STARTUP_FILE := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)

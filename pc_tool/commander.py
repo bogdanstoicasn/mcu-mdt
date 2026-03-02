@@ -27,6 +27,8 @@ Available Commands:
                         Read data from specified register address.
     WRITE_REG <register_address> <data>
                         Write data to specified register address.
+    BREAKPOINT <id> <operation>
+                        Software breakpoint management. Operation can be 'ENABLED', 'DISABLED', 'NEXT', 'RESET'.
     PING                Send a ping command to the connected MCU.
 """
     print(help_text)
