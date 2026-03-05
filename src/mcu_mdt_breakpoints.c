@@ -2,8 +2,9 @@
 #include "mcu_mdt.h"
 #include "mcu_mdt_config.h"
 
-static mdt_breakpoint_t breakpoints[MDT_MAX_BREAKPOINTS] = {0};
+static volatile mdt_breakpoint_t breakpoints[MDT_MAX_BREAKPOINTS] = {0};
 
+__attribute__((noinline))
 void mdt_breakpoint_trigger(uint8_t id)
 {
     if (id >= MDT_MAX_BREAKPOINTS)
@@ -15,7 +16,7 @@ void mdt_breakpoint_trigger(uint8_t id)
     breakpoints[id].hit_count++; // Optional: track hits
 
     // Cooperative loop: MCU can still service PC commands
-    while (breakpoints[id].enabled)
+    while (__builtin_expect(breakpoints[id].enabled, 1))
     {
         mcu_mdt_poll();
         if (breakpoints[id].next)
@@ -28,28 +29,25 @@ void mdt_breakpoint_trigger(uint8_t id)
 }
 
 // Internal functions for breakpoint control (enable/disable/reset/next)
-static inline void mdt_breakpoint_enable(uint8_t id)
+static inline __attribute__((always_inline)) void mdt_breakpoint_enable(uint8_t id)
 {
-    if (id < MDT_MAX_BREAKPOINTS)
-        breakpoints[id].enabled = 1;
+    breakpoints[id].enabled = 1;
 }
 
-static inline void mdt_breakpoint_disable(uint8_t id)
+static inline __attribute__((always_inline)) void mdt_breakpoint_disable(uint8_t id)
 {
-    if (id < MDT_MAX_BREAKPOINTS)
-        breakpoints[id].enabled = 0;
+    breakpoints[id].enabled = 0;
 }
 
-static inline void mdt_breakpoint_reset(uint8_t id)
+static inline __attribute__((always_inline)) void mdt_breakpoint_reset(uint8_t id)
 {
-    if (id < MDT_MAX_BREAKPOINTS)
-    {
-        breakpoints[id].enabled = 0;
-        breakpoints[id].hit_count = 0;
-    }
+
+    breakpoints[id].enabled = 0;
+    breakpoints[id].hit_count = 0;
+
 }
 
-static inline void mdt_breakpoint_next(uint8_t id)
+static inline __attribute__((always_inline)) void mdt_breakpoint_next(uint8_t id)
 {
     if (id < MDT_MAX_BREAKPOINTS && breakpoints[id].enabled)
         breakpoints[id].next = 1;

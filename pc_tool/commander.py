@@ -69,38 +69,39 @@ def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialL
         print("Command packet validation successful.")
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
-    if command.data is None or len(command.data) == 0:
-        # No data, just a single packet
-        byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)  # seq can be 0 for simple commands
-        print(f"Serialized Command Packet: {byte_packet.hex()}")
-        if serial_link:
-            ack = serial_link.send_packet(byte_packet)
-            print(f"Received ACK: {ack.hex() if ack else 'No response'}")
-            if validate_command_packet(ack):
-                print("Command packet validation successful.")
-        return
-
     seq = 0
+    # Determine if we have outgoing data (WRITE) or just a read
+    is_write = command.data is not None
 
-    # Split data into 4-byte chunks
-    for i in range(0, len(command.data), 4):
-        chunk = command.data[i:i+4]
-        actual_length = len(chunk)
-        if len(chunk) != 4:
-            # Pad the last chunk with zeros if needed (optional)
-            chunk = chunk.ljust(4, b'\x00')
+    # Split into 4-byte chunks
+    for i in range(0, command.length, UtilEnum.WORD_SIZE):
+        chunk_length = min(UtilEnum.WORD_SIZE, command.length - i)
 
-        # Create a new command packet for this chunk
+        if is_write:
+            # Take slice from command.data
+            chunk = command.data[i:i + chunk_length]
+            if len(chunk) != UtilEnum.WORD_SIZE:
+                chunk = chunk.ljust(UtilEnum.WORD_SIZE, b'\x00')
+        else:
+            # No outgoing data for READ
+            chunk = None
+
         chunk_command = Command(
             name=command.name,
             id=command.id,
             mem=command.mem,
-            address=command.address + i,  # increment address
-            length=actual_length,
+            address=command.address + i,
+            length=chunk_length,
             data=chunk
         )
 
-        byte_packet = serialize_command_packet(chunk_command, seq=seq, multi=True, last=(i + 4 >= len(command.data)))
+        byte_packet = serialize_command_packet(
+            chunk_command,
+            seq=seq,
+            multi=(command.length > UtilEnum.WORD_SIZE),
+            last=(i + UtilEnum.WORD_SIZE >= command.length)
+        )
+
         print(f"Serialized Command Packet: {byte_packet.hex()}")
         if serial_link:
             ack = serial_link.send_packet(byte_packet)
@@ -108,4 +109,4 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
             if validate_command_packet(ack):
                 print("Command packet validation successful.")
 
-        seq  = (seq + 1) % 0xFF  # Increment sequence number, wrap around at 256
+        seq = (seq + 1) % 0xFF

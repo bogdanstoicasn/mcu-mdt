@@ -33,53 +33,78 @@
 /* Memory regions */
 MEMORY
 {
-    rom (rx) : ORIGIN = 0x08000000, LENGTH = FLASH_SIZE
-    ram (rwx): ORIGIN = 0x20000000, LENGTH = RAM_SIZE
+    rom (rx)  : ORIGIN = 0x08000000, LENGTH = FLASH_SIZE
+    ram (rwx) : ORIGIN = 0x20000000, LENGTH = RAM_SIZE
 }
 
-/* External vector table and entry point */
-EXTERN(vector_table)
-ENTRY(reset_handler)
+/* Entry point */
+ENTRY(Reset_Handler)
 
-/* Sections */
+
 SECTIONS
 {
-    /* Program code + vector table */
-    .text :
+
+    /* Interrupt vector table */
+    .isr_vector :
     {
-        KEEP(*(.vectors))      /* Vector table */
-        *(.text*)              /* Program code */
-        . = ALIGN(4);
-        *(.rodata*)            /* Read-only data */
+        KEEP(*(.vectors))
         . = ALIGN(4);
     } > rom
 
+
+    /* Program code */
+    .text :
+    {
+        *(.text*)
+        . = ALIGN(4);
+    } > rom
+
+
+    /* Read-only data */
+    .rodata :
+    {
+        *(.rodata*)
+        . = ALIGN(4);
+    } > rom
+
+
+    /* End of code marker (used by startup to copy .data) */
     . = ALIGN(4);
     _etext = .;
 
-    /* Initialized read/write data in RAM */
+
+    /* Initialized data copied to RAM at startup */
     .data : AT(_etext)
     {
+        . = ALIGN(4);
         _sdata = .;
+
         *(.data*)
+
         . = ALIGN(4);
         _edata = .;
     } > ram
 
-    /* Zero-initialized data in RAM */
+
+    /* Zero-initialized data */
     .bss :
     {
+        . = ALIGN(4);
         _sbss = .;
+
         *(.bss*)
         *(COMMON)
+
         . = ALIGN(4);
         _ebss = .;
     } > ram
 
-    /* End marker */
+
+    /* End of RAM sections */
     . = ALIGN(4);
     end = .;
 }
 
-/* Stack pointer at top of RAM */
+
+/* Stack pointer placed at top of RAM */
 PROVIDE(_stack = ORIGIN(ram) + LENGTH(ram));
