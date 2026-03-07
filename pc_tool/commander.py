@@ -2,7 +2,7 @@ import os
 from common.dataclasses import Command
 from common.protocol import serialize_command_packet, validate_command_packet
 from common.uart_io import MCUSerialLink
-from common.enums import FenceType, UtilEnum
+from common.enums import UtilEnum
 
 def intro_text():
 

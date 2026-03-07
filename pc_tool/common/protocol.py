@@ -70,6 +70,40 @@ def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool
 
     return bytes(serialized)
 
+def deserialize_command_packet(packet: bytes) -> CommandPacket:
+    if len(packet) != MDT_PACKET_SIZE:
+        raise ValueError(f"Invalid packet length: {len(packet)}. Expected: {MDT_PACKET_SIZE}")
+
+    if packet[MDTOffset.START] != CommandPacket.START_BYTE:
+        raise ValueError(f"Invalid start byte: {packet[MDTOffset.START]:02X}. Expected: {CommandPacket.START_BYTE:02X}")
+
+    if packet[MDTOffset.END] != CommandPacket.END_BYTE:
+        raise ValueError(f"Invalid end byte: {packet[MDTOffset.END]:02X}. Expected: {CommandPacket.END_BYTE:02X}")
+
+    # Validate CRC16
+    crc_received = int.from_bytes(packet[MDTOffset.CRC : MDTOffset.CRC + 2], byteorder="little")
+    crc_calculated = calculate_crc16(packet[MDTOffset.CMD_ID : MDTOffset.CRC])
+
+    if crc_received != crc_calculated:
+        raise ValueError(f"CRC mismatch: received {crc_received:04X}, calculated {crc_calculated:04X}")
+
+    cmd_id = packet[MDTOffset.CMD_ID]
+    flags = packet[MDTOffset.FLAGS]
+    seq = packet[MDTOffset.SEQ]
+    mem_id = packet[MDTOffset.MEM_ID] if (flags & 0x01) else None
+    address = int.from_bytes(packet[MDTOffset.ADDR : MDTOffset.ADDR + UtilEnum.WORD_SIZE], byteorder="little")
+    length = int.from_bytes(packet[MDTOffset.LENGTH : MDTOffset.LENGTH + UtilEnum.HALF_WORD_SIZE], byteorder="little")
+    data = packet[MDTOffset.DATA : MDTOffset.DATA + UtilEnum.WORD_SIZE]
+
+    return CommandPacket(
+        cmd_id=cmd_id,
+        seq=seq,
+        mem_id=mem_id,
+        address=address,
+        length=length,
+        data=data
+    )
+
 def validate_command_packet(packet: bytes) -> bool:
     """Validate an MDT packet received from the MCU."""
     if len(packet) != MDT_PACKET_SIZE:

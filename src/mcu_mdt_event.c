@@ -36,11 +36,13 @@ void mdt_event_send_pending()
 
         pkt.crc = mdt_crc16((uint8_t *)&pkt, sizeof(mdt_packet_t) - sizeof(pkt.crc));
 
+        hal_uart_tx(MDT_START_BYTE);
         for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
         {
             // Here you would send the packet byte by byte to the host
             hal_uart_tx(((uint8_t *)&pkt)[i]);
         }
+        hal_uart_tx(MDT_END_BYTE);
 
     }
 }
