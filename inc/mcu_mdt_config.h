@@ -11,8 +11,7 @@
  * Buffer sizes
  * Bare-metal side
  */
-#define MDT_RX_BUFFER_SIZE   128
-#define MDT_TX_BUFFER_SIZE   128
+#define MDT_BUFFER_SIZE   64
 
 /* Protocol settings */
 #define MDT_TIMEOUT_MS       1000

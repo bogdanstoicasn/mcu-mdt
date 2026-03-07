@@ -51,6 +51,7 @@ class MDTFlags(IntEnum):
     SEQ_PRESENT      = 0x08  # Bit 3
     LAST_PACKET      = 0x10  # Bit 4
     STATUS_ERROR     = 0x20  # Bit 5
+    EVENT_PACKET     = 0x40  # Bit 6
 
 """ END OF PROTOCOL RELATED ENUMS """
 

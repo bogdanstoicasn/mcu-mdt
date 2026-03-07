@@ -28,13 +28,13 @@
 #define MDT_OFFSET_END       17
 
 typedef enum {
-    MDT_FLAG_MEM_ID_PRESENT = 0x01,
+    MDT_FLAG_MEM_ID_PRESENT  = 0x01,
     MDT_FLAG_LENGTH_PRESENT  = 0x02,
     MDT_FLAG_ACK_NACK        = 0x04,
     MDT_FLAG_SEQ_PRESENT     = 0x08,
     MDT_FLAG_LAST_PACKET     = 0x10,
     MDT_FLAG_STATUS_ERROR    = 0x20,
-    MDT_FLAG_BUFFER_OVERFLOW = 0x40
+    MDT_FLAG_EVENT           = 0x40,
 } mdt_flags_t;
 
 typedef enum {

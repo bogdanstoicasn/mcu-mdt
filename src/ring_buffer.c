@@ -2,7 +2,7 @@
 
 uint8_t rb_push(ring_buffer_t *rb, uint8_t data)
 {
-    uint8_t next_head = (rb->head + 1) & (MDT_RX_BUFFER_SIZE - 1);
+    uint8_t next_head = (rb->head + 1) & (MDT_BUFFER_SIZE - 1);
 
     if (next_head == rb->tail)
     {
@@ -22,6 +22,6 @@ uint8_t rb_pop(ring_buffer_t *rb, uint8_t *data)
     }
 
     *data = rb->buf[rb->tail];
-    rb->tail = (rb->tail + 1) & (MDT_RX_BUFFER_SIZE - 1);
+    rb->tail = (rb->tail + 1) & (MDT_BUFFER_SIZE - 1);
     return 1; // Success
 }

@@ -2,6 +2,7 @@
 #include "mcu_mdt_private.h"
 #include "mcu_mdt_protocol.h"
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_event.h"
 
 static mdt_buffer_t rx_packet = {
     .fence_pre = MDT_FENCE_PATTERN,
@@ -47,16 +48,10 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
-    /* --- Fence check --- */
-    if (!mdt_buffer_check(buf))
-    {
-        mdt_buffer_reset(buf);
-        return 0; // stop processing
-    }
-
     /* --- Validate packet --- */
     if (!mdt_packet_validate(buf->buf, MDT_PACKET_SIZE))
     {
+        mdt_event_push(MDT_EVENT_FAILED_PACKET);
         mdt_buffer_reset(buf);
         return 0;
     }
@@ -101,6 +96,7 @@ void mcu_mdt_poll(void)
     /* --- Fence check at entry (optional) --- */
     if (!mdt_buffer_check(&rx_packet))
     {
+        mdt_event_push(MDT_EVENT_BUFFER_OVERFLOW);
         mdt_buffer_reset(&rx_packet);
         return;
     }
@@ -121,6 +117,7 @@ void mcu_mdt_poll(void)
         if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
             mdt_buffer_reset(&rx_packet);
+            mdt_event_push(MDT_EVENT_BUFFER_OVERFLOW);
             continue;
         }
 
@@ -136,6 +133,11 @@ void mcu_mdt_poll(void)
                 /* Fence/validation failed → break current loop iteration */
                 break;
             }
+        }
+
+        if (mdt_event_pending())
+        {
+            mdt_event_send_pending();
         }
     }
 }
