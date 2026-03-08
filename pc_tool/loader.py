@@ -1,7 +1,7 @@
 import yaml
 import os
 import xml.etree.ElementTree as ET
-from logger import log, LogLevel
+from logger import MDTLogger
 from common.enums import MCUPlatforms
 
 class ConfigLoader:
@@ -29,7 +29,7 @@ def load_configs(file_path: str) -> dict:
             configs = yaml.safe_load(f)
             return configs
         except yaml.YAMLError as e:
-            log(log_level=LogLevel.ERROR, module="loader", msg="Failed to load YAML file", code=str(e))
+            MDTLogger.error("Failed to load YAML file", code=str(e))
             return {}
 
 def load_platforms(folder_path: str) -> dict:

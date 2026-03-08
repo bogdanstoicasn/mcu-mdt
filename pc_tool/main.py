@@ -1,7 +1,11 @@
+from venv import logger
+
 from loader import ConfigLoader
 from parser import parse_line, parse_args, CLIHistory
-from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command
+from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command, exit_command
 from validator import validate_commands
+from event import start_async_handlers
+from logger import MDTLogger, LogLevel
 
 if __name__ == "__main__":
     args = parse_args()
@@ -27,10 +31,12 @@ if __name__ == "__main__":
     try:
         serial_link.open()
     except Exception as e:
-        print(f"Failed to open serial link: {e}")
+        MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
+    
+    rx_thread, event_thread = start_async_handlers(serial_link)
 
-    print(intro_text())
+    MDTLogger.info(intro_text(), code=0)
 
     while True:
         try:
@@ -41,13 +47,12 @@ if __name__ == "__main__":
             command = parse_line(line, commands, mem_types)
 
             if not command:
-                print("Invalid command or parsing error.")
+                MDTLogger.error("Invalid command or parsing error.", code=2)
                 continue
 
             # Handle the CLI commands(EXIT, HELP) directly here
             if command.name == "EXIT":
-                print("Exiting...")
-                serial_link.close()
+                exit_command(serial_link, threads=[rx_thread, event_thread])
                 break
             elif command.name == "HELP":
                 help_command()
@@ -60,16 +65,16 @@ if __name__ == "__main__":
                 continue
 
 
-            print(f"Parsed Command: {command}")
+            MDTLogger.info(f"Parsed Command: {command}", code=0)
 
             if not validate_commands(command, mcu_metadata):
-                print("Command validation failed.")
+                MDTLogger.error("Command validation failed.", code=3)
                 continue
 
             execute_command(command, serial_link)
         except EOFError as end_of_file:
-            print("\nExiting...")
+            MDTLogger.info("Exiting...", code=0)
             break
         except KeyboardInterrupt as keyboard_interrupt:
-            print("\n Exiting with keyboard interrupt...")
+            MDTLogger.info("Exiting with keyboard interrupt...", code=0)
             break

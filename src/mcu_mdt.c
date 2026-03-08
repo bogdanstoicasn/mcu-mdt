@@ -51,7 +51,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     /* --- Validate packet --- */
     if (!mdt_packet_validate(buf->buf, MDT_PACKET_SIZE))
     {
-        mdt_event_push(MDT_EVENT_FAILED_PACKET);
+        mdt_send_event(MDT_EVENT_FAILED_PACKET);
         mdt_buffer_reset(buf);
         return 0;
     }
@@ -96,8 +96,8 @@ void mcu_mdt_poll(void)
     /* --- Fence check at entry (optional) --- */
     if (!mdt_buffer_check(&rx_packet))
     {
-        mdt_event_push(MDT_EVENT_BUFFER_OVERFLOW);
         mdt_buffer_reset(&rx_packet);
+        mdt_send_event(MDT_EVENT_BUFFER_OVERFLOW);
         return;
     }
 
@@ -117,7 +117,7 @@ void mcu_mdt_poll(void)
         if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
             mdt_buffer_reset(&rx_packet);
-            mdt_event_push(MDT_EVENT_BUFFER_OVERFLOW);
+            mdt_send_event(MDT_EVENT_BUFFER_OVERFLOW);
             continue;
         }
 
@@ -133,11 +133,6 @@ void mcu_mdt_poll(void)
                 /* Fence/validation failed → break current loop iteration */
                 break;
             }
-        }
-
-        if (mdt_event_pending())
-        {
-            mdt_event_send_pending();
         }
     }
 }

@@ -1,6 +1,7 @@
 from click import command
 from common.dataclasses import Command
 from common.enums import CommandId, MemType, BreakpointControl, MDT_MAX_BREAKPOINTS
+from logger import MDTLogger
 
 def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     """
@@ -14,19 +15,19 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
         TODO:
     """
     if operation.id == CommandId.READ_MEM:
-        print(f"Validating READ_MEM command: {operation}")
+        MDTLogger.info(f"Validating READ_MEM command: {operation}", code=0)
         return validate_read_mem(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_MEM:
-        print(f"Validating WRITE_MEM command: {operation}")
+        MDTLogger.info(f"Validating WRITE_MEM command: {operation}", code=0)
         return validate_write_mem(operation, mcu_metadata)
     elif operation.id == CommandId.READ_REG:
-        print(f"Validating READ_REG command: {operation}")
+        MDTLogger.info(f"Validating READ_REG command: {operation}", code=0)
         return validate_read_reg(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_REG:
-        print(f"Validating WRITE_REG command: {operation}")
+        MDTLogger.info(f"Validating WRITE_REG command: {operation}", code=0)
         return validate_write_reg(operation, mcu_metadata)
     elif operation.id == CommandId.BREAKPOINT:
-        print(f"Validating BREAKPOINT command: {operation}")
+        MDTLogger.info(f"Validating BREAKPOINT command: {operation}", code=0)
         return validate_breakpoint(operation)
 
     return False
@@ -46,13 +47,13 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     try:
         mem_type = MemType(operation.mem)
     except ValueError:
-        print(f"Invalid memory type: {operation.mem}")
+        MDTLogger.error(f"Invalid memory type: {operation.mem}", code=3)
         return False
     
     memories = mcu_metadata.get('memories', {})
 
     if not memories:
-        print("No memory definitions found in MCU metadata.")
+        MDTLogger.error("No memory definitions found in MCU metadata.", code=3)
         return False
     
     addr = operation.address
@@ -68,7 +69,7 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     wanted_mem_type = memtype_to_atdf_type.get(mem_type)
 
     if not wanted_mem_type:
-        print(f"Unsupported memory type: {mem_type}")
+        MDTLogger.error(f"Unsupported memory type: {mem_type}", code=3)
         return False
     
     # Find all related segments
@@ -78,7 +79,7 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     ]
 
     if not candidates:
-        print(f"No memory segments found for type: {wanted_mem_type}")
+        MDTLogger.error(f"No memory segments found for type: {wanted_mem_type}", code=3)
         return False
     
     # The candidate has start and size
@@ -92,7 +93,7 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
         seg_end = seg_start + seg_size
 
         if addr >= seg_start and (addr + length) <= seg_end:
-            print(f"Address {hex(addr)} with length {length} is valid in segment {seg}")
+            MDTLogger.info(f"Address {hex(addr)} with length {length} is valid in segment {seg}", code=0)
             return True
 
     return False
@@ -133,10 +134,10 @@ def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
                 absolute_end = absolute_start + reg_size
 
                 if absolute_start <= operation.address < absolute_end:
-                    print(f"Found register {reg_name} in module {module_name} at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}")
+                    MDTLogger.info(f"Found register {reg_name} in module {module_name} at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}", code=0)
                     return True
 
-    print(f"No register found at address 0x{operation.address:X}")
+    MDTLogger.error(f"No register found at address 0x{operation.address:X}", code=3)
     return False
 
 def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
@@ -153,18 +154,18 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
 
     # Check if len differs from data length
     if operation.length != len(operation.data):
-        print(f"Length field {operation.length} does not match data length {len(operation.data)}")
+        MDTLogger.error(f"Length field {operation.length} does not match data length {len(operation.data)}", code=3)
         return False
 
     try:
         mem_type = MemType(operation.mem)
     except ValueError:
-        print(f"Invalid memory type: {operation.mem}")
+        MDTLogger.error(f"Invalid memory type: {operation.mem}", code=3)
         return False
 
     memories = mcu_metadata.get("memories", {})
     if not memories:
-        print("No memory-segment definitions found in MCU metadata.")
+        MDTLogger.error("No memory-segment definitions found in MCU metadata.", code=3)
         return False
 
     addr = operation.address
@@ -184,10 +185,10 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         if seg.get("type") == wanted_type
     ]
 
-    print(f"candidates: {candidates}")
+    MDTLogger.info(f"candidates: {candidates}", code=0)
 
     if not candidates:
-        print(f"No memory segments found for type: {wanted_type}")
+        MDTLogger.error(f"No memory segments found for type: {wanted_type}", code=3)
         return False
     
     for seg in candidates:
@@ -207,21 +208,22 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         if addr >= seg_start and (addr + length) <= seg_end:
 
             if mem_type == MemType.FLASH:
-                print(
+                MDTLogger.warning(
                     "WARNING: Writing to FLASH memory is platform-dependent "
                     "(SPM / bootloader required). MCU may reject this command."
                 )
                 # TODO: Further FLASH-specific checks can be added here
 
-            print(
+            MDTLogger.info(
                 f"WRITE_MEM valid: {mem_type.name} "
                 f"0x{addr:X} .. 0x{addr + length - 1:X}"
             )
             return True
 
-    print(
+    MDTLogger.error(
         f"WRITE_MEM out of range: {mem_type.name} "
-        f"addr=0x{addr:X} len={length}"
+        f"addr=0x{addr:X} len={length}",
+        code=3
     )
     return False
 
@@ -261,9 +263,9 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
                 absolute_end = absolute_start + reg_size
 
                 if absolute_start <= operation.address < absolute_end:
-                    print(f"Found register {reg_name} in module {module_name} at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}")
+                    MDTLogger.info(f"Found register {reg_name} in module {module_name} at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}", code=0)
                     return True
-    print(f"WRITE_REG address 0x{operation.address:X} not found in any register")
+    MDTLogger.error(f"WRITE_REG address 0x{operation.address:X} not found in any register", code=3)
     return False
 
 def validate_breakpoint(operation: Command) -> bool:
@@ -277,20 +279,20 @@ def validate_breakpoint(operation: Command) -> bool:
         bool: True if valid, False otherwise.
     """
     if operation.address < 0 or operation.address >= MDT_MAX_BREAKPOINTS:
-        print(f"Invalid breakpoint ID: {operation.address}. Must be between 0 and {MDT_MAX_BREAKPOINTS - 1}.")
+        MDTLogger.error(f"Invalid breakpoint ID: {operation.address}. Must be between 0 and {MDT_MAX_BREAKPOINTS - 1}.", code=3)
         return False
 
     try:
         control_value = BreakpointControl(operation.mem)
     except ValueError:
-        print(f"Invalid breakpoint control value: {operation.mem}")
+        MDTLogger.error(f"Invalid breakpoint control value: {operation.mem}", code=3)
         return False
 
     for control in BreakpointControl:
         if control_value == control:
-            print(f"Valid breakpoint control value: {control.name} ({control.value})")
+            MDTLogger.info(f"Valid breakpoint control value: {control.name} ({control.value})", code=0)
             return True
     
-    print(f"Invalid breakpoint control value: {operation.mem}")
+    MDTLogger.error(f"Invalid breakpoint control value: {operation.mem}", code=3)
     return False
     

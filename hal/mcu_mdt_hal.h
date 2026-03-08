@@ -23,6 +23,12 @@ void hal_uart_tx(uint8_t byte);
 int hal_uart_rx(uint8_t *byte);
 
 /**
+ * @brief Check if UART is ready to transmit (optional, can be used for flow control)
+ * @return 1 if ready, 0 if not
+ */
+uint8_t hal_uart_tx_ready(void);
+
+/**
  * @brief Read memory from the target device
  * @param mem_zone Memory zone to read from (SRAM, FLASH, EEPROM)
  * @param address Address to read from

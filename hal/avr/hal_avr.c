@@ -18,6 +18,11 @@ int hal_uart_rx(uint8_t *byte)
     return uart_getc_nonblocking(byte);
 }
 
+uint8_t hal_uart_tx_ready()
+{
+    return uart_ready();
+}
+
 uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length)
 {
     return read_memory(mem_zone, address, buffer, length);

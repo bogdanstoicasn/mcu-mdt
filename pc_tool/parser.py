@@ -2,7 +2,7 @@ import os
 import atexit
 import argparse
 from pathlib import Path
-from logger import log, LogLevel
+from logger import MDTLogger
 from common.dataclasses import Command
 
 try:
@@ -70,7 +70,7 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
 
     name = tokens[0].upper()
     if name not in command_dict:
-        log(LogLevel.ERROR, "parser", f"Unknown command: {name}")
+        MDTLogger.error(f"Unknown command: {name}", code=3)
         return None
 
     cmd_info = command_dict[name]
@@ -81,9 +81,10 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
     expected_args = len(params)
     provided_args = len(tokens) - 1
     if provided_args != expected_args:
-        log(LogLevel.ERROR, "parser",
+        MDTLogger.error(
             f"{name} expects {expected_args} parameter(s), got {provided_args}",
-            code=line)
+            code=line
+        )
         return None
 
     # Normalize mem_types keys to lowercase
@@ -112,15 +113,16 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
                 try:
                     parsed_args[pname] = bytes.fromhex(hex_str)
                 except ValueError:
-                    log(LogLevel.ERROR, "parser", f"Invalid hex data for {pname}", code=pvalue)
+                    MDTLogger.error(f"Invalid hex data for {pname}", code=pvalue)
                     return None
 
             elif ptype == "str" and pname == "mem_type":
                 mem_key = pvalue.lower()
                 if mem_key not in mem_types_normalized:
-                    log(LogLevel.ERROR, "parser",
+                    MDTLogger.error(
                         f"Invalid memory type '{pvalue}'. Expected one of: {', '.join(mem_types.keys())}",
-                        code=line)
+                        code=line
+                    )
                     return None
                 parsed_args[pname] = mem_types_normalized[mem_key]
 
@@ -137,5 +139,5 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
         )
 
     except (ValueError, IndexError, KeyError) as e:
-        log(LogLevel.ERROR, "parser", f"Failed to parse line: {line}", code=str(e))
+        MDTLogger.error(f"Failed to parse line: {line}", code=str(e))
         return None

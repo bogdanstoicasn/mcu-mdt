@@ -27,8 +27,8 @@ class MemType(IntEnum):
     EEPROM = 2
 
 class FenceType(IntEnum):
-    START_BYTE = 0x7E
-    END_BYTE = 0x7F
+    START_BYTE = 0xAA
+    END_BYTE = 0x55
 
 """ PROTOCOL RELATED ENUMS. Check mcu_mdt_protocol.h for more details. """
 

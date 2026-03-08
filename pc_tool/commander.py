@@ -3,6 +3,7 @@ from common.dataclasses import Command
 from common.protocol import serialize_command_packet, validate_command_packet
 from common.uart_io import MCUSerialLink
 from common.enums import UtilEnum
+from logger import MDTLogger, LogLevel
 
 def intro_text():
 
@@ -31,7 +32,7 @@ Available Commands:
                         Software breakpoint management. Operation can be 'ENABLED', 'DISABLED', 'NEXT', 'RESET'.
     PING                Send a ping command to the connected MCU.
 """
-    print(help_text)
+    MDTLogger.info(help_text, code=0)
 
 def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
     """
@@ -60,30 +61,55 @@ def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int =
 def clear_command():
     os.system('cls' if os.name == 'nt' else 'clear')
 
+def exit_command(serial_link: MCUSerialLink, threads: list):
+    MDTLogger.info("Exiting...", code=0)
+
+    # stop worker loops
+    serial_link.running = False
+
+    # close UART
+    serial_link.close()
+
+    # wait for event thread to exit
+    for t in threads:
+        t.join(timeout=2.0)
+
+    MDTLogger.info("Debugger closed.", code=0)
+
 def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None):
-    byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)  # seq can be 0 for ping command
-    print(f"Serialized Ping Command Packet: {byte_packet.hex()}")
-    ack = serial_link.send_packet(byte_packet)
-    print(f"Ping command sent. Echoed {len(ack)} bytes: {ack.hex()}")
+    byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)
+
+    MDTLogger.info(f"Serialized Ping Command Packet: {byte_packet.hex()}", code=0)
+
+    serial_link.send_packet(byte_packet)
+
+    ack = serial_link.get_response_packet()
+
+    if not ack:
+        MDTLogger.error("No response from MCU.", code=4)
+        return
+
+    MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+
     if validate_command_packet(ack):
-        print("Command packet validation successful.")
+        MDTLogger.info("Command packet validation successful.", code=0)
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
+
     seq = 0
-    # Determine if we have outgoing data (WRITE) or just a read
     is_write = command.data is not None
 
-    # Split into 4-byte chunks
-    for i in range(0, command.length, UtilEnum.WORD_SIZE):
-        chunk_length = min(UtilEnum.WORD_SIZE, command.length - i)
+    length = command.length if command.length is not None else UtilEnum.WORD_SIZE
+
+    for i in range(0, length, UtilEnum.WORD_SIZE):
+
+        chunk_length = min(UtilEnum.WORD_SIZE, length - i)
 
         if is_write:
-            # Take slice from command.data
             chunk = command.data[i:i + chunk_length]
             if len(chunk) != UtilEnum.WORD_SIZE:
                 chunk = chunk.ljust(UtilEnum.WORD_SIZE, b'\x00')
         else:
-            # No outgoing data for READ
             chunk = None
 
         chunk_command = Command(
@@ -98,15 +124,25 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
         byte_packet = serialize_command_packet(
             chunk_command,
             seq=seq,
-            multi=(command.length > UtilEnum.WORD_SIZE),
-            last=(i + UtilEnum.WORD_SIZE >= command.length)
+            multi=(length > UtilEnum.WORD_SIZE),
+            last=(i + UtilEnum.WORD_SIZE >= length)
         )
 
-        print(f"Serialized Command Packet: {byte_packet.hex()}")
+        MDTLogger.info(f"Serialized Command Packet: {byte_packet.hex()}", code=0)
+
         if serial_link:
-            ack = serial_link.send_packet(byte_packet)
-            print(f"Received ACK: {ack.hex() if ack else 'No response'}")
+
+            serial_link.send_packet(byte_packet)
+
+            ack = serial_link.get_response_packet()
+
+            if not ack:
+                MDTLogger.error("No response from MCU.", code=4)
+                return
+
+            MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+
             if validate_command_packet(ack):
-                print("Command packet validation successful.")
+                MDTLogger.info("Command packet validation successful.", code=0)
 
         seq = (seq + 1) % 0xFF

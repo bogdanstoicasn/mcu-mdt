@@ -63,6 +63,7 @@ uint16_t mdt_crc16(const uint8_t *data, uint16_t len);
 /* Function to validate a MDT packet */
 uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len);
 
+/* Function to dispatch a MDT packet */
 uint8_t mdt_dispatch(uint8_t *buf);
 
 #endif /* MCU_MDT_PROTOCOL_H */

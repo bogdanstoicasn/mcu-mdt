@@ -14,14 +14,8 @@ typedef enum {
     // TODO: Add more event types
 } mdt_event_type_t;
 
-/* Push an event to the queue. Returns 1 on success, 0 if queue is full */
-uint8_t mdt_event_push(mdt_event_type_t event);
-
-/* Return the number of pending events */
-uint8_t mdt_event_pending(void);
-
-/* Send all pending events to the host */
-void mdt_event_send_pending(void);
+/* Send an event to the host.*/
+void mdt_send_event(mdt_event_type_t event);
 
 
 #endif /* MCU_MDT_EVENT_H */

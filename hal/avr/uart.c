@@ -38,6 +38,11 @@ uint8_t uart_getc_nonblocking(uint8_t *data)
     return rb_pop(&rx_buffer, data);
 }
 
+uint8_t uart_ready()
+{
+    return !rb_is_full(&tx_buffer);
+}
+
 /* Interrupt Service Routines */
 
 ISR(USART_RX_vect)
