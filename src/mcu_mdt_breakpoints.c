@@ -1,7 +1,7 @@
 #include "mcu_mdt_breakpoints.h"
 #include "mcu_mdt.h"
 #include "mcu_mdt_config.h"
-#include "mcu_mdt_event.h"
+#include "mcu_mdt_private.h"
 
 static volatile mdt_breakpoint_t breakpoints[MDT_MAX_BREAKPOINTS] = {0};
 
@@ -14,7 +14,7 @@ void mdt_breakpoint_trigger(uint8_t id)
     if (!breakpoints[id].enabled)
         return;
     
-    mdt_send_event(MDT_EVENT_BREAKPOINT_HIT); // Notify host of breakpoint hit
+    mdt_event_wrapper(MDT_EVENT_BREAKPOINT_HIT, id); // Send event with breakpoint ID as data
 
     breakpoints[id].hit_count++; // Optional: track hits
 

@@ -2,7 +2,6 @@
 #include "mcu_mdt_private.h"
 #include "mcu_mdt_protocol.h"
 #include "mcu_mdt_hal.h"
-#include "mcu_mdt_event.h"
 
 static mdt_buffer_t rx_packet = {
     .fence_pre = MDT_FENCE_PATTERN,
@@ -11,6 +10,63 @@ static mdt_buffer_t rx_packet = {
     .buf = {0},
     .fence_post = MDT_FENCE_PATTERN
 };
+
+static volatile mdt_event_t pending_event = { .raw = 0 };
+
+/* --- Event handling functions --- */
+
+static inline void mdt_event_set(mdt_event_type_t type, uint32_t data)
+{
+    if (pending_event.raw)
+        return; // event already pending
+    pending_event.type = type;
+    pending_event.data = data;
+}
+
+static inline void mdt_event_clear(void)
+{
+    pending_event.raw = 0;
+}
+
+static inline uint8_t mdt_event_pending(void)
+{
+    return pending_event.raw != 0;
+}
+
+void mdt_event_send(void)
+{
+    if (!mdt_event_pending())
+        return; // No event to send
+
+    if (!hal_uart_tx_ready())
+        return; // UART busy, skip event
+    
+    mdt_packet_t pkt = {0};
+    pkt.flags |= MDT_FLAG_EVENT;   // Event flag
+    pkt.length = 4;                // 4 bytes of event data
+    pkt.data[0] = (uint8_t)(pending_event.raw & 0xFF);
+    pkt.data[1] = (uint8_t)((pending_event.raw >> 8) & 0xFF);
+    pkt.data[2] = (uint8_t)((pending_event.raw >> 16) & 0xFF);
+    pkt.data[3] = (uint8_t)((pending_event.raw >> 24) & 0xFF);
+
+    // Compute CRC over everything except the CRC itself
+    pkt.crc = mdt_crc16((uint8_t *)&pkt, sizeof(pkt) - sizeof(pkt.crc));
+
+    hal_uart_tx(MDT_START_BYTE);
+    for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
+        hal_uart_tx(((uint8_t *)&pkt)[i]);
+    hal_uart_tx(MDT_END_BYTE);
+
+    mdt_event_clear();
+}
+
+void mdt_event_wrapper(mdt_event_type_t type, uint32_t data)
+{
+    mdt_event_set(type, data);
+    mdt_event_send();
+}
+
+/* --- End of event handling functions --- */
 
 static uint8_t mdt_memset(uint8_t *buf, uint8_t value, uint16_t len)
 {
@@ -26,6 +82,8 @@ static uint8_t mdt_memset(uint8_t *buf, uint8_t value, uint16_t len)
 
     return 1;
 }
+
+/* --- Buffer management functions --- */
 
 static inline uint8_t mdt_buffer_check(const mdt_buffer_t *buffer)
 {
@@ -45,13 +103,15 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
     buffer->fence_post = MDT_FENCE_PATTERN;
 }
 
+/* --- End of buffer management functions --- */
+
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
     /* --- Validate packet --- */
     if (!mdt_packet_validate(buf->buf, MDT_PACKET_SIZE))
     {
-        mdt_send_event(MDT_EVENT_FAILED_PACKET);
+        mdt_event_wrapper(MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); // Send event with buffer address for debugging
         mdt_buffer_reset(buf);
         return 0;
     }
@@ -93,11 +153,18 @@ void mcu_mdt_poll(void)
 {
     uint8_t byte;
 
+    /* --- Check for pending events --- */
+    if (mdt_event_pending())
+    {
+        mdt_event_send();
+    }
+
     /* --- Fence check at entry (optional) --- */
     if (!mdt_buffer_check(&rx_packet))
     {
         mdt_buffer_reset(&rx_packet);
-        mdt_send_event(MDT_EVENT_BUFFER_OVERFLOW);
+        // send the 24 bits of lower address as event data for easier debugging
+        mdt_event_wrapper(MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFF);
         return;
     }
 
@@ -117,7 +184,7 @@ void mcu_mdt_poll(void)
         if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
             mdt_buffer_reset(&rx_packet);
-            mdt_send_event(MDT_EVENT_BUFFER_OVERFLOW);
+            mdt_event_wrapper(MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFF); // Send event with buffer address for debugging
             continue;
         }
 
