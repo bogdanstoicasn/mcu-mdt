@@ -1,11 +1,9 @@
-from venv import logger
-
 from loader import ConfigLoader
 from parser import parse_line, parse_args, CLIHistory
 from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command, exit_command
 from validator import validate_commands
 from event import start_async_handlers
-from logger import MDTLogger, LogLevel
+from common.logger import MDTLogger
 
 if __name__ == "__main__":
     args = parse_args()

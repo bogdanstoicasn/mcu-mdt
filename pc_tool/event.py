@@ -1,6 +1,6 @@
 import threading
-from common.enums import MDTFlags, MDTOffset
-from logger import MDTLogger
+from common.enums import MDTFlags, MDTOffset, EventType
+from common.logger import MDTLogger
 
 
 def rx_worker(serial_link):
@@ -42,7 +42,7 @@ def event_listener(serial_link):
 
             event_type = pkt[MDTOffset.DATA]
 
-            MDTLogger.info(f"\n[MCU EVENT] type={event_type}\n> ", code=0)
+            MDTLogger.info(f"\n[Event] {EventType(event_type).name}\n> ")
 
         except Exception as e:
             if serial_link.running:

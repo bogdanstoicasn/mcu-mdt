@@ -3,6 +3,7 @@ from enum import IntEnum,  StrEnum
 MDT_PACKET_SIZE = 18
 MDT_MAX_BREAKPOINTS = 4
 
+
 class CommandId(IntEnum):
     READ_MEM = 0x01
     WRITE_MEM = 0x02
@@ -15,6 +16,7 @@ class CommandId(IntEnum):
     CLEAR = 0x09
     BREAKPOINT = 0x0A
 
+""" UTILITY ENUMS. These are used across the codebase for various purposes. """
 class BreakpointControl(IntEnum):
     DISABLED = 0
     ENABLED = 1
@@ -65,3 +67,9 @@ class UtilEnum(IntEnum):
     WORD_SIZE = 4
     HALF_WORD_SIZE = 2
     COMMUNICATION_TIMEOUT = 5.0  # in seconds
+
+class EventType(IntEnum):
+    MDT_EVENT_TYPE_NONE = 0
+    MDT_EVENT_BUFFER_OVERFLOW = 1
+    MDT_EVENT_FAILED_PACKET = 2
+    MDT_EVENT_BREAKPOINT_HIT = 3

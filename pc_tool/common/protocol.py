@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from common.dataclasses import Command, CommandPacket
 from common.enums import MDT_PACKET_SIZE, MDTOffset, UtilEnum
-from logger import MDTLogger
+from common.logger import MDTLogger
 
 def calculate_crc16(data: bytes) -> int:
     crc = 0xFFFF
@@ -92,7 +92,7 @@ def deserialize_command_packet(packet: bytes) -> CommandPacket:
     flags = packet[MDTOffset.FLAGS]
     seq = packet[MDTOffset.SEQ]
     mem_id = packet[MDTOffset.MEM_ID] if (flags & 0x01) else None
-    address = int.from_bytes(packet[MDTOffset.ADDR : MDTOffset.ADDR + UtilEnum.WORD_SIZE], byteorder="little")
+    address = int.from_bytes(packet[MDTOffset.ADDRESS : MDTOffset.ADDRESS + UtilEnum.WORD_SIZE], byteorder="little")
     length = int.from_bytes(packet[MDTOffset.LENGTH : MDTOffset.LENGTH + UtilEnum.HALF_WORD_SIZE], byteorder="little")
     data = packet[MDTOffset.DATA : MDTOffset.DATA + UtilEnum.WORD_SIZE]
 

@@ -3,7 +3,8 @@ from common.dataclasses import Command
 from common.protocol import serialize_command_packet, validate_command_packet
 from common.uart_io import MCUSerialLink
 from common.enums import UtilEnum
-from logger import MDTLogger, LogLevel
+from common.logger import MDTLogger
+from parser import parse_packet
 
 def intro_text():
 
@@ -90,6 +91,7 @@ def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialL
         return
 
     MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+    parse_packet(ack)
 
     if validate_command_packet(ack):
         MDTLogger.info("Command packet validation successful.", code=0)
@@ -141,6 +143,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
                 return
 
             MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+            parse_packet(ack)
 
             if validate_command_packet(ack):
                 MDTLogger.info("Command packet validation successful.", code=0)

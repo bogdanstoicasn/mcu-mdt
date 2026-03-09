@@ -1,7 +1,7 @@
 from click import command
 from common.dataclasses import Command
 from common.enums import CommandId, MemType, BreakpointControl, MDT_MAX_BREAKPOINTS
-from logger import MDTLogger
+from common.logger import MDTLogger
 
 def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     """

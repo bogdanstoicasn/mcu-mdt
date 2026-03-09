@@ -2,8 +2,9 @@ import os
 import atexit
 import argparse
 from pathlib import Path
-from logger import MDTLogger
-from common.dataclasses import Command
+from common.logger import MDTLogger
+from common.dataclasses import Command, CommandPacket
+from common.protocol import deserialize_command_packet
 
 try:
     import readline
@@ -141,3 +142,10 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
     except (ValueError, IndexError, KeyError) as e:
         MDTLogger.error(f"Failed to parse line: {line}", code=str(e))
         return None
+
+def parse_packet(packet: bytes) -> None:
+    """
+    Function that prints the contents of a received packet in a human-readable format."""
+
+    cmd = deserialize_command_packet(packet)
+    MDTLogger.info(f"Received packet: {cmd}")

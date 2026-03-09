@@ -1,7 +1,7 @@
 import yaml
 import os
 import xml.etree.ElementTree as ET
-from logger import MDTLogger
+from common.logger import MDTLogger
 from common.enums import MCUPlatforms
 
 class ConfigLoader:
