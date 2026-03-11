@@ -45,12 +45,27 @@ uint8_t uart_ready()
 
 /* Interrupt Service Routines */
 
-ISR(USART_RX_vect)
+/* Vector Definitions Portability */
+#if defined(USART_RX_vect)        // Single UART MCUs (e.g., ATmega328P, ATmega168)
+    #define USART_RX_vect_name    USART_RX_vect
+    #define USART_UDRE_vect_name  USART_UDRE_vect
+#elif defined(USART0_RX_vect)     // Multi-UART MCUs (e.g., ATmega2560, ATmega1280)
+    #define USART_RX_vect_name    USART0_RX_vect
+    #define USART_UDRE_vect_name  USART0_UDRE_vect
+#elif defined(USARTE_RX_vect)     // Some ATtiny/extended UART variants
+    #define USART_RX_vect_name    USARTE_RX_vect
+    #define USART_UDRE_vect_name  USARTE_UDRE_vect
+#else
+    #error "Unsupported AVR MCU for UART0"
+#endif
+
+
+ISR(USART_RX_vect_name)
 {
     rb_push(&rx_buffer, UDR0);
 }
 
-ISR(USART_UDRE_vect)
+ISR(USART_UDRE_vect_name)
 {
     uint8_t data;
     if (rb_pop(&tx_buffer, &data))
