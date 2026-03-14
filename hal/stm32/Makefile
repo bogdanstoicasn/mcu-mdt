@@ -23,7 +23,7 @@ BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup
-LINKER_SCRIPT := $(HAL_DIR)/linker.ld
+LINKER_SCRIPT := $(CURDIR)/linker.ld
 STARTUP_FILE := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
@@ -43,7 +43,7 @@ CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 CFLAGS := $(CPU_FLAGS)
 CFLAGS += -Wall -Wextra -Os
 CFLAGS += -ffreestanding -nostdlib
-CFLAGS += -I$(INC_DIR) -I$(HAL_DIR) -I$(BASE_HAL_DIR)
+CFLAGS += -I$(INC_DIR) -I$(HAL_DIR) -I$(BASE_HAL_DIR) -I$(SRC_DIR)
 CFLAGS += -DPLATFORM_STM32
 
 # Linker flags
@@ -98,7 +98,7 @@ copy_files:
 build_example:
 	@echo "Building example..."
 	@cd $(BUILD_DIR) && $(CC) $(CFLAGS) -c main.c -o main.o
-	@cd $(BUILD_DIR) && $(CC) main.o -L. -lmcu_mdt_stm32 $(LDFLAGS) -o $(ELF_NAME)
+	@cd $(BUILD_DIR) && $(CC) main.o -L. -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(ELF_NAME)
 	@cd $(BUILD_DIR) && $(OBJCOPY) -O binary $(ELF_NAME) $(BIN_NAME)
 	@cd $(BUILD_DIR) && $(OBJCOPY) -O ihex $(ELF_NAME) $(HEX_NAME)
 	@$(SIZE) $(BUILD_DIR)/$(ELF_NAME)

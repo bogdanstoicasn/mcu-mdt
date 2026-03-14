@@ -60,7 +60,7 @@ class MDTFlags(IntEnum):
 class MCUPlatforms(StrEnum):
     AVR = "avr"
     PIC = "pic"
-    STM = "stm"
+    STM = "stm32"
 
 class UtilEnum(IntEnum):
     BAUDRATE_19200 = 19200

@@ -11,6 +11,16 @@ static mdt_buffer_t rx_packet = {
     .fence_post = MDT_FENCE_PATTERN
 };
 
+static inline void mdt_memset(void *buf, uint8_t value, uint32_t len)
+{
+    uint8_t *p = (uint8_t *)buf;
+
+    while (len--)
+    {
+        *p++ = value;
+    }
+}
+
 static volatile mdt_event_t pending_event = { .raw = 0 };
 
 /* --- Event handling functions --- */
@@ -41,7 +51,8 @@ void mdt_event_send(void)
     if (!hal_uart_tx_ready())
         return; // UART busy, skip event
     
-    mdt_packet_t pkt = {0};
+    mdt_packet_t pkt;
+    mdt_memset((uint8_t *)&pkt, 0, sizeof(pkt));
     pkt.flags |= MDT_FLAG_EVENT;   // Event flag
     pkt.length = 4;                // 4 bytes of event data
     pkt.data[0] = (uint8_t)(pending_event.raw & 0xFF);
@@ -68,20 +79,6 @@ void mdt_event_wrapper(mdt_event_type_t type, uint32_t data)
 
 /* --- End of event handling functions --- */
 
-static uint8_t mdt_memset(uint8_t *buf, uint8_t value, uint16_t len)
-{
-    if (!buf)
-    {
-        return 0;
-    }
-
-    for (uint16_t i = 0; i < len; i++)
-    {
-        buf[i] = value;
-    }
-
-    return 1;
-}
 
 /* --- Buffer management functions --- */
 

@@ -233,117 +233,204 @@ def load_atdf_for_mcu(mcu_name: str, atdf_root: str) -> dict:
 
 def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
     """
-    Parse an ARM Cortex-M SVD file and produce ATDF-compatible metadata.
-
+    Locate and parse the SVD file for a given MCU.
     Args:
-        mcu_name (str): MCU name, e.g., 'STM32F103C8'
-        svd_root (str): Folder containing the SVD file
-
+        mcu_name (str): MCU name (e.g. 'stm32f103c8')
+        svd_root (str): Path to SVD files directory
     Returns:
-        dict: metadata with keys: modules, memories, peripherals, interrupts
+        dict: Parsed SVD data (registers, memories, peripherals, etc.)
+    Raises:
+        FileNotFoundError: If SVD file cannot be found
+        ValueError: If SVD is invalid or MCU mismatch
     """
+
     mcu_name_lower = mcu_name.lower()
     svd_file = None
 
-    # Locate SVD
-    for root, _, files in os.walk(svd_root):
+    # Try exact match
+    for root_dir, _, files in os.walk(svd_root):
         for file in files:
-            if file.lower().endswith(".svd"):
-                file_stem = os.path.splitext(file)[0].lower()
-                if file_stem == mcu_name_lower:
-                    svd_file = os.path.join(root, file)
-                    break
+            if file.lower().endswith(".svd") and os.path.splitext(file)[0].lower() == mcu_name_lower:
+                svd_file = os.path.join(root_dir, file)
+                break
         if svd_file:
             break
 
+    # STM32 family fallback
     if not svd_file:
+        family_map = {
+            "f030": "STM32F0x0.svd",
+            "f031": "STM32F0x1.svd",
+            "f042": "STM32F0x2.svd",
+            "f051": "STM32F0x1.svd",
+            "f072": "STM32F0x2.svd",
+        }
+        mcu_prefix = mcu_name_lower[5:9] if mcu_name_lower.startswith("stm32") else mcu_name_lower[:4]
+        if mcu_prefix in family_map:
+            svd_file = os.path.join(svd_root, "stm32", "cortex-m0", family_map[mcu_prefix])
+
+    if not svd_file or not os.path.isfile(svd_file):
         raise FileNotFoundError(f"SVD file for MCU '{mcu_name}' not found in {svd_root}")
 
     # Parse XML
     tree = ET.parse(svd_file)
     root = tree.getroot()
 
+    # Namespace handling (if any)
+    ns = {}
+    if root.tag.startswith("{"):
+        uri = root.tag.split("}")[0].strip("{")
+        ns = {"svd": uri}
+
+    def ns_findtext(elem, path):
+        try:
+            return elem.findtext(path, namespaces=ns)
+        except:
+            return elem.findtext(path)
+
+    def ns_findall(elem, path):
+        try:
+            return elem.findall(path, namespaces=ns)
+        except:
+            return elem.findall(path)
+
+    def parse_int(text: str | None, default: int = 0) -> int:
+        if not text:
+            return default
+        try:
+            return int(text.strip(), 0)
+        except ValueError:
+            return default
+
     result = {
         "device": mcu_name_lower,
-        "architecture": root.findtext("cpu/name"),
-        "family": root.findtext("cpu/description"),
+        "architecture": ns_findtext(root, "cpu/name"),
+        "family": ns_findtext(root, "name") or ns_findtext(root, "cpu/name"),
         "peripherals": {},
         "modules": {},
         "memories": {},
         "interrupts": {},
     }
 
-    # 1. Parse memories (Flash, SRAM)
-    memory_map = root.findall(".//memory")
-    for mem in memory_map:
-        name = mem.get("name")
-        start = int(mem.get("startAddress") or mem.get("baseAddress") or 0, 0)
-        size = int(mem.get("size") or 0, 0)
-        mem_type = mem.get("access")  # optional, map to 'flash' or 'ram'
-        mem_type_str = "flash" if "flash" in (name or "").lower() else "ram"
+    # -------------------------------
+    # 1. Root-level memories (<memory>)
+    # -------------------------------
+    for mem in ns_findall(root, ".//memory"):
+        name = mem.get("name") or mem.findtext("name")
+        if not name:
+            continue
+        start = parse_int(mem.get("start") or mem.findtext("startAddress"))
+        size = parse_int(mem.get("size") or mem.findtext("size"))
+        mem_type_str = (mem.get("type") or "").lower()
+        if not mem_type_str:
+            mem_type_str = "flash" if "flash" in name.lower() else "ram"
         result["memories"][name] = {
             "start": start,
             "size": size,
             "type": mem_type_str,
-            "pagesize": mem.get("pageSize"),
+            "pagesize": parse_int(mem.get("pageSize") or mem.findtext("pageSize")),
         }
 
-    # 2. Parse peripherals and registers
-    for peripheral in root.findall(".//peripheral"):
-        periph_name = peripheral.findtext("name")
-        if not periph_name:
-            continue
+    # -------------------------------
+    # 2. Pre-index peripherals for derivedFrom
+    # -------------------------------
+    peripheral_elements = {}
+    for p in ns_findall(root, ".//peripheral"):
+        pname = ns_findtext(p, "name")
+        if pname:
+            peripheral_elements[pname] = p
 
-        # Module
-        result["modules"][periph_name] = {
-            "caption": peripheral.findtext("description"),
-            "instances": [],
-            "register_groups": {},
+    def resolve_peripheral(p_elem):
+        derived = p_elem.get("derivedFrom")
+        if derived and derived in peripheral_elements:
+            return peripheral_elements[derived]
+        return p_elem
+
+    # -------------------------------
+    # 3. Process each peripheral
+    # -------------------------------
+    for pname, p_elem in peripheral_elements.items():
+        base_elem = resolve_peripheral(p_elem)
+        base_addr = parse_int(ns_findtext(p_elem, "baseAddress"))
+        caption = ns_findtext(p_elem, "description") or ns_findtext(base_elem, "description") or ""
+
+        # Peripherals
+        result["peripherals"][pname] = {"caption": caption, "instances": [{"name": pname}]}
+
+        # Modules
+        result["modules"][pname] = {
+            "caption": caption,
+            "instances": [{"name": pname, "offset": hex(base_addr), "register_group": "REG_GROUP", "address_space": "data"}],
+            "register_groups": {"REG_GROUP": {"name_in_module": "REG_GROUP", "caption": caption, "offset": 0, "registers": {}}},
         }
 
-        # Base address
-        base_addr = int(peripheral.findtext("baseAddress") or 0, 0)
+        rg = result["modules"][pname]["register_groups"]["REG_GROUP"]
 
         # Registers
-        rg_name = "REG_GROUP"
-        result["modules"][periph_name]["register_groups"][rg_name] = {
-            "name_in_module": rg_name,
-            "caption": rg_name,
-            "offset": 0,
-            "registers": {},
-        }
-
-        for reg in peripheral.findall("registers/register"):
-            reg_name = reg.findtext("name")
+        for reg in ns_findall(base_elem, "registers/register"):
+            reg_name = ns_findtext(reg, "name")
             if not reg_name:
                 continue
-            reg_offset = int(reg.findtext("addressOffset") or 0, 0)
-            reg_size = int(reg.findtext("size") or 32, 0)  # default 32-bit
-            reg_rw = reg.findtext("access") or "read-write"
+            reg_offset = parse_int(ns_findtext(reg, "addressOffset"))
+            reg_size = parse_int(ns_findtext(reg, "size") or "32")
+            reg_rw = ns_findtext(reg, "access") or "read-write"
 
             # Bitfields
             bitfields = {}
-            for bf in reg.findall("fields/field"):
-                bf_name = bf.findtext("name")
+            for bf in ns_findall(reg, "fields/field"):
+                bf_name = ns_findtext(bf, "name")
                 if not bf_name:
                     continue
-                bf_mask = bf.findtext("bitRange") or bf.findtext("bitOffset")
-                bf_values = {}
-                for val in bf.findall("enumeratedValues/enumeratedValue"):
-                    val_name = val.findtext("name")
+                bit_range = ns_findtext(bf, "bitRange")
+                if not bit_range:
+                    offset = parse_int(ns_findtext(bf, "bitOffset"))
+                    width = parse_int(ns_findtext(bf, "bitWidth") or "1")
+                    bit_range = f"[{offset+width-1}:{offset}]"
+                values = {}
+                for val in ns_findall(bf, "enumeratedValues/enumeratedValue"):
+                    val_name = ns_findtext(val, "name")
                     if val_name:
-                        bf_values[val_name] = {
-                            "caption": val.findtext("description"),
-                            "value": val.findtext("value"),
-                        }
-                bitfields[bf_name] = {"caption": bf.findtext("description"), "mask": bf_mask, "values": bf_values}
+                        values[val_name] = {"caption": ns_findtext(val, "description"), "value": ns_findtext(val, "value")}
+                bitfields[bf_name] = {"caption": ns_findtext(bf, "description"), "mask": bit_range, "values": values}
 
-            result["modules"][periph_name]["register_groups"][rg_name]["registers"][reg_name] = {
-                "caption": reg.findtext("description"),
+            rg["registers"][reg_name] = {
+                "caption": ns_findtext(reg, "description"),
                 "offset": reg_offset,
+                "absolute_address": hex(base_addr + reg_offset),
                 "size": reg_size,
                 "rw": reg_rw,
                 "bitfields": bitfields,
+            }
+
+        # Memory blocks (<addressBlock>)
+        for addr_block in ns_findall(p_elem, "addressBlock"):
+            block_offset = parse_int(ns_findtext(addr_block, "offset"))
+            block_size = parse_int(ns_findtext(addr_block, "size"))
+            block_usage = (ns_findtext(addr_block, "usage") or "").lower()
+            if block_usage in ("ram", "flash", "registers"):
+                mem_key = f"{pname}_{block_usage.upper()}"
+                result["memories"][mem_key] = {"start": base_addr + block_offset, "size": block_size, "type": block_usage, "pagesize": None}
+
+        # Interrupts inside peripheral
+        for intr in ns_findall(p_elem, "interrupt"):
+            int_name = ns_findtext(intr, "name")
+            if int_name and int_name not in result["interrupts"]:
+                result["interrupts"][int_name] = {
+                    "index": ns_findtext(intr, "value"),
+                    "caption": ns_findtext(intr, "description"),
+                    "module_instance": pname,
+                }
+
+    # -------------------------------
+    # 4. Device-level interrupts
+    # -------------------------------
+    for intr in ns_findall(root, ".//interrupts/interrupt"):
+        int_name = ns_findtext(intr, "name")
+        if int_name and int_name not in result["interrupts"]:
+            result["interrupts"][int_name] = {
+                "index": ns_findtext(intr, "value"),
+                "caption": ns_findtext(intr, "description"),
+                "module_instance": None,
             }
 
     return result
@@ -359,7 +446,7 @@ def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
         raise NotImplementedError("PIC platform support not implemented yet")
     elif platform == MCUPlatforms.STM:
         # Placeholder for STM metadata loading logic
-        raise NotImplementedError("STM platform support not implemented yet")
+        return load_svd_for_mcu(mcu_name, svd_root="mcu_db")
     else:
         raise ValueError(f"Unsupported MCU platform: {platform}")
 

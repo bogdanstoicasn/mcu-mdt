@@ -21,3 +21,24 @@ uint8_t hal_uart_tx_ready()
 {
     return uart_ready();
 }
+
+uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length)
+{
+    return 0; // Not implemented
+}
+
+uint8_t hal_read_register(uint32_t address, uint8_t *buffer)
+{
+    return 0; // Not implemented
+}
+
+uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, uint16_t length)
+{
+    return 0; // Not implemented
+}
+
+uint8_t hal_write_register(uint32_t address, const uint8_t *buffer)
+{
+    return 0; // Not implemented
+}
+
