@@ -20,9 +20,6 @@ if __name__ == "__main__":
 
     mcu_metadata = loader.mcu_metadata
 
-    print(f"Loaded MCU Metadata: {mcu_metadata}")
-    pass
-
     # Start the connection to the MCU
     serial_link = serial_link_command(
         port=loader.yaml_build_data['port'],
