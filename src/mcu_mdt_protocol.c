@@ -148,7 +148,12 @@ uint8_t mdt_dispatch(uint8_t *buf)
             break;
     }
 
-    mdt_encode(buf, &pkt); /* Re-encode response (ACK/NACK and data) */
+    // only data is modified for read commands, so re-encode data back to buffer
+    uint8_t *dst = &buf[MDT_OFFSET_DATA];
+    dst[0] = pkt.data[0];
+    dst[1] = pkt.data[1];
+    dst[2] = pkt.data[2];
+    dst[3] = pkt.data[3];
 
     return status;
 }

@@ -1,0 +1,11 @@
+platform_name: "STM32"
+description: "Configuration for STM32 microcontroller platforms."
+vendor: "STMicroelectronics"
+atdf_source:
+  type: "url"
+  links:
+    STM32F0: "https://packs.download.st.com/#collapse-STMicroelectronics-STM32F0-DFP-pdsc"
+
+supported_devices:
+  STM32F0:
+    - "STM32F030F4"
