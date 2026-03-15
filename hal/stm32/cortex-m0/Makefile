@@ -44,6 +44,10 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
+# CPU frequency (can be overridden from command line)
+F_CPU ?= 48000000UL
+CFLAGS += -DF_CPU=$(F_CPU)
+
 # Compiler flags
 CFLAGS  := $(CPU_FLAGS)
 CFLAGS  += -Wall -Wextra -Os
@@ -112,6 +116,8 @@ copy_files: $(BUILD_DIR)
 	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
+	@cp $(LINKER_SCRIPT)            $(BUILD_DIR)/linker.ld
+	@cp $(STARTUP_FILE)             $(BUILD_DIR)/startup_stm32f030xx.c
 
 # Compile example
 $(EXAMPLE_OBJ): $(BUILD_DIR)/main.c

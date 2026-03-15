@@ -21,8 +21,9 @@ SIZE    := arm-none-eabi-size
 
 LIB           := libmcu_mdt_stm32.a
 LINKER_SCRIPT := linker.ld
+STARTUP       := startup_stm32f030xx.c
 
-# Output files
+# Output
 
 ELF := mcu_mdt_user.elf
 BIN := mcu_mdt_user.bin
@@ -49,8 +50,9 @@ LDFLAGS += -DMCU=$(MCU)
 
 # Object files
 
-OBJS := $(USER_SRCS:.c=.o)
-DEPS := $(OBJS:.o=.d)
+STARTUP_OBJ := startup.o
+OBJS        := $(USER_SRCS:.c=.o)
+DEPS        := $(OBJS:.o=.d)
 
 # Targets
 
@@ -62,13 +64,20 @@ all: $(HEX)
 
 -include $(DEPS)
 
+# Compile user sources
 %.o: %.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-$(ELF): $(OBJS) $(LIB)
+# Compile startup separately — no -Wall/-Wextra, just bare metal flags
+$(STARTUP_OBJ): $(STARTUP)
+	@echo "  CC  startup"
+	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
+
+# Link — startup must come before user objects so the vector table lands first
+$(ELF): $(STARTUP_OBJ) $(OBJS) $(LIB)
 	@echo "  LD  $(ELF)"
-	@$(CC) $(LDFLAGS) $(OBJS) -L. -lmcu_mdt_stm32 -lgcc -o $@
+	@$(CC) $(LDFLAGS) $(STARTUP_OBJ) $(OBJS) -L. -lmcu_mdt_stm32 -lgcc -o $@
 
 $(BIN): $(ELF)
 	@$(OBJCOPY) -O binary $< $@
@@ -83,5 +92,5 @@ flash: all
 	st-flash write $(BIN) 0x08000000
 
 clean:
-	@rm -f $(OBJS) $(DEPS) $(ELF) $(BIN) $(HEX)
+	@rm -f $(OBJS) $(DEPS) $(STARTUP_OBJ) $(ELF) $(BIN) $(HEX)
 	@echo "Cleaned."
