@@ -77,8 +77,10 @@ static void mdt_decode(const uint8_t *buf, mdt_packet_t *pkt)
         ((uint16_t)buf[MDT_OFFSET_LENGTH]) |
         ((uint16_t)buf[MDT_OFFSET_LENGTH + 1] << 8);
 
-    for (uint8_t i = 0; i < MDT_DATA_MAX_SIZE; i++)
-        pkt->data[i] = buf[MDT_OFFSET_DATA + i];
+    pkt->data[0] = buf[MDT_OFFSET_DATA];
+    pkt->data[1] = buf[MDT_OFFSET_DATA + 1];
+    pkt->data[2] = buf[MDT_OFFSET_DATA + 2];
+    pkt->data[3] = buf[MDT_OFFSET_DATA + 3];
 
     pkt->crc =
         ((uint16_t)buf[MDT_OFFSET_CRC]) |
@@ -149,11 +151,10 @@ uint8_t mdt_dispatch(uint8_t *buf)
     }
 
     // only data is modified for read commands, so re-encode data back to buffer
-    uint8_t *dst = &buf[MDT_OFFSET_DATA];
-    dst[0] = pkt.data[0];
-    dst[1] = pkt.data[1];
-    dst[2] = pkt.data[2];
-    dst[3] = pkt.data[3];
+    buf[MDT_OFFSET_DATA] = pkt.data[0];
+    buf[MDT_OFFSET_DATA + 1] = pkt.data[1];
+    buf[MDT_OFFSET_DATA + 2] = pkt.data[2];
+    buf[MDT_OFFSET_DATA + 3] = pkt.data[3];
 
     return status;
 }

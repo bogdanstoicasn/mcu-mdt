@@ -106,7 +106,8 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
     /* --- Validate packet --- */
-    if (!mdt_packet_validate(buf->buf, MDT_PACKET_SIZE))
+    uint8_t *pkt = buf->buf;
+    if (!mdt_packet_validate(pkt, MDT_PACKET_SIZE))
     {
         mdt_event_wrapper(MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); // Send event with buffer address for debugging
         mdt_buffer_reset(buf);
@@ -114,24 +115,26 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     }
 
     /* --- Dispatch command --- */
-    uint8_t status = mdt_dispatch(buf->buf);
+    uint8_t status = mdt_dispatch(pkt);
 
     /* --- Set flags --- */
-    buf->buf[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
+    pkt[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
     if (!status)
-        buf->buf[MDT_OFFSET_FLAGS] |= MDT_FLAG_STATUS_ERROR;
+        pkt[MDT_OFFSET_FLAGS] |= MDT_FLAG_STATUS_ERROR;
 
     /* --- Recalculate CRC --- */
     uint16_t crc = mdt_crc16(
-        &buf->buf[MDT_OFFSET_CMD_ID],
+        &pkt[MDT_OFFSET_CMD_ID],
         MDT_PACKET_SIZE - 1 - 2 - 1
     );
-    buf->buf[MDT_OFFSET_CRC]     = (uint8_t)(crc);
-    buf->buf[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
+    pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
+    pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
     /* --- Send response --- */
-    for (uint16_t i = 0; i < MDT_PACKET_SIZE; i++)
-        hal_uart_tx(buf->buf[i]);
+    uint8_t *p   = pkt;
+    uint8_t *end = pkt + MDT_PACKET_SIZE;
+    while (p < end)
+        hal_uart_tx(*p++);
 
     /* --- Reset buffer for next packet --- */
     mdt_buffer_reset(buf);

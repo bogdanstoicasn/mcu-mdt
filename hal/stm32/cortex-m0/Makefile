@@ -12,8 +12,8 @@ SIZE    := arm-none-eabi-size
 SRC_DIR      := ../../../src
 INC_DIR      := ../../../inc
 HAL_DIR      := .
-BASE_HAL_DIR := ../../           # hal/ — for any hal-level shared headers
-STM_HAL_DIR  := ../              # hal/stm32/ — for stm32-level shared headers
+BASE_HAL_DIR := ../../
+STM_HAL_DIR  := ../
 BUILD_DIR    := ../../../build/$(MCU)
 EXAMPLES_DIR := ../../../examples/stm32
 
@@ -32,60 +32,73 @@ STARTUP_FILE  := $(HAL_DIR)/startup_stm32f030xx.c
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 HAL_FILES := $(wildcard $(HAL_DIR)/*.c)
 
-# Object files
-SRC_OBJS    := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/%.o, $(SRC_FILES))
-HAL_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/%.o, $(HAL_FILES))
+# Object files — prefixed to avoid collision if filenames overlap across src/ and hal/
+SRC_OBJS    := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/src_%.o, $(SRC_FILES))
+HAL_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/hal_%.o, $(HAL_FILES))
 STARTUP_OBJ := $(BUILD_DIR)/startup.o
 ALL_OBJS    := $(SRC_OBJS) $(HAL_OBJS) $(STARTUP_OBJ)
+
+# Dependency files
+DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
 # Compiler flags
-# $(INCLUDES) is exported by root Makefile as absolute -I paths — safe across -C hops
 CFLAGS  := $(CPU_FLAGS)
 CFLAGS  += -Wall -Wextra -Os
+CFLAGS  += -ffunction-sections
+CFLAGS  += -fdata-sections
 CFLAGS  += -ffreestanding -nostdlib
+CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR) -I$(BASE_HAL_DIR) -I$(SRC_DIR)
 CFLAGS  += -DPLATFORM_STM32
+CFLAGS  += -DMCU=$(MCU)
 
 # Linker flags
 LDFLAGS  := $(CPU_FLAGS)
 LDFLAGS  += -T$(LINKER_SCRIPT)
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -nostdlib
+LDFLAGS  += -DMCU=$(MCU)
 
-# ── Targets ──────────────────────────────────────────────────────────────────
+# Example objects
+EXAMPLE_OBJ := $(BUILD_DIR)/main.o
+EXAMPLE_ELF := $(BUILD_DIR)/$(ELF_NAME)
+EXAMPLE_BIN := $(BUILD_DIR)/$(BIN_NAME)
+EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
+
+# ── Targets ───
 
 .PHONY: all clean flash
 
-all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example
+all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
 	@echo "Build complete!"
 	@echo "  Library : $(LIB_PATH)"
-	@echo "  Hex     : $(BUILD_DIR)/$(HEX_NAME)"
-	@echo "platform: STM32"   > $(BUILD_DIR)/build_info.yaml
-	@echo "core: cortex-m0"  >> $(BUILD_DIR)/build_info.yaml
-	@echo "mcu: $(MCU)"      >> $(BUILD_DIR)/build_info.yaml
-	@echo "port: $(PORT)"    >> $(BUILD_DIR)/build_info.yaml
+	@echo "  Hex     : $(EXAMPLE_HEX)"
 
+# Build directory
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
+# Dependency files
+-include $(DEPS)
+
 # Compile src/
-$(BUILD_DIR)/%.o: $(SRC_DIR)/%.c
+$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile HAL (cortex-m0/*.c)
-$(BUILD_DIR)/%.o: $(HAL_DIR)/%.c
+$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile startup
 $(STARTUP_OBJ): $(STARTUP_FILE)
 	@echo "  CC  startup"
-	@$(CC) $(CPU_FLAGS) -c $< -o $@
+	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
 
 # Static library
 $(LIB_PATH): $(ALL_OBJS)
@@ -93,25 +106,38 @@ $(LIB_PATH): $(ALL_OBJS)
 	@$(AR) rcs $@ $(ALL_OBJS)
 
 # Copy distribution files
-copy_files:
+copy_files: $(BUILD_DIR)
 	@echo "  COPY headers & example"
 	@cp $(INC_DIR)/mcu_mdt.h        $(BUILD_DIR)/
 	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/main.c              $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/Makefile            $(BUILD_DIR)/Makefile.example
+	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
+	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
 
-# Build example binary
-build_example:
+# Compile example
+$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c
+	@echo "  CC  main.c"
+	@$(CC) $(CFLAGS) -c $< -o $@
+
+# Link example
+build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
 	@echo "  LD  $(ELF_NAME)"
-	@cd $(BUILD_DIR) && $(CC) $(CFLAGS) -c main.c -o main.o
-	@cd $(BUILD_DIR) && $(CC) main.o -L. -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(ELF_NAME)
-	@cd $(BUILD_DIR) && $(OBJCOPY) -O binary $(ELF_NAME) $(BIN_NAME)
-	@cd $(BUILD_DIR) && $(OBJCOPY) -O ihex   $(ELF_NAME) $(HEX_NAME)
-	@$(SIZE) $(BUILD_DIR)/$(ELF_NAME)
+	@$(CC) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(EXAMPLE_ELF)
+	@$(OBJCOPY) -O binary $(EXAMPLE_ELF) $(EXAMPLE_BIN)
+	@$(OBJCOPY) -O ihex   $(EXAMPLE_ELF) $(EXAMPLE_HEX)
+	@$(SIZE) $(EXAMPLE_ELF)
+
+# Build info
+$(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
+	@echo "platform: STM32"   > $@
+	@echo "core: cortex-m0"  >> $@
+	@echo "mcu: $(MCU)"      >> $@
+	@echo "port: $(PORT)"    >> $@
 
 flash: all
+	@test -f $(EXAMPLE_BIN) || \
+		{ echo "ERROR: Binary not found, build failed?"; exit 1; }
 	@echo "Flashing $(MCU) via ST-Link..."
-	st-flash write $(BUILD_DIR)/$(BIN_NAME) 0x08000000
+	st-flash write $(EXAMPLE_BIN) 0x08000000
 
 clean:
 	@echo "Cleaning cortex-m0 build ($(MCU))..."

@@ -102,7 +102,8 @@ def deserialize_command_packet(packet: bytes) -> CommandPacket:
         mem_id=mem_id,
         address=address,
         length=length,
-        data=data
+        data=data,
+        crc=crc_received
     )
 
 def validate_command_packet(packet: bytes) -> bool:
