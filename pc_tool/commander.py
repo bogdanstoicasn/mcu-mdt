@@ -1,4 +1,5 @@
 import os
+import shutil
 from common.dataclasses import Command
 from common.protocol import serialize_command_packet, validate_command_packet
 from common.uart_io import MCUSerialLink
@@ -7,14 +8,15 @@ from common.logger import MDTLogger
 from parser import parse_packet
 
 def intro_text():
-
-    intro_string = """
-MCU-MDT - Microcontroller Memory Debug Tool
----------------------------------------
-Type 'HELP' to see available commands.
-"""
-
-    return intro_string
+    width = shutil.get_terminal_size().columns
+    
+    lines = [
+        "MCU-MDT - Microcontroller Memory Debug Tool",
+        "---------------------------------------",
+        "Type 'HELP' to see available commands."
+    ]
+    
+    return "\n" + "\n".join(line.center(width) for line in lines) + "\n"
 
 def help_command():
     help_text = """
@@ -33,7 +35,7 @@ Available Commands:
                         Software breakpoint management. Operation can be 'ENABLED', 'DISABLED', 'NEXT', 'RESET'.
     PING                Send a ping command to the connected MCU.
 """
-    MDTLogger.info(help_text, code=0)
+    MDTLogger.info(help_text)
 
 def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
     """
@@ -63,7 +65,7 @@ def clear_command():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def exit_command(serial_link: MCUSerialLink, threads: list):
-    MDTLogger.info("Exiting...", code=0)
+    MDTLogger.info("Exiting...")
 
     # stop worker loops
     serial_link.running = False
@@ -75,12 +77,12 @@ def exit_command(serial_link: MCUSerialLink, threads: list):
     for t in threads:
         t.join(timeout=2.0)
 
-    MDTLogger.info("Debugger closed.", code=0)
+    MDTLogger.info("Debugger closed.")
 
 def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None):
     byte_packet = serialize_command_packet(command, seq=0, multi=False, last=False)
 
-    MDTLogger.info(f"Serialized Ping Command Packet: {byte_packet.hex()}", code=0)
+    MDTLogger.info(f"Serialized Ping Command Packet: {byte_packet.hex()}")
 
     serial_link.send_packet(byte_packet)
 
@@ -90,11 +92,11 @@ def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialL
         MDTLogger.error("No response from MCU.", code=4)
         return
 
-    MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+    MDTLogger.info(f"Received ACK: {ack.hex()}")
     parse_packet(ack)
 
     if validate_command_packet(ack):
-        MDTLogger.info("Command packet validation successful.", code=0)
+        MDTLogger.info("Command packet validation successful.")
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
 
@@ -130,7 +132,7 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
             last=(i + UtilEnum.WORD_SIZE >= length)
         )
 
-        MDTLogger.info(f"Serialized Command Packet: {byte_packet.hex()}", code=0)
+        MDTLogger.info(f"Serialized Command Packet: {byte_packet.hex()}")
 
         if serial_link:
 
@@ -142,10 +144,10 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
                 MDTLogger.error("No response from MCU.", code=4)
                 return
 
-            MDTLogger.info(f"Received ACK: {ack.hex()}", code=0)
+            MDTLogger.info(f"Received ACK: {ack.hex()}")
             parse_packet(ack)
 
             if validate_command_packet(ack):
-                MDTLogger.info("Command packet validation successful.", code=0)
+                MDTLogger.info("Command packet validation successful.")
 
         seq = (seq + 1) % 0xFF

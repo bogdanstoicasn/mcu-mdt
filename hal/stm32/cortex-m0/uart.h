@@ -7,42 +7,45 @@
 void uart_init(uint32_t baudrate);
 uint8_t uart_putc(uint8_t data);
 uint8_t uart_getc_nonblocking(uint8_t *data);
-uint8_t uart_ready();
+uint8_t uart_ready(void);
 
-/* Defines and addresses */
-
-/* USART1 zone */
-#define USART1_BASE 0x40013800
+/* USART1 */
+#define USART1_BASE 0x40013800UL
 
 typedef struct {
-    volatile uint32_t cr1;
-    volatile uint32_t cr2;
-    volatile uint32_t cr3;
-    volatile uint32_t brr;
-    volatile uint32_t rtor;
-    volatile uint32_t rqr;
-    volatile uint32_t isr;
-    volatile uint32_t icr;
-    volatile uint32_t rdr;
-    volatile uint32_t tdr;
+    volatile uint32_t cr1;       /* 0x00 */
+    volatile uint32_t cr2;       /* 0x04 */
+    volatile uint32_t cr3;       /* 0x08 */
+    volatile uint32_t brr;       /* 0x0C */
+    volatile uint32_t reserved0; /* 0x10 */
+    volatile uint32_t rtor;      /* 0x14 */
+    volatile uint32_t rqr;       /* 0x18 */
+    volatile uint32_t isr;       /* 0x1C */
+    volatile uint32_t icr;       /* 0x20 */
+    volatile uint32_t rdr;       /* 0x24 */
+    volatile uint32_t tdr;       /* 0x28 */
 } usart_def_t;
 
 #define USART1 ((volatile usart_def_t *) USART1_BASE)
 
-/* Bit definitions */
+/* CR1 bits */
+#define USART_CR1_UE      (1U << 0)
+#define USART_CR1_RE      (1U << 2)
+#define USART_CR1_TE      (1U << 3)
+#define USART_CR1_RXNEIE  (1U << 5)
+#define USART_CR1_TXEIE   (1U << 7)
 
-#define USART_CR1_UE      (1 << 0)
-#define USART_CR1_RE      (1 << 2)
-#define USART_CR1_TE      (1 << 3)
-#define USART_CR1_RXNEIE  (1 << 5)
-#define USART_CR1_TXEIE   (1 << 7)
+/* ISR bits */
+#define USART_ISR_ORE     (1U << 3)
+#define USART_ISR_RXNE    (1U << 5)
+#define USART_ISR_TXE     (1U << 7)
 
-#define USART_ISR_RXNE    (1 << 5)
-#define USART_ISR_TXE     (1 << 7)
-/* End of USART1 zone */
+/* ICR bits */
+#define USART_ICR_ORECF   (1U << 3)
 
-/* RCC zone */
-#define RCC_BASE 0x40021000
+/* RCC */
+
+#define RCC_BASE 0x40021000UL
 
 typedef struct {
     volatile uint32_t cr;
@@ -63,12 +66,12 @@ typedef struct {
 
 #define RCC ((volatile rcc_def_t *) RCC_BASE)
 
-#define RCC_AHBENR_GPIOAEN   (1 << 17)
-#define RCC_APB2ENR_USART1EN (1 << 14)
-/* End of RCC zone */
+#define RCC_AHBENR_GPIOAEN    (1U << 17)
+#define RCC_APB2ENR_USART1EN  (1U << 14)
 
-/* GPIO zone */
-#define GPIOA_BASE 0x48000000
+/* GPIOA*/
+
+#define GPIOA_BASE 0x48000000UL
 
 typedef struct {
     volatile uint32_t moder;
@@ -85,12 +88,22 @@ typedef struct {
 } gpio_def_t;
 
 #define GPIOA ((volatile gpio_def_t *) GPIOA_BASE)
-/* End of GPIO zone */
 
-/* NVIC zone */
-#define NVIC_BASE 0xE000E000
-/* End of NVIC zone */
-#define NVIC_ISER ((volatile uint32_t*)0xE000E100)
-#define USART1_IRQ 27
+/* GPIO MODER */
+#define GPIO_MODER_AF    2U
+#define GPIO_MODER_MASK  3U
 
-#endif // UART_H
+/* Alternate function 1 = USART1 */
+#define GPIO_AF1         1U
+
+/* USART1 pins */
+#define USART1_TX_PIN        9U
+#define USART1_RX_PIN        10U
+#define USART1_TX_AFRH_POS   4U   /* PA9  in AFRH bits 7:4  */
+#define USART1_RX_AFRH_POS   8U  /* PA10 in AFRH bits 11:8 */
+
+/* NVIC */
+#define NVIC_ISER        ((volatile uint32_t *)0xE000E100)
+#define USART1_IRQ       27
+
+#endif /* UART_H */

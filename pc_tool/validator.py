@@ -15,19 +15,19 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
         bool: True if valid, False otherwise.
     """
     if operation.id == CommandId.READ_MEM:
-        MDTLogger.info(f"Validating READ_MEM command: {operation}", code=0)
+        MDTLogger.info(f"Validating READ_MEM command: {operation}")
         return validate_read_mem(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_MEM:
-        MDTLogger.info(f"Validating WRITE_MEM command: {operation}", code=0)
+        MDTLogger.info(f"Validating WRITE_MEM command: {operation}")
         return validate_write_mem(operation, mcu_metadata)
     elif operation.id == CommandId.READ_REG:
-        MDTLogger.info(f"Validating READ_REG command: {operation}", code=0)
+        MDTLogger.info(f"Validating READ_REG command: {operation}")
         return validate_read_reg(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_REG:
-        MDTLogger.info(f"Validating WRITE_REG command: {operation}", code=0)
+        MDTLogger.info(f"Validating WRITE_REG command: {operation}")
         return validate_write_reg(operation, mcu_metadata)
     elif operation.id == CommandId.BREAKPOINT:
-        MDTLogger.info(f"Validating BREAKPOINT command: {operation}", code=0)
+        MDTLogger.info(f"Validating BREAKPOINT command: {operation}")
         return validate_breakpoint(operation)
 
     return False
@@ -134,7 +134,6 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
             MDTLogger.info(
                 f"READ_MEM valid: {mem_type.name} "
                 f"addr={hex(addr)} len={length} within {hex(seg_start)}..{hex(seg_end - 1)}",
-                code=0
             )
             return True
 
@@ -220,7 +219,6 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
             MDTLogger.info(
                 f"WRITE_MEM valid: {mem_type.name} "
                 f"0x{addr:X} .. 0x{addr + length - 1:X}",
-                code=0
             )
             return True
 
@@ -283,7 +281,6 @@ def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
                     MDTLogger.info(
                         f"Found register {reg_name} in module {module_name} "
                         f"at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}",
-                        code=0
                     )
                     return True
 
@@ -346,7 +343,6 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
                     MDTLogger.info(
                         f"Found register {reg_name} in module {module_name} "
                         f"at address range 0x{absolute_start:X}-0x{absolute_end - 1:X}",
-                        code=0
                     )
                     return True
 
@@ -384,7 +380,7 @@ def validate_breakpoint(operation: Command) -> bool:
 
     for control in BreakpointControl:
         if control_value == control:
-            MDTLogger.info(f"Valid breakpoint control value: {control.name} ({control.value})", code=0)
+            MDTLogger.info(f"Valid breakpoint control value: {control.name} ({control.value})")
             return True
 
     MDTLogger.error(f"Invalid breakpoint control value: {operation.mem}", code=3)

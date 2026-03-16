@@ -12,7 +12,7 @@ extern uint32_t _ebss; /* End of bss section */
 
 /* Forward declarations */
 int main(void);
-void Reset_Handler(void) __attribute__((noreturn));
+void Reset_Handler(void) __attribute__((noreturn, naked));
 static void Default_Handler(void);
 
 void NMI_Handler(void) __attribute__((weak, alias("Default_Handler")));

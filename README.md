@@ -25,6 +25,7 @@ Firmware instructions are platform-specific. Refer to the documentation for your
 Each document contains detailed build instructions and supported devices.
 
 3. **Run the host tool**
+
 The host debugger runs on the PC and communicates with the MCU over UART. It is
 written in Python.
 

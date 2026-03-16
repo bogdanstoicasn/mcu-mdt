@@ -25,8 +25,9 @@ BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup (live alongside this Makefile)
-LINKER_SCRIPT := $(CURDIR)/linker.ld
-STARTUP_FILE  := $(HAL_DIR)/startup_stm32f030xx.c
+LINKER_SCRIPT    := $(CURDIR)/linker.ld
+LINKER_SCRIPT_PP := $(BUILD_DIR)/linker_pp.ld
+STARTUP_FILE     := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
@@ -44,9 +45,32 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
+# MCU → linker script define mapping
+# Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
+ifeq ($(MCU),F030F4)
+  MCU_LD_DEFINE := -DMCU_F030F4
+else ifeq ($(MCU),F030F6)
+  MCU_LD_DEFINE := -DMCU_F030F6
+else ifeq ($(MCU),F030C6)
+  MCU_LD_DEFINE := -DMCU_F030C6
+else ifeq ($(MCU),F030F8)
+  MCU_LD_DEFINE := -DMCU_F030F8
+else ifeq ($(MCU),F030C8)
+  MCU_LD_DEFINE := -DMCU_F030C8
+else ifeq ($(MCU),F030CC)
+  MCU_LD_DEFINE := -DMCU_F030CC
+else ifeq ($(MCU),F070F6)
+  MCU_LD_DEFINE := -DMCU_F070F6
+else ifeq ($(MCU),F070CB)
+  MCU_LD_DEFINE := -DMCU_F070CB
+else ifeq ($(MCU),F070RB)
+  MCU_LD_DEFINE := -DMCU_F070RB
+else
+  $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m0/Makefile)
+endif
+
 # CPU frequency (can be overridden from command line)
-F_CPU ?= 48000000UL
-CFLAGS += -DF_CPU=$(F_CPU)
+F_CPU ?= 8000000UL
 
 # Compiler flags
 CFLAGS  := $(CPU_FLAGS)
@@ -58,14 +82,13 @@ CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR) -I$(BASE_HAL_DIR) -I$(SRC_DIR)
 CFLAGS  += -DPLATFORM_STM32
-CFLAGS  += -DMCU=$(MCU)
+CFLAGS  += -DF_CPU=$(F_CPU)
 
-# Linker flags
+# Linker flags — use preprocessed linker script
 LDFLAGS  := $(CPU_FLAGS)
-LDFLAGS  += -T$(LINKER_SCRIPT)
+LDFLAGS  += -T$(LINKER_SCRIPT_PP)
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -nostdlib
-LDFLAGS  += -DMCU=$(MCU)
 
 # Example objects
 EXAMPLE_OBJ := $(BUILD_DIR)/main.o
@@ -73,11 +96,11 @@ EXAMPLE_ELF := $(BUILD_DIR)/$(ELF_NAME)
 EXAMPLE_BIN := $(BUILD_DIR)/$(BIN_NAME)
 EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
-# ── Targets ───
+# ── Targets ───────────────────────────────────────────────────────────────────
 
 .PHONY: all clean flash
 
-all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
+all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
 	@echo "Build complete!"
 	@echo "  Library : $(LIB_PATH)"
 	@echo "  Hex     : $(EXAMPLE_HEX)"
@@ -86,21 +109,26 @@ all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.y
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
+# Preprocess linker script — resolves #ifdef MCU_<name> into plain ld syntax
+$(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
+	@echo "  PP  linker.ld → linker_pp.ld"
+	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
+
 # Dependency files
 -include $(DEPS)
 
 # Compile src/
-$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c
+$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c | $(LINKER_SCRIPT_PP)
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile HAL (cortex-m0/*.c)
-$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
+$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c | $(LINKER_SCRIPT_PP)
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile startup
-$(STARTUP_OBJ): $(STARTUP_FILE)
+$(STARTUP_OBJ): $(STARTUP_FILE) | $(LINKER_SCRIPT_PP)
 	@echo "  CC  startup"
 	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
 
@@ -117,15 +145,15 @@ copy_files: $(BUILD_DIR)
 	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
 	@cp $(LINKER_SCRIPT)            $(BUILD_DIR)/linker.ld
-	@cp $(STARTUP_FILE)             $(BUILD_DIR)/startup_stm32f030xx.c
+	@cp $(STARTUP_FILE)             $(BUILD_DIR)/
 
 # Compile example
-$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c
+$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c | $(LINKER_SCRIPT_PP)
 	@echo "  CC  main.c"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Link example
-build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
+build_example: $(EXAMPLE_OBJ) $(LIB_PATH) $(LINKER_SCRIPT_PP)
 	@echo "  LD  $(ELF_NAME)"
 	@$(CC) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(EXAMPLE_ELF)
 	@$(OBJCOPY) -O binary $(EXAMPLE_ELF) $(EXAMPLE_BIN)

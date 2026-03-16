@@ -2,37 +2,37 @@
 #include "ring_buffer.h"
 
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
-
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0 };
-
-/* UART */
 
 void uart_init(uint32_t baudrate)
 {
-    RCC->ahbenr |= RCC_AHBENR_GPIOAEN; // Enable GPIOA clock
-    RCC->apb2enr |= RCC_APB2ENR_USART1EN; // Enable USART1 clock
+    RCC->ahbenr  |= RCC_AHBENR_GPIOAEN;
+    RCC->apb2enr |= RCC_APB2ENR_USART1EN;
 
-    /* Configure PA9 (TX) and PA10 (RX) as alternate function */
-    GPIOA->moder &= ~(3<<(9*2));
-    GPIOA->moder |=  (2<<(9*2));
+    /* PA9 (TX) alternate function */
+    GPIOA->moder &= ~(GPIO_MODER_MASK << (USART1_TX_PIN * 2));
+    GPIOA->moder |=  (GPIO_MODER_AF   << (USART1_TX_PIN * 2));
 
-    GPIOA->moder &= ~(3<<(10*2));
-    GPIOA->moder |=  (2<<(10*2));
+    /* PA10 (RX) alternate function */
+    GPIOA->moder &= ~(GPIO_MODER_MASK << (USART1_RX_PIN * 2));
+    GPIOA->moder |=  (GPIO_MODER_AF   << (USART1_RX_PIN * 2));
 
-    /* AF1 */
-    GPIOA->afrh &= ~(0xF<<4);
-    GPIOA->afrh |=  (1<<4);
+    /* PA9  AF1 = USART1_TX */
+    GPIOA->afrh &= ~(0xFU << USART1_TX_AFRH_POS);
+    GPIOA->afrh |=  (GPIO_AF1 << USART1_TX_AFRH_POS);
 
-    GPIOA->afrh &= ~(0xF<<8);
-    GPIOA->afrh |=  (1<<8);
+    /* PA10 AF1 = USART1_RX */
+    GPIOA->afrh &= ~(0xFU << USART1_RX_AFRH_POS);
+    GPIOA->afrh |=  (GPIO_AF1 << USART1_RX_AFRH_POS);
 
-    /* Configure USART1 */
-    USART1->brr = 48000000 / baudrate; // Assuming PCLK2 is 48 MHz
+    /* BRR = PCLK / baudrate — MCU runs at 8MHz HSI by default */
+    USART1->brr = (uint32_t)(F_CPU / baudrate);
 
-    USART1->cr1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE; // Enable USART, RX, TX and RX interrupt
+    /* Enable USART, TX, RX and RX interrupt */
+    USART1->cr1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
 
-    /* Enable USART1 interrupt in NVIC */
-    NVIC_ISER[USART1_IRQ/32] = 1 << (USART1_IRQ % 32);
+    /* Enable NVIC for USART1 */
+    NVIC_ISER[USART1_IRQ / 32] = 1U << (USART1_IRQ % 32);
 }
 
 uint8_t uart_putc(uint8_t data)
@@ -41,9 +41,11 @@ uint8_t uart_putc(uint8_t data)
     {
         return 0;
     }
+
     rb_push(&tx_buffer, data);
 
-    USART1->cr1 |= USART_CR1_TXEIE; // Enable TXE interrupt
+    USART1->cr1 |= USART_CR1_TXEIE;
+
     return 1;
 }
 
@@ -52,30 +54,33 @@ uint8_t uart_getc_nonblocking(uint8_t *data)
     return rb_pop(&rx_buffer, data);
 }
 
-uint8_t uart_ready()
+uint8_t uart_ready(void)
 {
     return !rb_is_full(&tx_buffer);
 }
 
-/* Interrupt Service Routines */
 void USART1_IRQHandler(void)
 {
-    if (USART1->isr & USART_ISR_RXNE)
+    uint32_t isr = USART1->isr;
+
+    /* Clear overrun error */
+    if (isr & USART_ISR_ORE)
+        USART1->icr = USART_ICR_ORECF;
+
+    /* RX push received byte into ring buffer */
+    if (isr & USART_ISR_RXNE)
     {
-        uint8_t data = USART1->rdr; // Read received byte
-        rb_push(&rx_buffer, data); // Push to RX buffer
+        uint8_t data = (uint8_t)USART1->rdr;
+        rb_push(&rx_buffer, data);
     }
 
-    if (USART1->isr & USART_ISR_TXE)
+    /* TX drain ring buffer */
+    if (isr & USART_ISR_TXE)
     {
         uint8_t data;
         if (rb_pop(&tx_buffer, &data))
-        {
-            USART1->tdr = data; // Write byte to transmit
-        }
+            USART1->tdr = data;
         else
-        {
-            USART1->cr1 &= ~USART_CR1_TXEIE; // Disable TXE interrupt if no more data
-        }
+            USART1->cr1 &= ~USART_CR1_TXEIE;
     }
 }

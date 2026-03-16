@@ -65,14 +65,20 @@ class MCUSerialLink:
 
         echoed = bytearray()
         start = time.time()
-        while len(echoed) < len(self.startup_ping):
+        while len(echoed) < self.packet_size:
             if self.ser.in_waiting > 0:
                 echoed += self.ser.read(self.ser.in_waiting)
-
             if time.time() - start > 5.0:
                 break
-        if len(echoed) != len(self.startup_ping):
-            MDTLogger.warning(f"Startup ping echo mismatch: expected {len(self.startup_ping)}, got {len(echoed)}")
+
+        if len(echoed) < self.packet_size:
+            MDTLogger.warning(f"Startup ping echo mismatch: expected {self.packet_size}, got {len(echoed)}")
+            return
+
+        # Push response into queue instead of discarding it
+        self.push_back_packet(bytes(echoed[:self.packet_size]))
+        MDTLogger.info("Startup ping successful — MCU is connected.")
+
     
     def send_packet(self, byte_packet: bytes):
         if self.ser is None or not self.ser.is_open:
@@ -81,7 +87,7 @@ class MCUSerialLink:
         self.ser.write(byte_packet)
         self.ser.flush()
     
-    def read_packet(self, timeout=0.1):
+    def read_packet(self, timeout=1.0):
         """
         Reads one full MDT packet from UART.
         Resynchronizes on start byte if necessary.
@@ -117,13 +123,13 @@ class MCUSerialLink:
 
         return None
     
-    def get_response_packet(self, timeout=0.1):
+    def get_response_packet(self, timeout=1.0):
         try:
             return self.response_queue.get(timeout=timeout)
         except queue.Empty:
             return None
     
-    def get_event_packet(self, timeout=0.1):
+    def get_event_packet(self, timeout=1.0):
         try:
             return self.event_queue.get(timeout=timeout)
         except queue.Empty:

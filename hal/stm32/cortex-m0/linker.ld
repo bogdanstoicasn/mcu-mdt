@@ -1,33 +1,27 @@
-/* Universal STM32F030xx Linker Script for C-only projects
-   Usage: pass -DMCU=F030F4, F030F2, F030F6, F030F8, F030C6, F030C8
+/* Universal STM32F030xx Linker Script
+   Usage: pass -DMCU_F030F4, -DMCU_F030F6, etc. to the linker
 */
 
-/* Default MCU */
-#ifndef MCU
-#define MCU F030F4
-#endif
-
-/* Flash and RAM sizes per MCU */
-#if MCU == F030F4
+#ifdef MCU_F030F4
   FLASH_SIZE = 16K;
   RAM_SIZE   = 4K;
-#elif MCU == F030F6 || MCU == F030C6
+#elif defined(MCU_F030F6) || defined(MCU_F030C6)
   FLASH_SIZE = 32K;
   RAM_SIZE   = 4K;
-#elif MCU == F030F8 || MCU == F030C8
+#elif defined(MCU_F030F8) || defined(MCU_F030C8)
   FLASH_SIZE = 64K;
   RAM_SIZE   = 8K;
-#elif MCU == F030CC
+#elif defined(MCU_F030CC)
   FLASH_SIZE = 256K;
   RAM_SIZE   = 32K;
-#elif MCU == F070F6 || MCU == F070CB
+#elif defined(MCU_F070F6) || defined(MCU_F070CB)
   FLASH_SIZE = 32K;
   RAM_SIZE   = 6K;
-#elif MCU == F070RB
+#elif defined(MCU_F070RB)
   FLASH_SIZE = 128K;
   RAM_SIZE   = 16K;
 #else
-  #error "Unknown MCU. Define FLASH_SIZE and RAM_SIZE manually."
+  #error "Unknown MCU. Pass -DMCU_<name> to the linker. Example: -DMCU_F030F4"
 #endif
 
 /* Memory regions */

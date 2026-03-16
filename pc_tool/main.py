@@ -34,7 +34,7 @@ if __name__ == "__main__":
     
     rx_thread, event_thread = start_async_handlers(serial_link)
 
-    MDTLogger.info(intro_text(), code=0)
+    MDTLogger.info(intro_text())
 
     while True:
         try:
@@ -63,7 +63,7 @@ if __name__ == "__main__":
                 continue
 
 
-            MDTLogger.info(f"Parsed Command: {command}", code=0)
+            MDTLogger.info(f"Parsed Command: {command}")
 
             if not validate_commands(command, mcu_metadata):
                 MDTLogger.error("Command validation failed.", code=3)
@@ -71,8 +71,8 @@ if __name__ == "__main__":
 
             execute_command(command, serial_link)
         except EOFError as end_of_file:
-            MDTLogger.info("Exiting...", code=0)
+            MDTLogger.info("Exiting...")
             break
         except KeyboardInterrupt as keyboard_interrupt:
-            MDTLogger.info("Exiting with keyboard interrupt...", code=0)
+            MDTLogger.info("Exiting with keyboard interrupt...")
             break
