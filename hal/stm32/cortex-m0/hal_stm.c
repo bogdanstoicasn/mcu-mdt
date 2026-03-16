@@ -1,6 +1,6 @@
 #include "mcu_mdt_hal.h"
-#include "mcu_mdt_config.h"
 #include "uart.h"
+#include "commands.h"
 
 void hal_uart_init(void)
 {
@@ -24,21 +24,20 @@ uint8_t hal_uart_tx_ready()
 
 uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length)
 {
-    return 0; // Not implemented
+    return read_memory(mem_zone, address, buffer, length);
 }
 
 uint8_t hal_read_register(uint32_t address, uint8_t *buffer)
 {
-    return 0; // Not implemented
+    return read_memory(MDT_MEM_ZONE_SRAM, address, buffer, 4);
 }
 
 uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, uint16_t length)
 {
-    return 0; // Not implemented
+    return write_memory(mem_zone, address, buffer, length);
 }
 
 uint8_t hal_write_register(uint32_t address, const uint8_t *buffer)
 {
-    return 0; // Not implemented
+    return write_memory(MDT_MEM_ZONE_SRAM, address, buffer, 4);
 }
-

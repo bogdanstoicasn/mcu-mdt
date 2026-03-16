@@ -1,49 +1,53 @@
 # mcu-mdt
 
-A software only memory debugging tool
+A software-only memory debugging tool for microcontrollers.
 
 ## Overview
 
-**MCU-MDT** is a lightweight, portable UART-based debugger and memory inspection toolkit for microcontrollers.
+**MCU-MDT** is a lightweight, portable UART-based debugger and memory inspection toolkit for microcontrollers.  
 It provides a non-intrusive, HAL-based debugging interface that can be integrated into bare-metal firmware with minimal application code.
 
 The project is designed for low-resource MCUs and follows industry-standard embedded software architecture, focusing on portability, determinism, and clean separation between hardware and protocol logic.
 
-## How to build
+## Getting Started
 
-To build the MCU-MDT project, follow these steps:
+1. **Clone the repository**
 
-1. **Clone the repository**:
-   ```bash
-   git clone https://github.com/bogdanstoicasn/mcu-mdt.git
-    cd mcu-mdt
-    ```
+```bash
+git clone https://github.com/bogdanstoicasn/mcu-mdt.git
+cd mcu-mdt
+```
 
-2. **Make**:
-    Use the provided Makefile to build the project:
-    ```bash
-    make PLATFORM=<platform_name> MCU=<mcu_name> PORT=<uart_port>
-    ```
+2. **Build the firmware**
 
-    Replace `<platform_name>`, `<mcu_name>`, and `<uart_port>` with the appropriate values for your target platform, microcontroller, and UART port.
-    Example:
-    ```bash
-    make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0
-    make PLATFORM=avr MCU=ATmega328P PORT=/dev/ttyUSB0
-    ```
+Firmware instructions are platform-specific. Refer to the documentation for your target platform, which is located in `docs/<PLATFORM>/info.md`.
 
-3. **Flash the firmware**:
-    ```bash
-    make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0 flash
-    make PLATFORM=avr MCU=ATmega328P PORT=/dev/ttyUSB0 flash
-    ```
+Each document contains detailed build instructions and supported devices.
 
-4. **Run the host application**:
-    ```bash
-    cd ./pc_tool
-    python3 main.py <path_to_config.yaml>
-    ```
+3. **Run the host tool**
+The host debugger runs on the PC and communicates with the MCU over UART. It is
+written in Python.
 
-## BEWARE
+```bash
+cd pc_tool
+python3 main.py <path_to_config.yaml>
+```
 
-To keep the microcontroller lightweight and portable across low-resource devices, all semantic validation (address ranges, memory legality, command correctness) is performed on the PC side using ATDF/SVD metadata. The MCU firmware implements only protocol framing, CRC validation, and command execution.
+## Arhitecture Note
+
+To keep the firmware lightweight and portable across low-resource microcontrollers, **MCU-MDT**
+performs all semantic validation on the PC-side
+
+This includes:
+
+- address range validation
+- memory legality checks
+- command correctness
+- device metadata parsing(ATDF / SVD)
+
+The MCU firmware implements only:
+
+- protocol framing, parsing, validation(e.g. CRC)
+- command execution
+
+This design allows the firmware to be as minimal, simple and deterministic as possible, while allowing complex validation and tooling on the host side.

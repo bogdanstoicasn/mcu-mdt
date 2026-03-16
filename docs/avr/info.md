@@ -131,3 +131,7 @@ but has a similar UART setup to a supported MCU, it might work with a minor twea
 | ATmega6450A | ATmega6450P | ATmega6490 | ATmega6490A |
 | ATmega6490P | ATmegaS128 | AT90CAN32 | AT90CAN64 |
 | AT90CAN128 | | | |
+
+## Notes
+
+1. Don't use USART0 for your application code, as it's used by the debugger.

@@ -121,3 +121,8 @@ To add support for a new Cortex core (e.g. Cortex-M4 for STM32F4xx):
    - `linker.ld` — linker script for the target
 2. Add the MCU family mapping in `hal/stm32/Makefile` router.
 3. Zero changes to `src/`.
+
+## Notes
+
+1. The tool used for flashing is **st-link** which does a mass flash erase before writing.
+2. Don't use USART1 for your application code, as it's used by the debugger.
