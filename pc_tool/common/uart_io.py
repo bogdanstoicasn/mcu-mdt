@@ -76,7 +76,6 @@ class MCUSerialLink:
             return
 
         # Push response into queue instead of discarding it
-        self.push_back_packet(bytes(echoed[:self.packet_size]))
         MDTLogger.info("Startup ping successful — MCU is connected.")
 
     
