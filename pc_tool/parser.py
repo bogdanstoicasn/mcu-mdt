@@ -60,7 +60,33 @@ def parse_args():
 
     return parser.parse_args()
 
-def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None:
+def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
+    """Look up a register by name and return its absolute address."""
+    name_upper = name.upper()
+    modules = mcu_metadata.get("modules", {})
+
+    for module in modules.values():
+        for rg_name, rg in module.get("register_groups", {}).items():
+            base = 0
+            for inst in module.get("instances", []):
+                if inst.get("register_group") == rg_name:
+                    offset = inst.get("offset") or 0
+                    base = int(offset, 0) if isinstance(offset, str) else offset
+                    break
+            if base == 0:
+                group_offset = rg.get("offset") or 0
+                base = int(group_offset, 0) if isinstance(group_offset, str) else group_offset
+
+            for reg_name, reg in rg.get("registers", {}).items():
+                if reg_name.upper() == name_upper:
+                    reg_offset = reg.get("offset") or 0
+                    reg_offset = int(reg_offset, 0) if isinstance(reg_offset, str) else reg_offset
+                    return base + reg_offset
+
+    return None
+
+
+def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata: dict) -> Command | None:
     """
     Parse CLI line into a Command object according to YAML definition.
     Supports uint (with or without 0x prefix) and bytes (also 0x optional).
@@ -88,8 +114,8 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
         )
         return None
 
-    # Normalize mem_types keys to lowercase
-    mem_types_normalized = {k.lower(): v for k, v in mem_types.items()}
+    # Normalize control_values keys to lowercase
+    control_values_normalized = {k.lower(): v for k, v in control_values.items()}
 
     parsed_args = {}
     try:
@@ -98,7 +124,18 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
             ptype = param["type"]
             pvalue = tokens[i + 1]
 
-            if ptype.startswith("uint"):
+            if ptype == "uint32_or_str":
+                # Try numeric first, then resolve as register name
+                try:
+                    parsed_args[pname] = int(pvalue, 0)
+                except ValueError:
+                    addr = resolve_register_address(pvalue, mcu_metadata)
+                    if addr is None:
+                        MDTLogger.error(f"Unknown register name '{pvalue}'", code=line)
+                        return None
+                    parsed_args[pname] = addr
+
+            elif ptype.startswith("uint"):
                 # Handle optional 0x prefix
                 try:
                     parsed_args[pname] = int(pvalue, 0)
@@ -117,15 +154,15 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
                     MDTLogger.error(f"Invalid hex data for {pname}", code=pvalue)
                     return None
 
-            elif ptype == "str" and pname == "mem_type":
-                mem_key = pvalue.lower()
-                if mem_key not in mem_types_normalized:
+            elif ptype == "str" and pname == "control_value":
+                control_key = pvalue.lower()
+                if control_key not in control_values_normalized:
                     MDTLogger.error(
-                        f"Invalid memory type '{pvalue}'. Expected one of: {', '.join(mem_types.keys())}",
+                        f"Invalid control value '{pvalue}'. Expected one of: {', '.join(control_values_normalized.keys())}",
                         code=line
                     )
                     return None
-                parsed_args[pname] = mem_types_normalized[mem_key]
+                parsed_args[pname] = control_values_normalized[control_key]
 
             else:
                 parsed_args[pname] = pvalue
@@ -133,7 +170,7 @@ def parse_line(line: str, command_dict: dict, mem_types: dict) -> Command | None
         return Command(
             name=name,
             id=id_,
-            mem=parsed_args.get("mem_type"),
+            mem=parsed_args.get("control_value"),
             address=parsed_args.get("address", 0),
             length=parsed_args.get("len"),
             data=parsed_args.get("data")

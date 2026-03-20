@@ -16,7 +16,7 @@ if __name__ == "__main__":
 
     commands = loader.yaml_command_data['commands']
 
-    mem_types = loader.yaml_command_data['mem_types']
+    control_values = loader.yaml_command_data['control_values']
 
     mcu_metadata = loader.mcu_metadata
 
@@ -42,7 +42,7 @@ if __name__ == "__main__":
             if not line:
                 continue
 
-            command = parse_line(line, commands, mem_types)
+            command = parse_line(line, commands, control_values, mcu_metadata)
 
             if not command:
                 MDTLogger.error("Invalid command or parsing error.", code=2)
