@@ -1,0 +1,53 @@
+family: STM32F1
+reference_manual: RM0008
+
+variants:
+
+  # Low-density (LD)
+  stm32f103x4:
+    flash: 16384
+    ram: 6144
+    flash_page: 1024
+
+  stm32f103x6:
+    flash: 32768
+    ram: 6144
+    flash_page: 1024
+
+  # Medium-density (MD)
+  stm32f103x8:
+    flash: 65536
+    ram: 20480
+    flash_page: 1024
+
+  stm32f103xb:
+    flash: 131072
+    ram: 20480
+    flash_page: 1024
+
+  # High-density (HD)
+  stm32f103xc:
+    flash: 262144
+    ram: 49152
+    flash_page: 2048
+
+  stm32f103xd:
+    flash: 393216
+    ram: 65536
+    flash_page: 2048
+
+  stm32f103xe:
+    flash: 524288
+    ram: 65536
+    flash_page: 2048
+
+  # XL-density (XL)
+  stm32f103xf:
+    flash: 786432
+    ram: 98304
+    flash_page: 2048
+
+  stm32f103xg:
+    flash: 1048576
+    ram: 98304
+    flash_page: 2048

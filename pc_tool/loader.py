@@ -232,27 +232,11 @@ def load_atdf_for_mcu(mcu_name: str, atdf_root: str) -> dict:
     return result
 
 def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
-    """
-    Locate and parse the SVD file for a given MCU, producing an ATDF-compatible dict.
-    A YAML file with the same stem is expected alongside the SVD for memory regions.
-
-    Args:
-        mcu_name (str): MCU name, e.g. 'stm32f030c8' or 'f030c8'
-        svd_root (str): Folder containing SVD (and companion YAML) files
-
-    Returns:
-        dict: ATDF-compatible metadata — same structure as load_atdf_for_mcu()
-
-    Raises:
-        FileNotFoundError: If SVD file cannot be found
-        ValueError:        If SVD XML is invalid
-    """
     STM32_FLASH_BASE = 0x08000000
     STM32_RAM_BASE   = 0x20000000
 
     mcu_name_lower = mcu_name.lower()
 
-    # Normalise: ensure full name is always used ('f030f4' → 'stm32f030f4')
     if not mcu_name_lower.startswith("stm32"):
         mcu_name_lower = "stm32" + mcu_name_lower
 
@@ -269,19 +253,20 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
         if svd_file:
             break
 
-    # STM32 family fallback (e.g. stm32f030c8 → STM32F0x0.svd)
-    # mcu_prefix is a separate variable — never overwrites mcu_name_lower
+    # Family fallback — maps 4-char prefix  (core subfolder, shared SVD filename)
     if not svd_file:
         family_map = {
-            "f030": "STM32F0x0.svd",
-            "f031": "STM32F0x1.svd",
-            "f042": "STM32F0x2.svd",
-            "f051": "STM32F0x1.svd",
-            "f072": "STM32F0x2.svd",
+            "f030": ("cortex-m0", "STM32F0x0.svd"),
+            "f031": ("cortex-m0", "STM32F0x1.svd"),
+            "f042": ("cortex-m0", "STM32F0x2.svd"),
+            "f051": ("cortex-m0", "STM32F0x1.svd"),
+            "f072": ("cortex-m0", "STM32F0x2.svd"),
+            "f103": ("cortex-m3", "STM32F103.svd"),
         }
-        mcu_prefix = mcu_name_lower[5:9]  # always "stm32..." at this point
+        mcu_prefix = mcu_name_lower[5:9]
         if mcu_prefix in family_map:
-            svd_file = os.path.join(svd_root, "stm32", "cortex-m0", family_map[mcu_prefix])
+            subfolder, svd_filename = family_map[mcu_prefix]
+            svd_file = os.path.join(svd_root, "stm32", subfolder, svd_filename)
 
     if not svd_file or not os.path.isfile(svd_file):
         raise FileNotFoundError(f"SVD file for MCU '{mcu_name}' not found in {svd_root}")
@@ -304,7 +289,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
         raise ValueError(f"Invalid SVD XML: {e}")
 
     # ------------------------------------------------------------------
-    # 4. Namespace helpers (some SVD files carry an XML namespace)
+    # 4. Namespace helpers
     # ------------------------------------------------------------------
     ns = {}
     if root.tag.startswith("{"):
@@ -332,7 +317,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
             return default
 
     # ------------------------------------------------------------------
-    # 5. Build result skeleton — mirrors load_atdf_for_mcu() exactly
+    # 5. Build result skeleton
     # ------------------------------------------------------------------
     result = {
         "device":       mcu_name_lower,
@@ -345,8 +330,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
     }
 
     # ------------------------------------------------------------------
-    # 6. Memories — from companion YAML, not SVD
-    #    mcu_name_lower is guaranteed to be the full name here ('stm32f030f4')
+    # 6. Memories — from companion YAML
     # ------------------------------------------------------------------
     if mcu_memory_data:
         variants = mcu_memory_data.get("variants", {})
@@ -373,7 +357,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
             }
 
     # ------------------------------------------------------------------
-    # 7. Pre-index all peripherals so derivedFrom can be resolved in O(1)
+    # 7. Pre-index peripherals for derivedFrom resolution
     # ------------------------------------------------------------------
     peripheral_elements: dict[str, ET.Element] = {}
     for p in _findall(root, ".//peripheral"):
@@ -382,14 +366,13 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
             peripheral_elements[pname] = p
 
     def _resolve(p_elem: ET.Element) -> ET.Element:
-        """Follow derivedFrom once to get the element that owns the registers."""
         derived = p_elem.get("derivedFrom")
         if derived and derived in peripheral_elements:
             return peripheral_elements[derived]
         return p_elem
 
     # ------------------------------------------------------------------
-    # 8. Parse peripherals → modules + peripheral instances
+    # 8. Parse peripherals → modules
     # ------------------------------------------------------------------
     for pname, p_elem in peripheral_elements.items():
         base_elem = _resolve(p_elem)
@@ -423,7 +406,6 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
 
         rg = result["modules"][pname]["register_groups"][pname]
 
-        # ---- registers ----
         for reg in _findall(base_elem, "registers/register"):
             reg_name = _findtext(reg, "name")
             if not reg_name:
@@ -434,7 +416,6 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
             reg_rw     = _findtext(reg, "access") or "read-write"
             reg_mask   = _findtext(reg, "resetMask") or None
 
-            # ---- bitfields ----
             bitfields: dict = {}
             for bf in _findall(reg, "fields/field"):
                 bf_name = _findtext(bf, "name")
@@ -471,7 +452,6 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
                 "bitfields": bitfields,
             }
 
-        # ---- interrupts inside this peripheral ----
         for intr in _findall(p_elem, "interrupt"):
             int_name = _findtext(intr, "name")
             if int_name and int_name not in result["interrupts"]:
@@ -482,7 +462,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
                 }
 
     # ------------------------------------------------------------------
-    # 9. Device-level interrupt block (non-standard, some vendors add it)
+    # 9. Device-level interrupt block
     # ------------------------------------------------------------------
     for intr in _findall(root, ".//interrupts/interrupt"):
         int_name = _findtext(intr, "name")

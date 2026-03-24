@@ -5,34 +5,40 @@ from validator import validate_commands
 from event import start_async_handlers
 from common.logger import MDTLogger
 
-if __name__ == "__main__":
-    args = parse_args()
 
-    build_info_path = args.build_info
+def build_dispatch(loader, serial_link, threads):
+    return {
+        "EXIT":  lambda cmd: exit_command(serial_link, threads=threads),
+        "HELP":  lambda cmd: help_command(),
+        "CLEAR": lambda cmd: clear_command(),
+        "PING":  lambda cmd: ping_command(cmd, loader.yaml_build_data, serial_link),
+    }
 
+def setup(build_info_path: str):
     loader = ConfigLoader(build_info_path)
 
-    cli = CLIHistory()
-
-    commands = loader.yaml_command_data['commands']
-
-    control_values = loader.yaml_command_data['control_values']
-
-    mcu_metadata = loader.mcu_metadata
-
-    # Start the connection to the MCU
     serial_link = serial_link_command(
         port=loader.yaml_build_data['port'],
         baudrate=loader.yaml_build_data.get('baudrate', 19200),
-        ping_command_id=commands['PING']['id']
+        ping_command_id=loader.yaml_command_data['commands']['PING']['id']
     )
+
     try:
         serial_link.open()
     except Exception as e:
         MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
-    
-    rx_thread, event_thread = start_async_handlers(serial_link)
+
+    threads = start_async_handlers(serial_link)
+
+    return loader, serial_link, threads
+
+def run_loop(loader, serial_link, threads):
+    cli      = CLIHistory()
+    commands = loader.yaml_command_data['commands']
+    control  = loader.yaml_command_data['control_values']
+    metadata = loader.mcu_metadata
+    dispatch = build_dispatch(loader, serial_link, threads)
 
     MDTLogger.info(intro_text())
 
@@ -42,37 +48,30 @@ if __name__ == "__main__":
             if not line:
                 continue
 
-            command = parse_line(line, commands, control_values, mcu_metadata)
-
+            command = parse_line(line, commands, control, metadata)
             if not command:
                 MDTLogger.error("Invalid command or parsing error.", code=2)
                 continue
 
-            # Handle the CLI commands(EXIT, HELP) directly here
-            if command.name == "EXIT":
-                exit_command(serial_link, threads=[rx_thread, event_thread])
-                break
-            elif command.name == "HELP":
-                help_command()
+            if command.name in dispatch:
+                dispatch[command.name](command)
+                if command.name == "EXIT":
+                    break
                 continue
-            elif command.name == "CLEAR":
-                clear_command()
-                continue
-            elif command.name == "PING":
-                ping_command(command, loader.yaml_build_data, serial_link)
-                continue
-
 
             MDTLogger.info(f"Parsed Command: {command}")
 
-            if not validate_commands(command, mcu_metadata):
+            if not validate_commands(command, metadata):
                 MDTLogger.error("Command validation failed.", code=3)
                 continue
 
             execute_command(command, serial_link)
-        except EOFError as end_of_file:
+
+        except (EOFError, KeyboardInterrupt):
             MDTLogger.info("Exiting...")
             break
-        except KeyboardInterrupt as keyboard_interrupt:
-            MDTLogger.info("Exiting with keyboard interrupt...")
-            break
+
+if __name__ == "__main__":
+    args = parse_args()
+    loader, serial_link, threads = setup(args.build_info)
+    run_loop(loader, serial_link, threads)
