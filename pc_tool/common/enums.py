@@ -67,6 +67,7 @@ class UtilEnum(IntEnum):
     WORD_SIZE = 4
     HALF_WORD_SIZE = 2
     COMMUNICATION_TIMEOUT = 5.0  # in seconds
+    MDT_MAX_RETRIES = 4
 
 class EventType(IntEnum):
     MDT_EVENT_TYPE_NONE = 0

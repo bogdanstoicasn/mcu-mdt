@@ -24,7 +24,7 @@ HEX_NAME := mcu_mdt_example.hex
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 HAL_FILES := $(wildcard $(HAL_DIR)/*.c)
 
-# Object files — prefixed to avoid collision if filenames overlap across src/ and hal/
+# Object files
 SRC_OBJS := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/src_%.o, $(SRC_FILES))
 HAL_OBJS := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/hal_%.o, $(HAL_FILES))
 ALL_OBJS := $(SRC_OBJS) $(HAL_OBJS)
@@ -32,7 +32,7 @@ ALL_OBJS := $(SRC_OBJS) $(HAL_OBJS)
 # Dependency files
 DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 
-# F_CPU default (can be overridden from cmd line)
+# F_CPU default (can be overridden)
 F_CPU ?= 16000000UL
 
 # Compiler flags
@@ -49,6 +49,7 @@ CFLAGS  += -DPLATFORM_AVR
 # Linker flags
 LDFLAGS  := -mmcu=$(MCU)
 LDFLAGS  += -Wl,--gc-sections
+LDFLAGS  += -Wl,--print-gc-sections   # optional but very useful
 
 # Example objects
 EXAMPLE_OBJ := $(BUILD_DIR)/main.o
@@ -76,7 +77,7 @@ $(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
-# Compile HAL (avr/*.c)
+# Compile HAL
 $(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
@@ -102,7 +103,7 @@ $(EXAMPLE_OBJ): $(BUILD_DIR)/main.c
 # Link example
 build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
 	@echo "  LD  $(ELF_NAME)"
-	@$(CC) $(LDFLAGS) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_avr -o $(EXAMPLE_ELF)
+	@$(CC) $(CFLAGS) $(LDFLAGS) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_avr -o $(EXAMPLE_ELF)
 	@$(OBJCOPY) -O ihex -R .eeprom $(EXAMPLE_ELF) $(EXAMPLE_HEX)
 	@echo "  HEX $(EXAMPLE_HEX)"
 

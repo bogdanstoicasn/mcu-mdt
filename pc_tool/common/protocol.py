@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 from common.dataclasses import Command, CommandPacket
-from common.enums import MDT_PACKET_SIZE, MDTOffset, UtilEnum
+from common.enums import MDT_PACKET_SIZE, MDTOffset, UtilEnum, MDTFlags
 from common.logger import MDTLogger
 
 def calculate_crc16(data: bytes) -> int:
@@ -104,6 +104,22 @@ def deserialize_command_packet(packet: bytes) -> CommandPacket:
         length=length,
         data=data,
         crc=crc_received
+    )
+
+def is_nack_packet(packet: bytes) -> bool:
+    """
+    Returns TRUE if the packet is a NACK packet, FALSE otherwise.
+    A NACK has both the ACK/NACK bit (0x04) and the ERROR/STATUS bit (0x20) set in the flags and also cmd_id is 0.
+    """
+    if (len(packet) != MDT_PACKET_SIZE):
+        MDTLogger.error(f"Invalid packet length: {len(packet)}. Expected: {MDT_PACKET_SIZE}", code=3)
+        return False
+    flags = packet[MDTOffset.FLAGS]
+    cmd_id = packet[MDTOffset.CMD_ID]
+    return (
+        cmd_id == 0
+        and bool(flags & MDTFlags.ACK_NACK)
+        and bool(flags & MDTFlags.STATUS_ERROR)
     )
 
 def validate_command_packet(packet: bytes) -> bool:

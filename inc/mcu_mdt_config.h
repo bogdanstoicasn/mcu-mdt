@@ -35,4 +35,9 @@ typedef enum {
 /* Maximum number of breakpoints */
 #define MDT_MAX_BREAKPOINTS 4
 
+/* Maximum protocol retries 
+ * Documentation only, not used right now
+ */
+#define MDT_MAX_RETRIES 4
+
 #endif // MCU_MDT_CONFIG_H

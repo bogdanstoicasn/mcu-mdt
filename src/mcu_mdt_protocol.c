@@ -107,7 +107,7 @@ static void mdt_encode(uint8_t *buf, const mdt_packet_t *pkt)
         buf[MDT_OFFSET_DATA + i] = pkt->data[i];
 }
 
-
+/* Execute the commands */
 uint8_t mdt_dispatch(uint8_t *buf)
 {
     mdt_packet_t pkt;

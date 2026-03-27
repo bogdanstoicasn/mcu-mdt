@@ -102,6 +102,26 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 
 /* --- End of buffer management functions --- */
 
+static void mdt_send_nack(const uint8_t *buf)
+{
+    mdt_packet_t nack;
+    mdt_memset((uint8_t *)&nack, 0, sizeof(nack));
+
+    nack.cmd_id = 0;
+    nack.flags |= MDT_FLAG_ACK_NACK | MDT_FLAG_STATUS_ERROR;
+    nack.seq    = buf[MDT_OFFSET_SEQ];
+
+    nack.crc = mdt_crc16(
+        (const uint8_t *)&nack,
+        MDT_PACKET_SIZE - 1 - 2 - 1   /* exclude START, CRC, END */
+    );
+
+    hal_uart_tx(MDT_START_BYTE);
+    for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
+        hal_uart_tx(((uint8_t *)&nack)[i]);
+    hal_uart_tx(MDT_END_BYTE);
+}
+
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
@@ -109,6 +129,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     uint8_t *pkt = buf->buf;
     if (!mdt_packet_validate(pkt, MDT_PACKET_SIZE))
     {
+        mdt_send_nack(pkt); // Send nack so PC knows to retransmit
         mdt_event_wrapper(MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); // Send event with buffer address for debugging
         mdt_buffer_reset(buf);
         return 0;

@@ -1,5 +1,5 @@
 # ===== Root Makefile =====
-# Usage: make PLATFORM=avr MCU=atmega328p
+# Usage: make PLATFORM=avr MCU=atmega328p [F_CPU=16000000UL]
 
 # Targets that do NOT require PLATFORM/MCU
 NO_CONFIG_TARGETS := wipe help
@@ -41,15 +41,18 @@ endif
 
 BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
 
+# Helper: only pass F_CPU if defined
+F_CPU_ARG := $(if $(F_CPU),F_CPU=$(F_CPU))
+
 all:
 	@echo "Building for PLATFORM=$(PLATFORM), MCU=$(MCU)"
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT)
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG)
 
 flash:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) flash
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) flash
 
 clean:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) clean
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) clean
 
 wipe:
 	@echo "Removing all build artifacts..."
@@ -59,8 +62,8 @@ wipe:
 help:
 	@echo ""
 	@echo "Build usage:"
-	@echo "  make PLATFORM=<platform> MCU=<mcu>"
-	@echo "  make PLATFORM=<platform> MCU=<mcu> flash"
+	@echo "  make PLATFORM=<platform> MCU=<mcu> [F_CPU=...]"
+	@echo "  make PLATFORM=<platform> MCU=<mcu> flash [F_CPU=...]"
 	@echo "  make PLATFORM=<platform> MCU=<mcu> clean"
 	@echo ""
 	@echo "Maintenance:"

@@ -1,9 +1,9 @@
 import os
 import shutil
 from common.dataclasses import Command
-from common.protocol import serialize_command_packet, validate_command_packet
+from common.protocol import serialize_command_packet, validate_command_packet, is_nack_packet
 from common.uart_io import MCUSerialLink
-from common.enums import UtilEnum
+from common.enums import UtilEnum, MDTOffset
 from common.logger import MDTLogger
 from parser import parse_packet
 
@@ -84,19 +84,27 @@ def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialL
 
     MDTLogger.info(f"Serialized Ping Command Packet: {byte_packet.hex()}")
 
-    serial_link.send_packet(byte_packet)
+    for attempt in range(1, UtilEnum.MDT_MAX_RETRIES + 1):
+        serial_link.send_packet(byte_packet)
 
-    ack = serial_link.get_response_packet()
+        ack = serial_link.get_response_packet()
 
-    if not ack:
-        MDTLogger.error("No response from MCU.", code=4)
+        if ack is None:
+            MDTLogger.warning(f"No response from MCU (attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}).")
+            continue
+
+        if is_nack_packet(ack):
+            MDTLogger.warning(f"NACK received for ping (attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}), retrying...")
+            continue
+
+        MDTLogger.info(f"Received ACK: {ack.hex()}")
+        parse_packet(ack)
+
+        if validate_command_packet(ack):
+            MDTLogger.info("Command packet validation successful.")
         return
 
-    MDTLogger.info(f"Received ACK: {ack.hex()}")
-    parse_packet(ack)
-
-    if validate_command_packet(ack):
-        MDTLogger.info("Command packet validation successful.")
+    MDTLogger.error(f"Ping failed after {UtilEnum.MDT_MAX_RETRIES} attempts.", code=4)
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None):
 
@@ -135,13 +143,36 @@ def execute_command(command: Command, serial_link: MCUSerialLink = None):
         MDTLogger.info(f"Serialized Command Packet: {byte_packet.hex()}")
 
         if serial_link:
+            ack = None
+            for attempt in range(1, UtilEnum.MDT_MAX_RETRIES + 1):
+                serial_link.send_packet(byte_packet)
 
-            serial_link.send_packet(byte_packet)
+                ack = serial_link.get_response_packet()
 
-            ack = serial_link.get_response_packet()
+                if ack is None:
+                    MDTLogger.warning(
+                        f"No response from MCU for seq={seq} "
+                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES})."
+                    )
+                    continue
 
-            if not ack:
-                MDTLogger.error("No response from MCU.", code=4)
+                if is_nack_packet(ack):
+                    nack_seq = ack[MDTOffset.SEQ]
+                    MDTLogger.warning(
+                        f"NACK received for seq={nack_seq} "
+                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}), retrying..."
+                    )
+                    ack = None
+                    continue
+
+                break  # got a valid (non-NACK) response
+
+            if ack is None:
+                MDTLogger.error(
+                    f"Command failed after {UtilEnum.MDT_MAX_RETRIES} attempts "
+                    f"(seq={seq}). Aborting.",
+                    code=4
+                )
                 return
 
             MDTLogger.info(f"Received ACK: {ack.hex()}")
