@@ -2,19 +2,21 @@ from enum import IntEnum,  StrEnum
 
 MDT_PACKET_SIZE = 18
 MDT_MAX_BREAKPOINTS = 4
+MDT_MAX_WATCHPOINTS = 4
 
 
 class CommandId(IntEnum):
-    READ_MEM = 0x01
-    WRITE_MEM = 0x02
-    READ_REG = 0x03
-    WRITE_REG = 0x04
-    PING = 0x05
-    RESET = 0x06
-    EXIT = 0x07
-    HELP = 0x08
-    CLEAR = 0x09
+    READ_MEM   = 0x01
+    WRITE_MEM  = 0x02
+    READ_REG   = 0x03
+    WRITE_REG  = 0x04
+    PING       = 0x05
+    RESET      = 0x06
+    EXIT       = 0x07
+    HELP       = 0x08
+    CLEAR      = 0x09
     BREAKPOINT = 0x0A
+    WATCHPOINT = 0x0B
 
 """ UTILITY ENUMS. These are used across the codebase for various purposes. """
 class BreakpointControl(IntEnum):
@@ -22,6 +24,11 @@ class BreakpointControl(IntEnum):
     ENABLED = 1
     RESET = 2
     NEXT = 3
+
+class WatchpointControl(IntEnum):
+    DISABLED = 0
+    ENABLED  = 1
+    RESET    = 2
 
 class MemType(IntEnum):
     RAM = 0
@@ -67,13 +74,14 @@ class UtilEnum(IntEnum):
     WORD_SIZE = 4
     HALF_WORD_SIZE = 2
     COMMUNICATION_TIMEOUT = 5.0  # in seconds
-    MDT_MAX_RETRIES = 4
+    MDT_MAX_RETRIES = 3          # max retransmit attempts per packet
 
 class EventType(IntEnum):
     MDT_EVENT_TYPE_NONE = 0
     MDT_EVENT_BUFFER_OVERFLOW = 1
     MDT_EVENT_FAILED_PACKET = 2
     MDT_EVENT_BREAKPOINT_HIT = 3
+    MDT_EVENT_WATCHPOINT_HIT = 4
 
 class STM32Type(IntEnum):
     RAM_BASE = 0x20000000

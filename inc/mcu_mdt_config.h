@@ -35,6 +35,9 @@ typedef enum {
 /* Maximum number of breakpoints */
 #define MDT_MAX_BREAKPOINTS 4
 
+/* Maximum number of watchpoints */
+#define MDT_MAX_WATCHPOINTS 4
+
 /* Maximum protocol retries 
  * Documentation only, not used right now
  */

@@ -173,7 +173,11 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
             mem=parsed_args.get("control_value"),
             address=parsed_args.get("address", 0),
             length=parsed_args.get("len"),
-            data=parsed_args.get("data")
+            data=parsed_args.get("data") or (
+                # For WATCHPOINT: pack watch_address into data bytes
+                parsed_args["watch_address"].to_bytes(4, byteorder="little")
+                if "watch_address" in parsed_args else None
+            )
         )
 
     except (ValueError, IndexError, KeyError) as e:

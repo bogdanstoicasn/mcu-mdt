@@ -1,5 +1,5 @@
 from common.dataclasses import Command
-from common.enums import CommandId, MemType, BreakpointControl, MDT_MAX_BREAKPOINTS
+from common.enums import CommandId, MemType, BreakpointControl, WatchpointControl, MDT_MAX_BREAKPOINTS, MDT_MAX_WATCHPOINTS
 from common.logger import MDTLogger
 
 
@@ -29,6 +29,9 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     elif operation.id == CommandId.BREAKPOINT:
         MDTLogger.info(f"Validating BREAKPOINT command: {operation}")
         return validate_breakpoint(operation)
+    elif operation.id == CommandId.WATCHPOINT:
+        MDTLogger.info(f"Validating WATCHPOINT command: {operation}")
+        return validate_watchpoint(operation)
 
     return False
 
@@ -385,3 +388,43 @@ def validate_breakpoint(operation: Command) -> bool:
 
     MDTLogger.error(f"Invalid breakpoint control value: {operation.mem}", code=3)
     return False
+
+
+# ------------------------------------------------------------------
+# Watchpoint validator
+# ------------------------------------------------------------------
+
+def validate_watchpoint(operation: Command) -> bool:
+    """
+    Validate a WATCHPOINT command.
+
+    Slot ID is in operation.address, control is in operation.mem,
+    and the watched address is packed in operation.data (4 bytes LE).
+    """
+    if operation.address < 0 or operation.address >= MDT_MAX_WATCHPOINTS:
+        MDTLogger.error(
+            f"Invalid watchpoint ID: {operation.address}. "
+            f"Must be between 0 and {MDT_MAX_WATCHPOINTS - 1}.",
+            code=3
+        )
+        return False
+
+    try:
+        control = WatchpointControl(operation.mem)
+    except ValueError:
+        MDTLogger.error(f"Invalid watchpoint control value: {operation.mem}", code=3)
+        return False
+
+    if control == WatchpointControl.ENABLED:
+        if operation.data is None or len(operation.data) != 4:
+            MDTLogger.error("WATCHPOINT enable requires a 4-byte watch address in data.", code=3)
+            return False
+        watched_addr = int.from_bytes(operation.data, byteorder="little")
+        if watched_addr % 4 != 0:
+            MDTLogger.error(
+                f"Watch address 0x{watched_addr:X} is not 4-byte aligned.", code=3
+            )
+            return False
+
+    MDTLogger.info(f"Valid watchpoint: slot={operation.address} control={control.name}")
+    return True

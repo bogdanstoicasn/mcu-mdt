@@ -66,3 +66,11 @@ commands:
     params:
       - { name: "address", type: "uint32" }   # Breakpoint ID (0 to MDT_MAX_BREAKPOINTS-1)
       - { name: "control_value", type: "str"}   # 0=disabled, 1=enabled. 2=reset, 3=next, etc
+  
+  WATCHPOINT:
+    id: 0x0B
+    description: "Set or clear a memory watchpoint. Fires an event when the 4-byte value at address changes."
+    params:
+      - { name: "address", type: "uint32" }        # Watchpoint slot ID (0 to MDT_MAX_WATCHPOINTS-1)
+      - { name: "control_value", type: "str" }     # enable / disable / reset
+      - { name: "watch_address", type: "uint32" }  # Address to watch (ignored for disable/reset)
