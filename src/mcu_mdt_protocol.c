@@ -1,6 +1,7 @@
 #include "mcu_mdt_protocol.h"
 #include "mcu_mdt_hal.h"
 #include "mcu_mdt_breakpoints.h"
+#include "mcu_mdt_watchpoint.h"
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
 {
@@ -143,6 +144,17 @@ uint8_t mdt_dispatch(uint8_t *buf)
         
         case MDT_CMD_BREAKPOINT:
             status = mdt_breakpoint_dispatch(pkt.mem_id, pkt.address); /* Reuse address field for breakpoint ID */
+            break;
+        
+        case MDT_CMD_WATCHPOINT:
+            {
+                uint32_t watched_addr =
+                    ((uint32_t)pkt.data[0])        |
+                    ((uint32_t)pkt.data[1] <<  8)  |
+                    ((uint32_t)pkt.data[2] << 16)  |
+                    ((uint32_t)pkt.data[3] << 24);
+                status = mdt_watchpoint_dispatch(pkt.mem_id, (uint8_t)pkt.address, watched_addr);
+            }
             break;
 
         default:

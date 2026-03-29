@@ -1,46 +1,58 @@
 #ifndef MCU_MDT_CONFIG_H
 #define MCU_MDT_CONFIG_H
 
-/* Common UART configuration for all platforms */
-#define MDT_UART_BAUDRATE    19200
-#define MDT_UART_DATA_BITS   8
-#define MDT_UART_STOP_BITS   1
-#define MDT_UART_PARITY      0  // 0=None, 1=Even, 2=Odd
 
-/**
- * Buffer sizes
- * Bare-metal side
- */
-#define MDT_BUFFER_SIZE   64
+/* Non-overridable — protocol and hardware constants */
+#define MDT_FENCE_PATTERN 0xA5A5A5A5
 
-/* Protocol settings */
-#define MDT_TIMEOUT_MS       1000
-
-#ifndef F_CPU
-    #define F_CPU 16000000UL  // Default CPU frequency
-#endif
-
-/* Enums/Macros that can be modified */
-
-/* Enum with the memory zones */
 typedef enum {
-    MDT_MEM_ZONE_SRAM = 0x00,
-    MDT_MEM_ZONE_FLASH = 0x01,
+    MDT_MEM_ZONE_SRAM   = 0x00,
+    MDT_MEM_ZONE_FLASH  = 0x01,
     MDT_MEM_ZONE_EEPROM = 0x02
 } mdt_mem_zone_t;
 
-/* Fence define zone */
-#define MDT_FENCE_PATTERN 0xA5A5A5A5
+/* Defaults — do not modify */
+#define MDT_DEFAULT_UART_BAUDRATE   19200
 
-/* Maximum number of breakpoints */
-#define MDT_MAX_BREAKPOINTS 4
+#define MDT_DEFAULT_UART_DATA_BITS  8
 
-/* Maximum number of watchpoints */
-#define MDT_MAX_WATCHPOINTS 4
+#define MDT_DEFAULT_UART_STOP_BITS  1
 
-/* Maximum protocol retries 
- * Documentation only, not used right now
- */
-#define MDT_MAX_RETRIES 4
+#define MDT_DEFAULT_UART_PARITY     0
+
+#define MDT_DEFAULT_BUFFER_SIZE     64
+
+#define MDT_DEFAULT_TIMEOUT_MS      1000
+
+#define MDT_DEFAULT_F_CPU           16000000UL
+
+#define MDT_DEFAULT_MAX_BREAKPOINTS 4
+
+#define MDT_DEFAULT_MAX_WATCHPOINTS 4
+
+#define MDT_DEFAULT_MAX_RETRIES     3
+
+
+/* User configuration — edit these */
+#define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE
+
+#define MDT_UART_DATA_BITS  MDT_DEFAULT_UART_DATA_BITS
+
+#define MDT_UART_STOP_BITS  MDT_DEFAULT_UART_STOP_BITS
+
+#define MDT_UART_PARITY     MDT_DEFAULT_UART_PARITY
+
+#define MDT_BUFFER_SIZE     MDT_DEFAULT_BUFFER_SIZE
+
+#define MDT_TIMEOUT_MS      MDT_DEFAULT_TIMEOUT_MS
+
+#ifndef F_CPU
+    #define F_CPU           MDT_DEFAULT_F_CPU
+#endif
+#define MDT_MAX_BREAKPOINTS MDT_DEFAULT_MAX_BREAKPOINTS
+
+#define MDT_MAX_WATCHPOINTS MDT_DEFAULT_MAX_WATCHPOINTS
+
+#define MDT_MAX_RETRIES     MDT_DEFAULT_MAX_RETRIES
 
 #endif // MCU_MDT_CONFIG_H

@@ -1,7 +1,7 @@
 #include "mcu_mdt.h"
 #include "mcu_mdt_private.h"
-#include "mcu_mdt_protocol.h"
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_watchpoint.h"
 
 static mdt_buffer_t rx_packet = {
     .fence_pre = MDT_FENCE_PATTERN,
@@ -188,6 +188,8 @@ void mcu_mdt_poll(void)
         mdt_event_wrapper(MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFF);
         return;
     }
+
+    mdt_watchpoint_poll();
 
     while (hal_uart_rx(&byte))
     {

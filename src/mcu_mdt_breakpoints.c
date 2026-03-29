@@ -2,7 +2,7 @@
 #include "mcu_mdt.h"
 #include "mcu_mdt_private.h"
 
-static volatile mdt_breakpoint_t breakpoints[MDT_MAX_BREAKPOINTS] = {MDT_BP_DISABLE};
+static volatile mdt_breakpoint_state_t bp_state = {0};
 
 __attribute__((noinline))
 void mdt_breakpoint_trigger(uint8_t id)
@@ -10,49 +10,47 @@ void mdt_breakpoint_trigger(uint8_t id)
     if (id >= MDT_MAX_BREAKPOINTS)
         return;
 
-    if (!breakpoints[id].enabled)
+    if (!bp_state.slots[id].enabled)
         return;
-    
-    mdt_event_wrapper(MDT_EVENT_BREAKPOINT_HIT, id); // Send event with breakpoint ID as data
 
-    breakpoints[id].hit_count++; // Optional: track hits
+    mdt_event_wrapper(MDT_EVENT_BREAKPOINT_HIT, id);
 
-    // Cooperative loop: MCU can still service PC commands
-    while (__builtin_expect(breakpoints[id].enabled, 1))
+    bp_state.slots[id].hit_count++;
+
+    /* Cooperative loop: MCU can still service PC commands */
+    while (__builtin_expect(bp_state.slots[id].enabled, MDT_BP_ENABLE))
     {
         mcu_mdt_poll();
-        if (breakpoints[id].next)
+        if (bp_state.slots[id].next)
         {
-            breakpoints[id].next = 0; // Clear "next" flag
-            break; // Exit loop to allow next breakpoint or normal execution
+            bp_state.slots[id].next = MDT_BP_DISABLE;
+            break;
         }
-        // TODO: Maybe use watchdog reset or timeout to avoid infinite loop if user forgets to disable breakpoint
+        /* TODO: watchdog timeout to avoid infinite loop if PC disconnects */
     }
 }
 
-// Internal functions for breakpoint control (enable/disable/reset/next)
 static inline __attribute__((always_inline)) void mdt_breakpoint_enable(uint8_t id)
 {
-    breakpoints[id].enabled = MDT_BP_ENABLE;
+    bp_state.slots[id].enabled = MDT_BP_ENABLE;
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_disable(uint8_t id)
 {
-    breakpoints[id].enabled = MDT_BP_DISABLE;
+    bp_state.slots[id].enabled = MDT_BP_DISABLE;
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_reset(uint8_t id)
 {
-
-    breakpoints[id].enabled = MDT_BP_DISABLE;
-    breakpoints[id].hit_count = MDT_BP_DISABLE;
-
+    bp_state.slots[id].enabled   = MDT_BP_DISABLE;
+    bp_state.slots[id].hit_count = MDT_BP_DISABLE;
+    bp_state.slots[id].next      = MDT_BP_DISABLE;
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_next(uint8_t id)
 {
-    if (id < MDT_MAX_BREAKPOINTS && breakpoints[id].enabled)
-        breakpoints[id].next = MDT_BP_ENABLE;
+    if (id < MDT_MAX_BREAKPOINTS && bp_state.slots[id].enabled)
+        bp_state.slots[id].next = MDT_BP_ENABLE;
 }
 
 uint8_t mdt_breakpoint_dispatch(uint8_t cmd_id, uint32_t id)
@@ -77,6 +75,4 @@ uint8_t mdt_breakpoint_dispatch(uint8_t cmd_id, uint32_t id)
         default:
             return 0;
     }
-
-    return 0;
 }
