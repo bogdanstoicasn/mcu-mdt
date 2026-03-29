@@ -46,28 +46,32 @@ static inline uint8_t mdt_event_pending(void)
 void mdt_event_send(void)
 {
     if (!mdt_event_pending())
-        return; // No event to send
-
+        return;
+ 
     if (!hal_uart_tx_ready())
-        return; // UART busy, skip event
-    
-    mdt_packet_t pkt;
-    mdt_memset((uint8_t *)&pkt, 0, sizeof(pkt));
-    pkt.flags |= MDT_FLAG_EVENT;   // Event flag
-    pkt.length = 4;                // 4 bytes of event data
-    pkt.data[0] = (uint8_t)(pending_event.raw & 0xFF);
-    pkt.data[1] = (uint8_t)((pending_event.raw >> 8) & 0xFF);
-    pkt.data[2] = (uint8_t)((pending_event.raw >> 16) & 0xFF);
-    pkt.data[3] = (uint8_t)((pending_event.raw >> 24) & 0xFF);
-
-    // Compute CRC over everything except the CRC itself
-    pkt.crc = mdt_crc16((uint8_t *)&pkt, sizeof(pkt) - sizeof(pkt.crc));
-
-    hal_uart_tx(MDT_START_BYTE);
+        return;
+ 
+    uint8_t pkt[MDT_PACKET_SIZE] = {0};
+ 
+    pkt[MDT_OFFSET_START]  = MDT_START_BYTE;
+    pkt[MDT_OFFSET_FLAGS]  = MDT_FLAG_EVENT;
+    pkt[MDT_OFFSET_LENGTH] = 4;
+    pkt[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data & 0xFF);
+    pkt[MDT_OFFSET_DATA + 1] = (uint8_t)((pending_event.data >> 8)  & 0xFF);
+    pkt[MDT_OFFSET_DATA + 2] = (uint8_t)((pending_event.data >> 16) & 0xFF);
+    pkt[MDT_OFFSET_DATA + 3] = (uint8_t)(pending_event.type);
+    pkt[MDT_OFFSET_END]    = MDT_END_BYTE;
+ 
+    uint16_t crc = mdt_crc16(
+        &pkt[MDT_OFFSET_CMD_ID],
+        MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
+    );
+    pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
+    pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
+ 
     for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
-        hal_uart_tx(((uint8_t *)&pkt)[i]);
-    hal_uart_tx(MDT_END_BYTE);
-
+        hal_uart_tx(pkt[i]);
+ 
     mdt_event_clear();
 }
 
@@ -89,14 +93,10 @@ static inline uint8_t mdt_buffer_check(const mdt_buffer_t *buffer)
 
 static void mdt_buffer_reset(mdt_buffer_t *buffer)
 {
-    if (!buffer)
-        return;
-
-    buffer->idx = 0;
+    buffer->idx     = 0;
     buffer->started = 0;
     mdt_memset(buffer->buf, 0, MDT_PACKET_SIZE);
-
-    buffer->fence_pre = MDT_FENCE_PATTERN;
+    buffer->fence_pre  = MDT_FENCE_PATTERN;
     buffer->fence_post = MDT_FENCE_PATTERN;
 }
 
@@ -104,22 +104,22 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 
 static void mdt_send_nack(const uint8_t *buf)
 {
-    mdt_packet_t nack;
-    mdt_memset((uint8_t *)&nack, 0, sizeof(nack));
+    uint8_t pkt[MDT_PACKET_SIZE] = {0};
 
-    nack.cmd_id = 0;
-    nack.flags |= MDT_FLAG_ACK_NACK | MDT_FLAG_STATUS_ERROR;
-    nack.seq    = buf[MDT_OFFSET_SEQ];
+    pkt[MDT_OFFSET_START] = MDT_START_BYTE;
+    pkt[MDT_OFFSET_FLAGS] = MDT_FLAG_ACK_NACK | MDT_FLAG_STATUS_ERROR;
+    pkt[MDT_OFFSET_SEQ]   = buf[MDT_OFFSET_SEQ];
+    pkt[MDT_OFFSET_END]   = MDT_END_BYTE;
 
-    nack.crc = mdt_crc16(
-        (const uint8_t *)&nack,
-        MDT_PACKET_SIZE - 1 - 2 - 1   /* exclude START, CRC, END */
+    uint16_t crc = mdt_crc16(
+        &pkt[MDT_OFFSET_CMD_ID],
+        MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
     );
+    pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
+    pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
-    hal_uart_tx(MDT_START_BYTE);
     for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
-        hal_uart_tx(((uint8_t *)&nack)[i]);
-    hal_uart_tx(MDT_END_BYTE);
+        hal_uart_tx(pkt[i]);
 }
 
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */

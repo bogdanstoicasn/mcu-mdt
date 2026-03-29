@@ -1,3 +1,4 @@
+import sys
 import threading
 from common.enums import MDTFlags, MDTOffset, EventType
 from common.logger import MDTLogger
@@ -40,9 +41,15 @@ def event_listener(serial_link):
             if pkt is None:
                 continue
 
-            event_type = pkt[MDTOffset.DATA]
+            event_type = pkt[MDTOffset.DATA + 3]
+            event_data = int.from_bytes(pkt[MDTOffset.DATA:MDTOffset.DATA + 3], byteorder='little')
 
-            MDTLogger.info(f"\n[Event] {EventType(event_type).name}\n> ")
+            # Clear the current line (erases dangling "> " prompt), print event, reprint prompt
+            sys.stdout.write("\r\033[K")
+            sys.stdout.flush()
+            MDTLogger.info(f"[Event] {EventType(event_type).name} (data=0x{event_data:06X})")
+            sys.stdout.write("> ")
+            sys.stdout.flush()
 
         except Exception as e:
             if serial_link.running:

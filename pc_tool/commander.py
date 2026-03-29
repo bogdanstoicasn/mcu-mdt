@@ -18,24 +18,54 @@ def intro_text():
     
     return "\n" + "\n".join(line.center(width) for line in lines) + "\n"
 
-def help_command():
-    help_text = """
-Available Commands:
-    HELP                Show this help message.
-    EXIT                Exit the command line interface.
-    READ_MEM <mem_type> <address> <length>
-                      Read data from specified memory type and address.
-    WRITE_MEM <mem_type> <address> <length> <data>
-                      Write data to specified memory type and address.
-    READ_REG <register_address>
-                        Read data from specified register address.
-    WRITE_REG <register_address> <data>
-                        Write data to specified register address.
-    BREAKPOINT <id> <operation>
-                        Software breakpoint management. Operation can be 'ENABLED', 'DISABLED', 'NEXT', 'RESET'.
-    PING                Send a ping command to the connected MCU.
-"""
-    MDTLogger.info(help_text)
+def help_command(command_data: dict = None):
+    import shutil
+
+    width = shutil.get_terminal_size().columns
+    col1  = 32  # width of the command + usage column
+
+    # type → human readable hint (fallback if no explicit hint in yaml)
+    type_hints = {
+        "uint32":        "<addr>",
+        "uint32_or_str": "<addr|reg>",
+        "uint16":        "<value>",
+        "uint8":         "<value>",
+        "str":           "<control>",
+        "bytes":         "<hex>",
+    }
+
+    lines = []
+    lines.append("─" * min(width, 72))
+    lines.append("  MCU-MDT — Available Commands")
+    lines.append("─" * min(width, 72))
+
+    if command_data:
+        commands = command_data.get("commands", {})
+        for name, info in commands.items():
+            params = info.get("params", [])
+            description = info.get("description", "")
+
+            param_str = " ".join(
+                p.get("hint") or type_hints.get(p["type"], f"<{p['name']}>")
+                for p in params
+            )
+
+            usage = f"  {name}"
+            if param_str:
+                usage += f" {param_str}"
+
+            # pad or wrap if usage line is too long
+            if len(usage) < col1:
+                usage = usage.ljust(col1)
+                lines.append(f"{usage}{description}")
+            else:
+                lines.append(usage)
+                lines.append(f"{''.ljust(col1)}{description}")
+    else:
+        lines.append("  No command data available.")
+
+    lines.append("─" * min(width, 72))
+    MDTLogger.info("\n" + "\n".join(lines) + "\n")
 
 def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
     """

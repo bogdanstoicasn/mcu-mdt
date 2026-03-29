@@ -9,7 +9,7 @@ from common.logger import MDTLogger
 def build_dispatch(loader, serial_link, threads):
     return {
         "EXIT":  lambda cmd: exit_command(serial_link, threads=threads),
-        "HELP":  lambda cmd: help_command(),
+        "HELP":  lambda cmd: help_command(loader.yaml_command_data),
         "CLEAR": lambda cmd: clear_command(),
         "PING":  lambda cmd: ping_command(cmd, loader.yaml_build_data, serial_link),
     }

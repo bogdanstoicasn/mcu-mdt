@@ -14,31 +14,31 @@ commands:
     id: 0x01
     description: "Read n bytes from memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str" }   # 0=RAM, 1=FLASH, 2=EEPROM
-      - { name: "address", type: "uint32" }
-      - { name: "len", type: "uint32" }
+      - { name: "control_value", type: "str",    hint: "<mem_type>" }
+      - { name: "address",       type: "uint32",  hint: "<addr>" }
+      - { name: "len",           type: "uint32",  hint: "<length>" }
 
   WRITE_MEM:
     id: 0x02
     description: "Write n bytes to memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str" }   # 0=RAM, 1=FLASH, 2=EEPROM
-      - { name: "address", type: "uint32" }
-      - { name: "len", type: "uint32" }
-      - { name: "data", type: "bytes" }
+      - { name: "control_value", type: "str",    hint: "<mem_type>" }
+      - { name: "address",       type: "uint32",  hint: "<addr>" }
+      - { name: "len",           type: "uint32",  hint: "<length>" }
+      - { name: "data",          type: "bytes",   hint: "<hex>" }
 
   READ_REG:
     id: 0x03
     description: "Read MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str" }
+      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>" }
 
   WRITE_REG:
     id: 0x04
     description: "Write value to MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str" }
-      - { name: "data", type: "bytes" }
+      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>" }
+      - { name: "data",    type: "bytes",          hint: "<hex>" }
 
   PING:
     id: 0x05
@@ -59,18 +59,18 @@ commands:
   CLEAR:
     id: 0x09
     description: "Clear the console screen (PC-side only)"
-  
+
   BREAKPOINT:
     id: 0x0A
     description: "Trigger a software breakpoint in the MCU firmware"
     params:
-      - { name: "address", type: "uint32" }   # Breakpoint ID (0 to MDT_MAX_BREAKPOINTS-1)
-      - { name: "control_value", type: "str"}   # 0=disabled, 1=enabled. 2=reset, 3=next, etc
-  
+      - { name: "address",       type: "uint32", hint: "<id>" }
+      - { name: "control_value", type: "str",    hint: "<control>" }
+
   WATCHPOINT:
     id: 0x0B
     description: "Set or clear a memory watchpoint. Fires an event when the 4-byte value at address changes."
     params:
-      - { name: "address", type: "uint32" }        # Watchpoint slot ID (0 to MDT_MAX_WATCHPOINTS-1)
-      - { name: "control_value", type: "str" }     # enable / disable / reset
-      - { name: "watch_address", type: "uint32" }  # Address to watch (ignored for disable/reset)
+      - { name: "address",       type: "uint32", hint: "<id>" }
+      - { name: "control_value", type: "str",    hint: "<control>" }
+      - { name: "watch_address", type: "uint32", hint: "<addr>" }
