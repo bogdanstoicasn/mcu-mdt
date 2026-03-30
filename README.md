@@ -52,3 +52,7 @@ The MCU firmware implements only:
 - command execution
 
 This design allows the firmware to be as minimal, simple and deterministic as possible, while allowing complex validation and tooling on the host side.
+
+## License
+
+This project is licensed under the MIT License: see the [LICENSE](LICENSE) file for details.
