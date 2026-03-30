@@ -30,8 +30,7 @@ The host debugger runs on the PC and communicates with the MCU over UART. It is
 written in Python.
 
 ```bash
-cd pc_tool
-python3 main.py <path_to_config.yaml>
+python3 mcu_mdt.py <path_to_config.yaml>
 ```
 
 ## Arhitecture Note

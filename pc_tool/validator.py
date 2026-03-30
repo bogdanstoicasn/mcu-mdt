@@ -1,6 +1,6 @@
-from common.dataclasses import Command
-from common.enums import CommandId, MemType, BreakpointControl, WatchpointControl, MDT_MAX_BREAKPOINTS, MDT_MAX_WATCHPOINTS
-from common.logger import MDTLogger
+from pc_tool.common.dataclasses import Command
+from pc_tool.common.enums import CommandId, MemType, BreakpointControl, WatchpointControl, MDT_MAX_BREAKPOINTS, MDT_MAX_WATCHPOINTS
+from pc_tool.common.logger import MDTLogger
 
 
 def validate_commands(operation: Command, mcu_metadata: dict) -> bool:

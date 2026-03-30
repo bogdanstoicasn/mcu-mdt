@@ -1,9 +1,9 @@
-from loader import ConfigLoader
-from parser import parse_line, parse_args, CLIHistory
-from commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command, exit_command
-from validator import validate_commands
-from event import start_async_handlers
-from common.logger import MDTLogger
+from pc_tool.loader import ConfigLoader
+from pc_tool.parser import parse_line, parse_args, CLIHistory
+from pc_tool.commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command, exit_command
+from pc_tool.validator import validate_commands
+from pc_tool.event import start_async_handlers
+from pc_tool.common.logger import MDTLogger
 
 
 def build_dispatch(loader, serial_link, threads):
@@ -71,7 +71,10 @@ def run_loop(loader, serial_link, threads):
             MDTLogger.info("Exiting...")
             break
 
-if __name__ == "__main__":
-    args = parse_args()
+def main(args):
     loader, serial_link, threads = setup(args.build_info)
     run_loop(loader, serial_link, threads)
+
+if __name__ == "__main__":
+    args = parse_args()
+    main(args)

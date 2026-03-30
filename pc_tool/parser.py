@@ -2,9 +2,9 @@ import os
 import atexit
 import argparse
 from pathlib import Path
-from common.logger import MDTLogger
-from common.dataclasses import Command, CommandPacket
-from common.protocol import deserialize_command_packet
+from pc_tool.common.logger import MDTLogger
+from pc_tool.common.dataclasses import Command, CommandPacket
+from pc_tool.common.protocol import deserialize_command_packet
 
 try:
     import readline

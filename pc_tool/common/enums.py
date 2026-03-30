@@ -1,4 +1,4 @@
-from enum import IntEnum,  StrEnum
+from enum import IntEnum, StrEnum
 
 MDT_PACKET_SIZE = 18
 MDT_MAX_BREAKPOINTS = 4

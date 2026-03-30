@@ -1,8 +1,8 @@
 import serial
 import time
 import queue
-from  common.enums import MDT_PACKET_SIZE, FenceType
-from common.logger import MDTLogger
+from pc_tool.common.enums import MDT_PACKET_SIZE, FenceType
+from pc_tool.common.logger import MDTLogger
 
 class MCUSerialLink:
     def __init__(

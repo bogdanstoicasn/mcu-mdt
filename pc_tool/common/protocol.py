@@ -1,7 +1,6 @@
-from dataclasses import dataclass
-from common.dataclasses import Command, CommandPacket
-from common.enums import MDT_PACKET_SIZE, MDTOffset, UtilEnum, MDTFlags
-from common.logger import MDTLogger
+from pc_tool.common.dataclasses import Command, CommandPacket
+from pc_tool.common.enums import MDT_PACKET_SIZE, MDTOffset, UtilEnum, MDTFlags
+from pc_tool.common.logger import MDTLogger
 
 def calculate_crc16(data: bytes) -> int:
     crc = 0xFFFF

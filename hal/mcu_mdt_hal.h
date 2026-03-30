@@ -20,7 +20,7 @@ void hal_uart_tx(uint8_t byte);
  * @param byte Pointer where received byte is stored
  * @return 1 if byte was read, 0 if no data available
  */
-int hal_uart_rx(uint8_t *byte);
+uint8_t hal_uart_rx(uint8_t *byte);
 
 /**
  * @brief Check if UART is ready to transmit (optional, can be used for flow control)

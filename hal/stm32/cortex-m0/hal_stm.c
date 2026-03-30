@@ -12,7 +12,7 @@ void hal_uart_tx(uint8_t byte)
     uart_putc(byte);
 }
 
-int hal_uart_rx(uint8_t *byte)
+uint8_t hal_uart_rx(uint8_t *byte)
 {
     return uart_getc_nonblocking(byte);
 }

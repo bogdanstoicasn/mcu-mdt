@@ -1,11 +1,11 @@
 import os
 import shutil
-from common.dataclasses import Command
-from common.protocol import serialize_command_packet, validate_command_packet, is_nack_packet
-from common.uart_io import MCUSerialLink
-from common.enums import UtilEnum, MDTOffset
-from common.logger import MDTLogger
-from parser import parse_packet
+from pc_tool.common.dataclasses import Command
+from pc_tool.common.protocol import serialize_command_packet, validate_command_packet, is_nack_packet
+from pc_tool.common.uart_io import MCUSerialLink
+from pc_tool.common.enums import UtilEnum, MDTOffset
+from pc_tool.common.logger import MDTLogger
+from pc_tool.parser import parse_packet
 
 def intro_text():
     width = shutil.get_terminal_size().columns

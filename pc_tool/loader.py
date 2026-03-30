@@ -1,15 +1,15 @@
 import yaml
 import os
 import xml.etree.ElementTree as ET
-from common.logger import MDTLogger
-from common.enums import MCUPlatforms
+from pc_tool.common.logger import MDTLogger
+from pc_tool.common.enums import MCUPlatforms
 
 class ConfigLoader:
     def __init__(
         self,
         build_info_path: str,
-        commands_path: str = "configs/commands.yaml",
-        platforms_path: str = "configs/platforms",
+        commands_path: str = "pc_tool/configs/commands.yaml",
+        platforms_path: str = "pc_tool/configs/platforms",
     ):
         self.yaml_build_data = load_configs(build_info_path)
         self.yaml_command_data = load_configs(commands_path)
@@ -480,13 +480,13 @@ def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
     platform = mcu_platform.lower()
 
     if platform == MCUPlatforms.AVR:
-        return load_atdf_for_mcu(mcu_name, atdf_root="mcu_db")
+        return load_atdf_for_mcu(mcu_name, atdf_root="pc_tool/mcu_db")
     elif platform == MCUPlatforms.PIC:
         # Placeholder for PIC metadata loading logic
         raise NotImplementedError("PIC platform support not implemented yet")
     elif platform == MCUPlatforms.STM:
         # Placeholder for STM metadata loading logic
-        return load_svd_for_mcu(mcu_name, svd_root="mcu_db")
+        return load_svd_for_mcu(mcu_name, svd_root="pc_tool/mcu_db")
     else:
         raise ValueError(f"Unsupported MCU platform: {platform}")
 

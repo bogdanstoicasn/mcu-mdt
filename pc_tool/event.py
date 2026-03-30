@@ -1,7 +1,7 @@
 import sys
 import threading
-from common.enums import MDTFlags, MDTOffset, EventType
-from common.logger import MDTLogger
+from pc_tool.common.enums import MDTFlags, MDTOffset, EventType
+from pc_tool.common.logger import MDTLogger
 
 
 def rx_worker(serial_link):
