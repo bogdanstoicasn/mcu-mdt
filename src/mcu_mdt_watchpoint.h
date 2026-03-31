@@ -7,6 +7,7 @@
 typedef struct {
     uint32_t address;
     uint32_t snapshot;
+    uint32_t mask; /* only watch bits set in mask. Default: 0xFFFFFFFF */
 } mdt_watchpoint_t;
 
 typedef struct {
@@ -18,7 +19,10 @@ typedef enum {
     MDT_WP_DISABLE = 0,
     MDT_WP_ENABLE  = 1,
     MDT_WP_RESET   = 2,
+    MDT_WP_MASK    = 3,
 } mdt_watchpoint_control_t;
+
+#define INTERNAL_MDT_DEFAULT_WP_MASK 0xffffffff
 
 /* If no active watchpoints, return fast */
 void mdt_watchpoint_poll(void);

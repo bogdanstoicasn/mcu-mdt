@@ -29,6 +29,7 @@ class WatchpointControl(IntEnum):
     DISABLED = 0
     ENABLED  = 1
     RESET    = 2
+    MASK     = 3
 
 class MemType(IntEnum):
     RAM = 0

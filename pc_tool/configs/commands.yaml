@@ -9,6 +9,9 @@ control_values:
   RESET: 2
   NEXT: 3
 
+  # Watchpoint control values (DISABLED/ENABLED/RESET shared above)
+  MASK: 3
+
 commands:
   READ_MEM:
     id: 0x01
@@ -69,8 +72,8 @@ commands:
 
   WATCHPOINT:
     id: 0x0B
-    description: "Set or clear a memory watchpoint. Fires an event when the 4-byte value at address changes."
+    description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
       - { name: "address",       type: "uint32", hint: "<id>" }
       - { name: "control_value", type: "str",    hint: "<control>" }
-      - { name: "watch_address", type: "uint32", hint: "<addr>" }
+      - { name: "data",          type: "bytes",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)" }

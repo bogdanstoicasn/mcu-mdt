@@ -17,7 +17,7 @@ uint8_t hal_uart_rx(uint8_t *byte)
     return uart_getc_nonblocking(byte);
 }
 
-uint8_t hal_uart_tx_ready()
+uint8_t hal_uart_tx_ready(void)
 {
     return uart_ready();
 }

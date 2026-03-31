@@ -107,13 +107,16 @@ uint8_t mdt_dispatch(uint8_t *buf)
             break;
  
         case MDT_CMD_WATCHPOINT:
+            /* mem_id   = control (enable/disable/reset/set_mask)
+             * address  = slot ID
+             * data[0..3] = watched address (enable) or mask value (set_mask) */
             {
-                uint32_t watched_addr =
+                uint32_t payload =
                     ((uint32_t)data[0])        |
                     ((uint32_t)data[1] <<  8)  |
                     ((uint32_t)data[2] << 16)  |
                     ((uint32_t)data[3] << 24);
-                status = mdt_watchpoint_dispatch(mem_id, (uint8_t)address, watched_addr);
+                status = mdt_watchpoint_dispatch(mem_id, (uint8_t)address, payload);
             }
             break;
  
@@ -124,4 +127,3 @@ uint8_t mdt_dispatch(uint8_t *buf)
 
     return status;
 }
-
