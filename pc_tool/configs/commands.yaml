@@ -76,4 +76,4 @@ commands:
     params:
       - { name: "address",       type: "uint32", hint: "<id>" }
       - { name: "control_value", type: "str",    hint: "<control>" }
-      - { name: "data",          type: "bytes",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)" }
+      - { name: "wp_data",          type: "uint32",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)" }

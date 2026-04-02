@@ -20,12 +20,8 @@ typedef struct {
 
 /* Event structure */
 typedef union {
-    struct {
-        uint32_t data : 24;
-        uint32_t type : 8;
-    };
-
-    uint32_t raw;
+    uint32_t data;
+    uint8_t type;
 } mdt_event_t;
 
 /* Event type enumeration */

@@ -174,9 +174,9 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
             address=parsed_args.get("address", 0),
             length=parsed_args.get("len"),
             data=parsed_args.get("data") or (
-                # For WATCHPOINT: pack watch_address into data bytes
-                parsed_args["watch_address"].to_bytes(4, byteorder="little")
-                if "watch_address" in parsed_args else None
+                # WATCHPOINT: pack wp_data (address or mask) as 4-byte little-endian
+                parsed_args["wp_data"].to_bytes(4, byteorder="little")
+                if "wp_data" in parsed_args else None
             )
         )
 

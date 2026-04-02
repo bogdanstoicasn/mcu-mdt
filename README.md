@@ -30,10 +30,10 @@ The host debugger runs on the PC and communicates with the MCU over UART. It is
 written in Python.
 
 ```bash
-python3 mcu_mdt.py <path_to_config.yaml>
+python3 mcu_mdt.py </build/<mcu_name>/build_info.yaml>
 ```
 
-## Arhitecture Note
+## Architecture Note
 
 To keep the firmware lightweight and portable across low-resource microcontrollers, **MCU-MDT**
 performs all semantic validation on the PC-side

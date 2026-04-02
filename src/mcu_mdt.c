@@ -21,57 +21,63 @@ static inline void mdt_memset(void *buf, uint8_t value, uint32_t len)
     }
 }
 
-static volatile mdt_event_t pending_event = { .raw = 0 };
+static volatile mdt_event_t pending_event = { 0 };
 
 /* --- Event handling functions --- */
 
 static inline void mdt_event_set(mdt_event_type_t type, uint32_t data)
 {
-    if (pending_event.raw)
-        return; // event already pending
-    pending_event.type = type;
+    if (pending_event.type != MDT_EVENT_TYPE_NONE)
+        return; /* event already pending */
     pending_event.data = data;
+    pending_event.type = (uint8_t)type;
 }
 
 static inline void mdt_event_clear(void)
 {
-    pending_event.raw = 0;
+    pending_event.data = 0;
+    pending_event.type = MDT_EVENT_TYPE_NONE;
 }
 
 static inline uint8_t mdt_event_pending(void)
 {
-    return pending_event.raw != 0;
+    return pending_event.type != MDT_EVENT_TYPE_NONE;
 }
 
 void mdt_event_send(void)
 {
     if (!mdt_event_pending())
         return;
- 
+
     if (!hal_uart_tx_ready())
         return;
- 
+
     uint8_t pkt[MDT_PACKET_SIZE] = {0};
- 
-    pkt[MDT_OFFSET_START]  = MDT_START_BYTE;
-    pkt[MDT_OFFSET_FLAGS]  = MDT_FLAG_EVENT;
-    pkt[MDT_OFFSET_LENGTH] = 4;
+
+    pkt[MDT_OFFSET_START] = MDT_START_BYTE;
+    pkt[MDT_OFFSET_FLAGS] = MDT_FLAG_EVENT;
+
+    /* Event type in address field */
+    pkt[MDT_OFFSET_ADDRESS] = (uint8_t)(pending_event.type);
+
+    /* Full 32-bit event data in data field (little-endian) */
     pkt[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data & 0xFF);
     pkt[MDT_OFFSET_DATA + 1] = (uint8_t)((pending_event.data >> 8)  & 0xFF);
     pkt[MDT_OFFSET_DATA + 2] = (uint8_t)((pending_event.data >> 16) & 0xFF);
-    pkt[MDT_OFFSET_DATA + 3] = (uint8_t)(pending_event.type);
-    pkt[MDT_OFFSET_END]    = MDT_END_BYTE;
- 
+    pkt[MDT_OFFSET_DATA + 3] = (uint8_t)((pending_event.data >> 24) & 0xFF);
+
+    pkt[MDT_OFFSET_END] = MDT_END_BYTE;
+
     uint16_t crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
         MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
     );
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
- 
+
     for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
         hal_uart_tx(pkt[i]);
- 
+
     mdt_event_clear();
 }
 
