@@ -242,9 +242,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
 
     svd_file = None
 
-    # ------------------------------------------------------------------
-    # 1. Locate SVD file — exact match first
-    # ------------------------------------------------------------------
+    # SVD location
     for root_dir, _, files in os.walk(svd_root):
         for file in files:
             if file.lower().endswith(".svd") and os.path.splitext(file)[0].lower() == mcu_name_lower:
@@ -253,7 +251,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
         if svd_file:
             break
 
-    # Family fallback — maps 4-char prefix  (core subfolder, shared SVD filename)
+    # Family fallback: maps 4-char prefix  (core subfolder, shared SVD filename)
     if not svd_file:
         family_map = {
             "f030": ("cortex-m0", "STM32F0x0.svd"),
@@ -271,26 +269,20 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
     if not svd_file or not os.path.isfile(svd_file):
         raise FileNotFoundError(f"SVD file for MCU '{mcu_name}' not found in {svd_root}")
 
-    # ------------------------------------------------------------------
-    # 2. Load companion YAML memory file (same folder, same stem, .yaml)
-    # ------------------------------------------------------------------
+    # Companion YAML for memory sizes
     yaml_file = os.path.splitext(svd_file)[0] + ".yaml"
     mcu_memory_data = None
     if os.path.isfile(yaml_file):
         mcu_memory_data = load_configs(yaml_file)
 
-    # ------------------------------------------------------------------
-    # 3. Parse SVD XML
-    # ------------------------------------------------------------------
+    # Parse XML
     try:
         tree = ET.parse(svd_file)
         root = tree.getroot()
     except ET.ParseError as e:
         raise ValueError(f"Invalid SVD XML: {e}")
 
-    # ------------------------------------------------------------------
-    # 4. Namespace helpers
-    # ------------------------------------------------------------------
+    # Handle namespaces if present
     ns = {}
     if root.tag.startswith("{"):
         uri = root.tag.split("}")[0].strip("{")
@@ -316,9 +308,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
         except ValueError:
             return default
 
-    # ------------------------------------------------------------------
-    # 5. Build result skeleton
-    # ------------------------------------------------------------------
+    # Basic device info
     result = {
         "device":       mcu_name_lower,
         "architecture": _findtext(root, "cpu/name"),
@@ -329,9 +319,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
         "interrupts":   {},
     }
 
-    # ------------------------------------------------------------------
-    # 6. Memories — from companion YAML
-    # ------------------------------------------------------------------
+    # Memory info from companion YAML (if available)
     if mcu_memory_data:
         variants = mcu_memory_data.get("variants", {})
         variant  = variants.get(mcu_name_lower, {})
@@ -356,9 +344,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
                 "pagesize": None,
             }
 
-    # ------------------------------------------------------------------
-    # 7. Pre-index peripherals for derivedFrom resolution
-    # ------------------------------------------------------------------
+    # Pre-index peripherals for derivedFrom resolution
     peripheral_elements: dict[str, ET.Element] = {}
     for p in _findall(root, ".//peripheral"):
         pname = _findtext(p, "name")
@@ -371,9 +357,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
             return peripheral_elements[derived]
         return p_elem
 
-    # ------------------------------------------------------------------
-    # 8. Parse peripherals → modules
-    # ------------------------------------------------------------------
+    # Parse peripherals and their registers
     for pname, p_elem in peripheral_elements.items():
         base_elem = _resolve(p_elem)
         base_addr = _parse_int(_findtext(p_elem, "baseAddress"))
@@ -461,9 +445,7 @@ def load_svd_for_mcu(mcu_name: str, svd_root: str) -> dict:
                     "module_instance": pname,
                 }
 
-    # ------------------------------------------------------------------
-    # 9. Device-level interrupt block
-    # ------------------------------------------------------------------
+    # Interrupt blocks
     for intr in _findall(root, ".//interrupts/interrupt"):
         int_name = _findtext(intr, "name")
         if int_name and int_name not in result["interrupts"]:
@@ -485,8 +467,6 @@ def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
         # Placeholder for PIC metadata loading logic
         raise NotImplementedError("PIC platform support not implemented yet")
     elif platform == MCUPlatforms.STM:
-        # Placeholder for STM metadata loading logic
         return load_svd_for_mcu(mcu_name, svd_root="pc_tool/mcu_db")
     else:
         raise ValueError(f"Unsupported MCU platform: {platform}")
-

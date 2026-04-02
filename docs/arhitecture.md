@@ -76,7 +76,7 @@ CLI
 - CLI-only commands are handled immediately and never sent over UART.
 - Protocol commands follow a strict flow:
 ```
-parse → validate → serialize → send
+parse -> validate -> serialize -> send
 ```
 
 - Memory validation maps logical memory types (RAM / FLASH / EEPROM) to ATDF memory segments.

@@ -16,10 +16,10 @@ typedef struct {
 } mdt_breakpoint_state_t;
 
 typedef enum {
-    MDT_BP_DISABLE = 0,
-    MDT_BP_ENABLE  = 1,
-    MDT_BP_RESET   = 2,
-    MDT_BP_NEXT    = 3
+    INTERNAL_MDT_BP_DISABLE = 0,
+    INTERNAL_MDT_BP_ENABLE  = 1,
+    INTERNAL_MDT_BP_RESET   = 2,
+    INTERNAL_MDT_BP_NEXT    = 3
 } mdt_breakpoint_control_t;
 
 /* Internal function triggered by macro */

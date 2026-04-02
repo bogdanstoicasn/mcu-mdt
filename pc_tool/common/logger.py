@@ -61,5 +61,4 @@ class MDTLogger:
         self.log(LogLevel.DEBUG, msg, code)
 
 
-# Singleton instance
 MDTLogger = MDTLogger()

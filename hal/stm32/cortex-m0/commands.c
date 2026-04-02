@@ -84,13 +84,13 @@ static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
 /* Write a word (32 bits) to flash by performing two half-word writes */
 static uint8_t flash_write_word(uint32_t address, uint32_t data)
 {
-    // 32-bit writes must be aligned to 4 bytes
+    /* 32-bit writes must be aligned to 4 bytes */
     if (address & 0x3)
         return 0;
 
     flash_unlock();
 
-    // write lower 16 bits, then upper 16 bits
+    /* write lower 16 bits, then upper 16 bits */
     uint8_t ok = flash_write_halfword(address,    (uint16_t)(data & 0xFFFF));
     if (ok)
         ok    = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
@@ -113,11 +113,11 @@ uint8_t write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, 
 
         case MDT_MEM_ZONE_FLASH:
         {
-            // flash writes should be aligned to 2 bytes
+            /*f lash writes should be aligned to 2 bytes */
             if (address & 0x1)
                 return 0;
 
-            // don't write if target is not erased yet
+            /* don't write if target is not erased yet */
             if (!flash_is_erased(address, length))
                 return 0;
 
@@ -127,7 +127,7 @@ uint8_t write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, 
                 if (length == 2)
                     hw = (uint16_t)buffer[0] | ((uint16_t)buffer[1] << 8);
                 else
-                    hw = (uint16_t)buffer[0] | 0xFF00; // if only 1 byte, keep upper byte erased(0xFF)
+                    hw = (uint16_t)buffer[0] | 0xFF00; /* if only 1 byte, keep upper byte erased(0xFF) */
 
                 flash_unlock();
                 uint8_t ok = flash_write_halfword(address, hw);
@@ -136,7 +136,7 @@ uint8_t write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, 
             }
             else
             {
-                // build one 32-bit value from up to 4 input bytes
+                /* build one 32-bit value from up to 4 input bytes */
                 uint32_t word = 0xFFFFFFFF;
                 for (uint16_t i = 0; i < length && i < 4; i++)
                     word = (word & ~(0xFFUL << (i * 8))) | ((uint32_t)buffer[i] << (i * 8));

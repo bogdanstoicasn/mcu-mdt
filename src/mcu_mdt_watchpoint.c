@@ -19,7 +19,7 @@ void mdt_watchpoint_poll(void)
             if ((current & watchpoints_descriptor.slots[slot].mask) != (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
             {
                 watchpoints_descriptor.slots[slot].snapshot = current;
-                mdt_event_wrapper(MDT_EVENT_WATCHPOINT_HIT, (uint32_t)slot);
+                mdt_event_wrapper(INTERNAL_MDT_EVENT_WATCHPOINT_HIT, (uint32_t)slot);
             }
         }
 
@@ -61,19 +61,19 @@ uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address)
 
     switch (control)
     {
-        case MDT_WP_ENABLE:
+        case INTERNAL_MDT_WP_ENABLE:
             mdt_watchpoint_enable(id, address);
             return 1;
 
-        case MDT_WP_DISABLE:
+        case INTERNAL_MDT_WP_DISABLE:
             mdt_watchpoint_disable(id);
             return 1;
 
-        case MDT_WP_RESET:
+        case INTERNAL_MDT_WP_RESET:
             mdt_watchpoint_reset(id);
             return 1;
         
-        case MDT_WP_MASK:
+        case INTERNAL_MDT_WP_MASK:
             if (!(watchpoints_descriptor.active_mask & (1u << id)))
                 return 0; /* watchpoint not active, mask ignored */
             mdt_watchpoint_setmask(id, address);

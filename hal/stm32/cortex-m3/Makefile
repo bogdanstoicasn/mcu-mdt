@@ -45,7 +45,7 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M3)
 CPU_FLAGS := -mcpu=cortex-m3 -mthumb
 
-# MCU → linker script define mapping
+# MCU -> linker script define mapping
 # Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
 # We also group by density to avoid redundant linker scripts for each MCU variant
 MCU_NORM := $(MCU)
@@ -116,7 +116,7 @@ $(BUILD_DIR):
 
 # Preprocess linker script — resolves #ifdef MCU_<name> into plain ld syntax
 $(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
-	@echo "  PP  linker.ld → linker_pp.ld"
+	@echo "  PP  linker.ld -> linker_pp.ld"
 	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
 
 # Dependency files

@@ -16,10 +16,10 @@ typedef struct {
 } mdt_watchpoint_state_t;
 
 typedef enum {
-    MDT_WP_DISABLE = 0,
-    MDT_WP_ENABLE  = 1,
-    MDT_WP_RESET   = 2,
-    MDT_WP_MASK    = 3,
+    INTERNAL_MDT_WP_DISABLE = 0,
+    INTERNAL_MDT_WP_ENABLE  = 1,
+    INTERNAL_MDT_WP_RESET   = 2,
+    INTERNAL_MDT_WP_MASK    = 3,
 } mdt_watchpoint_control_t;
 
 #define INTERNAL_MDT_DEFAULT_WP_MASK 0xffffffff

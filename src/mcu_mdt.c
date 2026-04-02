@@ -23,11 +23,11 @@ static inline void mdt_memset(void *buf, uint8_t value, uint32_t len)
 
 static volatile mdt_event_t pending_event = { 0 };
 
-/* --- Event handling functions --- */
+/* Event handling functions */
 
 static inline void mdt_event_set(mdt_event_type_t type, uint32_t data)
 {
-    if (pending_event.type != MDT_EVENT_TYPE_NONE)
+    if (pending_event.type != INTERNAL_MDT_EVENT_TYPE_NONE)
         return; /* event already pending */
     pending_event.data = data;
     pending_event.type = (uint8_t)type;
@@ -36,12 +36,12 @@ static inline void mdt_event_set(mdt_event_type_t type, uint32_t data)
 static inline void mdt_event_clear(void)
 {
     pending_event.data = 0;
-    pending_event.type = MDT_EVENT_TYPE_NONE;
+    pending_event.type = INTERNAL_MDT_EVENT_TYPE_NONE;
 }
 
 static inline uint8_t mdt_event_pending(void)
 {
-    return pending_event.type != MDT_EVENT_TYPE_NONE;
+    return pending_event.type != INTERNAL_MDT_EVENT_TYPE_NONE;
 }
 
 void mdt_event_send(void)
@@ -55,7 +55,7 @@ void mdt_event_send(void)
     uint8_t pkt[MDT_PACKET_SIZE] = {0};
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
-    pkt[MDT_OFFSET_FLAGS] = MDT_FLAG_EVENT;
+    pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_EVENT;
 
     /* Event type in address field */
     pkt[MDT_OFFSET_ADDRESS] = (uint8_t)(pending_event.type);
@@ -87,10 +87,10 @@ void mdt_event_wrapper(mdt_event_type_t type, uint32_t data)
     mdt_event_send();
 }
 
-/* --- End of event handling functions --- */
+/* End of event handling functions */
 
 
-/* --- Buffer management functions --- */
+/* Buffer management functions */
 
 static inline uint8_t mdt_buffer_check(const mdt_buffer_t *buffer)
 {
@@ -106,14 +106,14 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
     buffer->fence_post = MDT_FENCE_PATTERN;
 }
 
-/* --- End of buffer management functions --- */
+/* End of buffer management functions */
 
 static void mdt_send_nack(const uint8_t *buf)
 {
     uint8_t pkt[MDT_PACKET_SIZE] = {0};
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
-    pkt[MDT_OFFSET_FLAGS] = MDT_FLAG_ACK_NACK | MDT_FLAG_STATUS_ERROR;
+    pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_ACK_NACK | INTERNAL_MDT_FLAG_STATUS_ERROR;
     pkt[MDT_OFFSET_SEQ]   = buf[MDT_OFFSET_SEQ];
     pkt[MDT_OFFSET_END]   = MDT_END_BYTE;
 
@@ -131,25 +131,25 @@ static void mdt_send_nack(const uint8_t *buf)
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
-    /* --- Validate packet --- */
+    /* Validate packet */
     uint8_t *pkt = buf->buf;
     if (!mdt_packet_validate(pkt, MDT_PACKET_SIZE))
     {
-        mdt_send_nack(pkt); // Send nack so PC knows to retransmit
-        mdt_event_wrapper(MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); // Send event with buffer address for debugging
+        mdt_send_nack(pkt); /* Send nack so PC knows to retransmit */
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); /* Send event with buffer address for debugging */
         mdt_buffer_reset(buf);
         return 0;
     }
 
-    /* --- Dispatch command --- */
+    /* Dispatch command */
     uint8_t status = mdt_dispatch(pkt);
 
-    /* --- Set flags --- */
-    pkt[MDT_OFFSET_FLAGS] |= MDT_FLAG_ACK_NACK;
+    /* Set flags */
+    pkt[MDT_OFFSET_FLAGS] |= INTERNAL_MDT_FLAG_ACK_NACK;
     if (!status)
-        pkt[MDT_OFFSET_FLAGS] |= MDT_FLAG_STATUS_ERROR;
+        pkt[MDT_OFFSET_FLAGS] |= INTERNAL_MDT_FLAG_STATUS_ERROR;
 
-    /* --- Recalculate CRC --- */
+    /* Recalculate CRC */
     uint16_t crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
         MDT_PACKET_SIZE - 1 - 2 - 1
@@ -157,13 +157,13 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
-    /* --- Send response --- */
+    /* Send response */
     uint8_t *p   = pkt;
     uint8_t *end = pkt + MDT_PACKET_SIZE;
     while (p < end)
         hal_uart_tx(*p++);
 
-    /* --- Reset buffer for next packet --- */
+    /* Reset buffer for next packet */
     mdt_buffer_reset(buf);
 
     return 1;
@@ -171,27 +171,26 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 
 void mcu_mdt_init(void)
 {
-    // Initialization code for MCU MDT
+    /* Initialization code for MCU MDT */
     hal_uart_init();
 }
 
-/* --- Poll function --- */
+/* Poll function */
 void mcu_mdt_poll(void)
 {
     uint8_t byte;
 
-    /* --- Check for pending events --- */
+    /* Check for pending events */
     if (mdt_event_pending())
     {
         mdt_event_send();
     }
 
-    /* --- Fence check at entry (optional) --- */
+    /* Fence check at entry */
     if (!mdt_buffer_check(&rx_packet))
     {
         mdt_buffer_reset(&rx_packet);
-        // send the 24 bits of lower address as event data for easier debugging
-        mdt_event_wrapper(MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFF);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
         return;
     }
 
@@ -213,7 +212,7 @@ void mcu_mdt_poll(void)
         if (rx_packet.idx >= MDT_PACKET_SIZE)
         {
             mdt_buffer_reset(&rx_packet);
-            mdt_event_wrapper(MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFF); // Send event with buffer address for debugging
+            mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
             continue;
         }
 
@@ -226,7 +225,7 @@ void mcu_mdt_poll(void)
             /* Handle the packet */
             if (!mdt_handle_packet(&rx_packet))
             {
-                /* Fence/validation failed → break current loop iteration */
+                /* Fence/validation failed, break current loop iteration */
                 break;
             }
         }

@@ -48,20 +48,20 @@ typedef struct {
 #define RCC_BASE 0x40021000UL
 
 typedef struct {
-    volatile uint32_t cr;
-    volatile uint32_t cfgr;
-    volatile uint32_t cir;
-    volatile uint32_t apb2rstr;
-    volatile uint32_t apb1rstr;
-    volatile uint32_t ahbenr;
-    volatile uint32_t apb2enr;
-    volatile uint32_t apb1enr;
-    volatile uint32_t bdcr;
-    volatile uint32_t csr;
-    volatile uint32_t ahbrstr;
-    volatile uint32_t cfgr2;
-    volatile uint32_t cfgr3;
-    volatile uint32_t cr2;
+    volatile uint32_t cr;       /* 0x00 */
+    volatile uint32_t cfgr;     /* 0x04 */
+    volatile uint32_t cir;      /* 0x08 */
+    volatile uint32_t apb2rstr; /* 0x0C */
+    volatile uint32_t apb1rstr; /* 0x10 */
+    volatile uint32_t ahbenr;   /* 0x14 */
+    volatile uint32_t apb2enr;  /* 0x18 */
+    volatile uint32_t apb1enr;  /* 0x1C */
+    volatile uint32_t bdcr;     /* 0x20 */
+    volatile uint32_t csr;      /* 0x24 */
+    volatile uint32_t ahbrstr;  /* 0x28 */
+    volatile uint32_t cfgr2;    /* 0x2C */
+    volatile uint32_t cfgr3;    /* 0x30 */
+    volatile uint32_t cr2;      /* 0x34 */
 } rcc_def_t;
 
 #define RCC ((volatile rcc_def_t *) RCC_BASE)
@@ -74,17 +74,17 @@ typedef struct {
 #define GPIOA_BASE 0x48000000UL
 
 typedef struct {
-    volatile uint32_t moder;
-    volatile uint32_t otyper;
-    volatile uint32_t ospeedr;
-    volatile uint32_t pupdr;
-    volatile uint32_t idr;
-    volatile uint32_t odr;
-    volatile uint32_t bsrr;
-    volatile uint32_t lckr;
-    volatile uint32_t afrl;
-    volatile uint32_t afrh;
-    volatile uint32_t brr;
+    volatile uint32_t moder;   /* 0x00 */
+    volatile uint32_t otyper;  /* 0x04 */
+    volatile uint32_t ospeedr; /* 0x08 */
+    volatile uint32_t pupdr;   /* 0x0C */
+    volatile uint32_t idr;     /* 0x10 */
+    volatile uint32_t odr;     /* 0x14 */
+    volatile uint32_t bsrr;    /* 0x18 */
+    volatile uint32_t lckr;    /* 0x1C */
+    volatile uint32_t afrl;    /* 0x20 */
+    volatile uint32_t afrh;    /* 0x24 */
+    volatile uint32_t brr;     /* 0x28 */
 } gpio_def_t;
 
 #define GPIOA ((volatile gpio_def_t *) GPIOA_BASE)

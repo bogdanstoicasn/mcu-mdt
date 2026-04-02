@@ -25,12 +25,12 @@ uint8_t uart_putc(uint8_t data)
 {
     if (!rb_push(&tx_buffer, data))
     {
-        return 0; // Buffer full, drop data
+        return 0; /* Drop data */
     }
     
-    UCSR0B |= (1 << UDRIE0); // Enable Data Register Empty Interrupt
+    UCSR0B |= (1 << UDRIE0); /* Enable data registry interrupt*/
 
-    return 1; // Success
+    return 1;
 }
 
 uint8_t uart_getc_nonblocking(uint8_t *data)
@@ -46,13 +46,13 @@ uint8_t uart_ready()
 /* Interrupt Service Routines */
 
 /* Vector Definitions Portability */
-#if defined(USART_RX_vect)        // Single UART MCUs (e.g., ATmega328P, ATmega168)
+#if defined(USART_RX_vect)        /* Single UART MCUs (e.g., ATmega328P, ATmega168) */
     #define USART_RX_vect_name    USART_RX_vect
     #define USART_UDRE_vect_name  USART_UDRE_vect
-#elif defined(USART0_RX_vect)     // Multi-UART MCUs (e.g., ATmega2560, ATmega1280)
+#elif defined(USART0_RX_vect)     /* Multi-UART MCUs (e.g., ATmega2560, ATmega1280) */
     #define USART_RX_vect_name    USART0_RX_vect
     #define USART_UDRE_vect_name  USART0_UDRE_vect
-#elif defined(USARTE_RX_vect)     // Some ATtiny/extended UART variants
+#elif defined(USARTE_RX_vect)     /* Some ATtiny/extended UART variants */
     #define USART_RX_vect_name    USARTE_RX_vect
     #define USART_UDRE_vect_name  USARTE_UDRE_vect
 #else
@@ -70,10 +70,10 @@ ISR(USART_UDRE_vect_name)
     uint8_t data;
     if (rb_pop(&tx_buffer, &data))
     {
-        UDR0 = data; // Send next byte
+        UDR0 = data; /* Next byte */
     }
     else
     {
-        UCSR0B &= ~(1 << UDRIE0); // No more data to send, disable interrupt
+        UCSR0B &= ~(1 << UDRIE0); /* No data, disable interrupt */
     }
 }

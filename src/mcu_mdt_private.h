@@ -26,12 +26,12 @@ typedef union {
 
 /* Event type enumeration */
 typedef enum {
-    MDT_EVENT_TYPE_NONE = 0,
-    MDT_EVENT_BUFFER_OVERFLOW = 1,
-    MDT_EVENT_FAILED_PACKET = 2,
-    MDT_EVENT_BREAKPOINT_HIT = 3,
-    MDT_EVENT_WATCHPOINT_HIT = 4,
-    // TODO: Add more event types
+    INTERNAL_MDT_EVENT_TYPE_NONE = 0,
+    INTERNAL_MDT_EVENT_BUFFER_OVERFLOW = 1,
+    INTERNAL_MDT_EVENT_FAILED_PACKET = 2,
+    INTERNAL_MDT_EVENT_BREAKPOINT_HIT = 3,
+    INTERNAL_MDT_EVENT_WATCHPOINT_HIT = 4,
+    /* TODO: Add more event types */
 } mdt_event_type_t;
 
 void mdt_event_wrapper(mdt_event_type_t type, uint32_t data);

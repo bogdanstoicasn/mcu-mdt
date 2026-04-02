@@ -36,10 +36,7 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     return False
 
 
-# ------------------------------------------------------------------
 # Internal helper
-# ------------------------------------------------------------------
-
 def _resolve_group_base(module: dict, rg_name: str) -> int:
     """
     Resolve the absolute base address for a register group.
@@ -70,10 +67,8 @@ def _resolve_group_base(module: dict, rg_name: str) -> int:
     return 0
 
 
-# ------------------------------------------------------------------
-# Memory validators
-# ------------------------------------------------------------------
 
+# Memory validators
 def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate a READ_MEM command.
@@ -233,10 +228,7 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
     return False
 
 
-# ------------------------------------------------------------------
 # Register validators
-# ------------------------------------------------------------------
-
 def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
     """
     Validate a READ_REG command by absolute address.
@@ -275,7 +267,7 @@ def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
                 reg_size_bits = reg.get("size") or 8
                 if isinstance(reg_size_bits, str):
                     reg_size_bits = int(reg_size_bits, 0)
-                reg_size_bytes = max(1, reg_size_bits // 8)  # bits → bytes, minimum 1
+                reg_size_bytes = max(1, reg_size_bits // 8)  # bits -> bytes, minimum 1
 
                 absolute_start = base + reg_offset
                 absolute_end   = absolute_start + reg_size_bytes
@@ -330,7 +322,7 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
                 reg_size_bits = reg.get("size") or 8
                 if isinstance(reg_size_bits, str):
                     reg_size_bits = int(reg_size_bits, 0)
-                reg_size_bytes = max(1, reg_size_bits // 8)  # bits → bytes, minimum 1
+                reg_size_bytes = max(1, reg_size_bits // 8)  # bits -> bytes, minimum 1
 
                 absolute_start = base + reg_offset
                 absolute_end   = absolute_start + reg_size_bytes
@@ -353,10 +345,7 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
     return False
 
 
-# ------------------------------------------------------------------
 # Breakpoint validator
-# ------------------------------------------------------------------
-
 def validate_breakpoint(operation: Command) -> bool:
     """
     Validate a BREAKPOINT command.
@@ -390,10 +379,7 @@ def validate_breakpoint(operation: Command) -> bool:
     return False
 
 
-# ------------------------------------------------------------------
 # Watchpoint validator
-# ------------------------------------------------------------------
-
 def validate_watchpoint(operation: Command) -> bool:
     """
     Validate a WATCHPOINT command.

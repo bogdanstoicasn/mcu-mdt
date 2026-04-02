@@ -24,7 +24,7 @@ def help_command(command_data: dict = None):
     width = shutil.get_terminal_size().columns
     col1  = 32  # width of the command + usage column
 
-    # type → human readable hint (fallback if no explicit hint in yaml)
+    # type -> human readable hint (fallback if no explicit hint in yaml)
     type_hints = {
         "uint32":        "<addr>",
         "uint32_or_str": "<addr|reg>",

@@ -56,7 +56,7 @@ EXAMPLE_OBJ := $(BUILD_DIR)/main.o
 EXAMPLE_ELF := $(BUILD_DIR)/$(ELF_NAME)
 EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
-# ── Targets ──
+# TARGETS
 
 .PHONY: all clean flash
 

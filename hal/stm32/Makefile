@@ -4,7 +4,7 @@
 
 MCU_UPPER := $(shell echo $(MCU) | tr '[:lower:]' '[:upper:]')
 
-# Map STM32 chip family prefix → Cortex-M core subdirectory
+# Map STM32 chip family prefix -> Cortex-M core subdirectory
 ifneq ($(filter F0%,$(MCU_UPPER)),)
   CORE := cortex-m0
 else
@@ -20,7 +20,7 @@ endif
 .PHONY: all clean flash
 
 all:
-	@echo "STM32 router: MCU=$(MCU) → $(CORE)"
+	@echo "STM32 router: MCU=$(MCU) -> $(CORE)"
 	@$(MAKE) -C $(CORE) MCU=$(MCU) PORT=$(PORT)
 
 flash:

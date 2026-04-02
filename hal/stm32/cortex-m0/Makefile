@@ -45,7 +45,7 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
-# MCU → linker script define mapping
+# MCU -> linker script define mapping
 # Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
 ifeq ($(MCU),F030F4)
   MCU_LD_DEFINE := -DMCU_F030F4
@@ -96,7 +96,7 @@ EXAMPLE_ELF := $(BUILD_DIR)/$(ELF_NAME)
 EXAMPLE_BIN := $(BUILD_DIR)/$(BIN_NAME)
 EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
-# ── Targets ───────────────────────────────────────────────────────────────────
+# TARGETS
 
 .PHONY: all clean flash
 
@@ -111,7 +111,7 @@ $(BUILD_DIR):
 
 # Preprocess linker script — resolves #ifdef MCU_<name> into plain ld syntax
 $(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
-	@echo "  PP  linker.ld → linker_pp.ld"
+	@echo "  PP  linker.ld -> linker_pp.ld"
 	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
 
 # Dependency files

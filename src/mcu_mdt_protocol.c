@@ -82,31 +82,31 @@ uint8_t mdt_dispatch(uint8_t *buf)
  
     switch (cmd_id)
     {
-        case MDT_CMD_PING:
+        case INTERNAL_MDT_CMD_PING:
             status = 1;
             break;
  
-        case MDT_CMD_READ_MEM:
+        case INTERNAL_MDT_CMD_READ_MEM:
             status = hal_read_memory(mem_id, address, data, length);
             break;
  
-        case MDT_CMD_READ_REG:
+        case INTERNAL_MDT_CMD_READ_REG:
             status = hal_read_register(address, data);
             break;
  
-        case MDT_CMD_WRITE_MEM:
+        case INTERNAL_MDT_CMD_WRITE_MEM:
             status = hal_write_memory(mem_id, address, data, length);
             break;
  
-        case MDT_CMD_WRITE_REG:
+        case INTERNAL_MDT_CMD_WRITE_REG:
             status = hal_write_register(address, data);
             break;
  
-        case MDT_CMD_BREAKPOINT:
+        case INTERNAL_MDT_CMD_BREAKPOINT:
             status = mdt_breakpoint_dispatch(mem_id, address);
             break;
  
-        case MDT_CMD_WATCHPOINT:
+        case INTERNAL_MDT_CMD_WATCHPOINT:
             /* mem_id   = control (enable/disable/reset/set_mask)
              * address  = slot ID
              * data[0..3] = watched address (enable) or mask value (set_mask) */

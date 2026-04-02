@@ -207,7 +207,7 @@ def test_is_nack_false_for_normal_ack():
 def test_is_nack_false_for_nonzero_cmd_id():
     pkt = bytearray(MDT_PACKET_SIZE)
     pkt[MDTOffset.START]  = 0xAA
-    pkt[MDTOffset.CMD_ID] = 0x05  # PING cmd_id — not a NACK
+    pkt[MDTOffset.CMD_ID] = 0x05  # PING cmd_id, not a NACK
     pkt[MDTOffset.FLAGS]  = MDTFlags.ACK_NACK | MDTFlags.STATUS_ERROR
     pkt[MDTOffset.END]    = 0x55
     assert_eq(is_nack_packet(bytes(pkt)), False)

@@ -53,7 +53,7 @@ uint8_t write_memory(uint8_t mem_zone,
             return 1;
 
         case MDT_MEM_ZONE_EEPROM:
-            // Use eeprom_write_block for safety
+            /* Use eeprom_write_block for safety */
             eeprom_write_block(buffer, (void*)(uintptr_t)address, length);
             return 1;
 

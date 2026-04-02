@@ -1,9 +1,8 @@
-// src/ring_buffer.h
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h" // for MDT_BUFFER_SIZE
+#include "mcu_mdt_config.h"
 
 typedef struct {
     uint8_t buf[MDT_BUFFER_SIZE];
