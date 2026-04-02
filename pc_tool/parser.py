@@ -167,17 +167,20 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
             else:
                 parsed_args[pname] = pvalue
 
+        data = None
+        
+        if "data" in parsed_args:
+            data = parsed_args.get("data")
+        elif "wp_data" in parsed_args:
+            data = parsed_args.get("wp_data").to_bytes(4, byteorder="little")
+
         return Command(
             name=name,
             id=id_,
             mem=parsed_args.get("control_value"),
             address=parsed_args.get("address", 0),
             length=parsed_args.get("len"),
-            data=parsed_args.get("data") or (
-                # WATCHPOINT: pack wp_data (address or mask) as 4-byte little-endian
-                parsed_args["wp_data"].to_bytes(4, byteorder="little")
-                if "wp_data" in parsed_args else None
-            )
+            data=data
         )
 
     except (ValueError, IndexError, KeyError) as e:

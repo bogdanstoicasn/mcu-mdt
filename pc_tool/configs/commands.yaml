@@ -17,31 +17,31 @@ commands:
     id: 0x01
     description: "Read n bytes from memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<mem_type>" }
-      - { name: "address",       type: "uint32",  hint: "<addr>" }
-      - { name: "len",           type: "uint32",  hint: "<length>" }
+      - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
+      - { name: "address",       type: "uint32",  hint: "<addr>", format: "hex" }
+      - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
 
   WRITE_MEM:
     id: 0x02
     description: "Write n bytes to memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<mem_type>" }
-      - { name: "address",       type: "uint32",  hint: "<addr>" }
-      - { name: "len",           type: "uint32",  hint: "<length>" }
-      - { name: "data",          type: "bytes",   hint: "<hex>" }
+      - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
+      - { name: "address",       type: "uint32",  hint: "<addr>", format: "hex" }
+      - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
+      - { name: "data",          type: "bytes",   hint: "<hex>", format: "hex" }
 
   READ_REG:
     id: 0x03
     description: "Read MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>" }
+      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>", format: "hex" }
 
   WRITE_REG:
     id: 0x04
     description: "Write value to MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>" }
-      - { name: "data",    type: "bytes",          hint: "<hex>" }
+      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>", format: "hex" }
+      - { name: "data",    type: "bytes",          hint: "<hex>", format: "hex" }
 
   PING:
     id: 0x05
@@ -67,13 +67,13 @@ commands:
     id: 0x0A
     description: "Trigger a software breakpoint in the MCU firmware"
     params:
-      - { name: "address",       type: "uint32", hint: "<id>" }
-      - { name: "control_value", type: "str",    hint: "<control>" }
+      - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
+      - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
 
   WATCHPOINT:
     id: 0x0B
     description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
-      - { name: "address",       type: "uint32", hint: "<id>" }
-      - { name: "control_value", type: "str",    hint: "<control>" }
-      - { name: "wp_data",          type: "uint32",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)" }
+      - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
+      - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
+      - { name: "wp_data",          type: "uint32",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)", format: "hex" }

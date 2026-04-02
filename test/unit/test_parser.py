@@ -155,7 +155,7 @@ def test_parse_watchpoint(ctrl, expected):
 
 
 def test_parse_watchpoint_data():
-    cmd = _parse("WATCHPOINT 0 ENABLED 20000100")
+    cmd = _parse("WATCHPOINT 0 ENABLED 0x20000100")
     assert_eq(cmd.data, b'\x00\x01\x00\x20')
 
 
