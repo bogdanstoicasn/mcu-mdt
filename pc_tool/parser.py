@@ -94,16 +94,16 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
     tokens = line.strip().split()
     if not tokens:
         return None
-
+ 
     name = tokens[0].upper()
     if name not in command_dict:
         MDTLogger.error(f"Unknown command: {name}", code=3)
         return None
-
+ 
     cmd_info = command_dict[name]
     params = cmd_info.get("params", [])
     id_ = cmd_info["id"]
-
+ 
     # Check argument count
     expected_args = len(params)
     provided_args = len(tokens) - 1
@@ -113,36 +113,42 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
             code=line
         )
         return None
-
+ 
     # Normalize control_values keys to lowercase
     control_values_normalized = {k.lower(): v for k, v in control_values.items()}
-
+ 
     parsed_args = {}
     try:
         for i, param in enumerate(params):
             pname = param["name"]
             ptype = param["type"]
             pvalue = tokens[i + 1]
-
+ 
             if ptype == "uint32_or_str":
-                # Try numeric first, then resolve as register name
+                # Try numeric first using format hint, then resolve as register name
+                fmt = param.get("format", "hex")
                 try:
-                    parsed_args[pname] = int(pvalue, 0)
+                    parsed_args[pname] = int(pvalue, 16 if fmt == "hex" else 0)
                 except ValueError:
                     addr = resolve_register_address(pvalue, mcu_metadata)
                     if addr is None:
                         MDTLogger.error(f"Unknown register name '{pvalue}'", code=line)
                         return None
                     parsed_args[pname] = addr
-
+ 
             elif ptype.startswith("uint"):
-                # Handle optional 0x prefix
-                try:
-                    parsed_args[pname] = int(pvalue, 0)
-                except ValueError:
-                    # fallback: interpret as plain hex
+                fmt = param.get("format", "hex")
+                base = 16 if fmt == "hex" else 10
+                # always allow 0x prefix regardless of format
+                if pvalue.lower().startswith("0x"):
                     parsed_args[pname] = int(pvalue, 16)
-
+                else:
+                    try:
+                        parsed_args[pname] = int(pvalue, base)
+                    except ValueError:
+                        MDTLogger.error(f"Invalid value '{pvalue}' for {pname}", code=line)
+                        return None
+ 
             elif ptype == "bytes":
                 # Strip 0x prefix if present
                 hex_str = pvalue.lower()
@@ -153,7 +159,7 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
                 except ValueError:
                     MDTLogger.error(f"Invalid hex data for {pname}", code=pvalue)
                     return None
-
+ 
             elif ptype == "str" and pname == "control_value":
                 control_key = pvalue.lower()
                 if control_key not in control_values_normalized:
@@ -163,30 +169,26 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
                     )
                     return None
                 parsed_args[pname] = control_values_normalized[control_key]
-
+ 
             else:
                 parsed_args[pname] = pvalue
-
-        data = None
-        
-        if "data" in parsed_args:
-            data = parsed_args.get("data")
-        elif "wp_data" in parsed_args:
-            data = parsed_args.get("wp_data").to_bytes(4, byteorder="little")
-
+ 
         return Command(
             name=name,
             id=id_,
             mem=parsed_args.get("control_value"),
             address=parsed_args.get("address", 0),
             length=parsed_args.get("len"),
-            data=data
+            data=parsed_args.get("data") or (
+                # WATCHPOINT: pack wp_data (address or mask) as 4-byte little-endian
+                parsed_args["wp_data"].to_bytes(4, byteorder="little")
+                if "wp_data" in parsed_args else None
+            )
         )
-
+ 
     except (ValueError, IndexError, KeyError) as e:
         MDTLogger.error(f"Failed to parse line: {line}", code=str(e))
         return None
-
 def parse_packet(packet: bytes) -> None:
     """
     Function that prints the contents of a received packet in a human-readable format."""

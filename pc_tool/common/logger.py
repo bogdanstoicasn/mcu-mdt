@@ -59,6 +59,9 @@ class MDTLogger:
 
     def debug(self, msg: str, code: Optional[int] = None):
         self.log(LogLevel.DEBUG, msg, code)
+    
+    def set_level(self, level: LogLevel):
+        self._logger.setLevel(level.value)
 
 
 MDTLogger = MDTLogger()

@@ -11,8 +11,8 @@ COMMANDS = {
         "id": 0x01,
         "params": [
             {"name": "control_value", "type": "str"},
-            {"name": "address", "type": "uint32"},
-            {"name": "len", "type": "uint32"},
+            {"name": "address",       "type": "uint32", "format": "hex"},
+            {"name": "len",           "type": "uint32", "format": "dec"},
         ]
     },
 
@@ -20,29 +20,29 @@ COMMANDS = {
         "id": 0x02,
         "params": [
             {"name": "control_value", "type": "str"},
-            {"name": "address", "type": "uint32"},
-            {"name": "len", "type": "uint32"},
-            {"name": "data", "type": "bytes"},
+            {"name": "address",       "type": "uint32", "format": "hex"},
+            {"name": "len",           "type": "uint32", "format": "dec"},
+            {"name": "data",          "type": "bytes"},
         ]
     },
 
     "READ_REG": {
         "id": 0x03,
-        "params": [{"name": "address", "type": "uint32_or_str"}]
+        "params": [{"name": "address", "type": "uint32_or_str", "format": "hex"}]
     },
 
     "WRITE_REG": {
         "id": 0x04,
         "params": [
-            {"name": "address", "type": "uint32_or_str"},
-            {"name": "data", "type": "bytes"},
+            {"name": "address", "type": "uint32_or_str", "format": "hex"},
+            {"name": "data",    "type": "bytes"},
         ]
     },
 
     "BREAKPOINT": {
         "id": 0x0A,
         "params": [
-            {"name": "address", "type": "uint32"},
+            {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "control_value", "type": "str"},
         ]
     },
@@ -50,9 +50,9 @@ COMMANDS = {
     "WATCHPOINT": {
         "id": 0x0B,
         "params": [
-            {"name": "address", "type": "uint32"},
+            {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "control_value", "type": "str"},
-            {"name": "data", "type": "bytes"},
+            {"name": "wp_data",       "type": "uint32", "format": "hex"},
         ]
     },
 }
@@ -99,7 +99,7 @@ def test_parse_read_mem_memtypes(mem_str, expected):
     assert_eq(cmd.mem, expected)
 
 def test_parse_read_mem_decimal():
-    cmd = _parse("READ_MEM RAM 536870912 4")
+    cmd = _parse("READ_MEM RAM 0x20000000 4")
     assert_eq(cmd.address, 0x20000000)
 
 # WRITE_MEM

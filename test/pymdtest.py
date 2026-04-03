@@ -1,7 +1,19 @@
 import importlib
+import logging
 import os
 import traceback
 import sys
+
+GREEN  = "\033[92m"
+RED    = "\033[91m"
+YELLOW = "\033[93m"
+RESET  = "\033[0m"
+
+def _silence_logger():
+    logging.getLogger("MCU-MDT").setLevel(logging.CRITICAL)
+
+def _restore_logger():
+    logging.getLogger("MCU-MDT").setLevel(logging.DEBUG)
 
 
 # Parametrize decorator
@@ -79,42 +91,52 @@ class PyMDTest:
                 name = f"{base_name}[{i}]"
 
                 try:
+                    _silence_logger()
                     test_func(*case)
-                    print(f"[PASS] {name}")
+                    print(f"{GREEN}[PASS]{RESET} {name}")
                     self.results.append((name, True))
 
                 except AssertionError as e:
-                    print(f"[FAIL] {name}: {e}")
+                    print(f"{RED}[FAIL]{RESET} {name}: {e}")
                     self.results.append((name, False))
 
                 except Exception as e:
-                    print(f"[ERROR] {name}: {e}")
+                    print(f"{RED}[ERROR]{RESET} {name}: {e}")
                     traceback.print_exc()
                     self.results.append((name, False))
+
+                finally:
+                    _restore_logger()
         else:
             # NORMAL TEST
             name = base_name
 
             try:
+                _silence_logger()
                 test_func()
-                print(f"[PASS] {name}")
+                print(f"{GREEN}[PASS]{RESET} {name}")
                 self.results.append((name, True))
 
             except AssertionError as e:
-                print(f"[FAIL] {name}: {e}")
+                print(f"{RED}[FAIL]{RESET} {name}: {e}")
                 self.results.append((name, False))
 
             except Exception as e:
-                print(f"[ERROR] {name}: {e}")
+                print(f"{RED}[ERROR]{RESET} {name}: {e}")
                 traceback.print_exc()
                 self.results.append((name, False))
 
+            finally:
+                _restore_logger()
+
     def report(self):
-        total_len = len(self.results)
+        total_len  = len(self.results)
         passed_len = sum(1 for _, passed in self.results if passed)
+        failed_len = total_len - passed_len
 
         print("\nTEST SUMMARY")
-        print(f"Passed: {passed_len}/{total_len}")
+        print(f"{GREEN}Passed: {passed_len}/{total_len}{RESET}" if failed_len == 0
+              else f"{RED}Passed: {passed_len}/{total_len} — {failed_len} failed{RESET}")
 
 
 if __name__ == "__main__":
