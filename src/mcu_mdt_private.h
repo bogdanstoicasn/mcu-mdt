@@ -10,7 +10,7 @@ typedef uint32_t mdt_fence_t;
 typedef struct {
     mdt_fence_t fence_pre;
 
-    uint16_t idx;
+    uint8_t idx;
     uint8_t started;
     uint8_t buf[MDT_PACKET_SIZE];
 
@@ -19,7 +19,7 @@ typedef struct {
 } mdt_buffer_t;
 
 /* Event structure */
-typedef union {
+typedef struct {
     uint32_t data;
     uint8_t type;
 } mdt_event_t;
