@@ -182,7 +182,7 @@ void OTG_FS_IRQHandler(void)       __attribute__((weak, alias("Default_Handler")
 __attribute__((used, section(".vectors")))
 const void* const vector_table[] =
 {
-    /* -Cortex-M3 core */
+    /* Cortex-M3 core */
     &_stack,                    /* 0x000 - Initial stack pointer              */
     Reset_Handler,              /* 0x004 - Reset                              */
     NMI_Handler,                /* 0x008 - NMI                                */
