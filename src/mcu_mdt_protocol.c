@@ -3,6 +3,7 @@
 #include "mcu_mdt_breakpoints.h"
 #include "mcu_mdt_watchpoint.h"
 
+
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
 {
     uint16_t crc = 0xFFFF;
@@ -60,70 +61,128 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
     return (crc_rx == crc_calc);
 }
 
-/* Execute the commands */
-uint8_t mdt_dispatch(uint8_t *buf)
+/* Command handlers zone
+ * Each handlers receives the raw packet and extracts only what it needs.
+ * This allows for more complex commands in the future without changing the dispatch logic.
+ */
+static uint8_t handle_read_mem(uint8_t *buf)
 {
-    uint8_t status = 0;
- 
-    if (!buf)
-        return 0;
- 
-    uint8_t  cmd_id = buf[MDT_OFFSET_CMD_ID];
-    uint8_t  mem_id = buf[MDT_OFFSET_MEM_ID];
+    uint8_t mem_id = buf[MDT_OFFSET_MEM_ID];
     uint32_t address =
-        ((uint32_t)buf[MDT_OFFSET_ADDRESS])       |
-        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8)  |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
         ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
         ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
     uint16_t length =
         ((uint16_t)buf[MDT_OFFSET_LENGTH]) |
         ((uint16_t)buf[MDT_OFFSET_LENGTH + 1] << 8);
-    uint8_t *data = &buf[MDT_OFFSET_DATA];
- 
-    switch (cmd_id)
-    {
-        case INTERNAL_MDT_CMD_PING:
-            status = 1;
-            break;
- 
-        case INTERNAL_MDT_CMD_READ_MEM:
-            status = hal_read_memory(mem_id, address, data, length);
-            break;
- 
-        case INTERNAL_MDT_CMD_READ_REG:
-            status = hal_read_register(address, data);
-            break;
- 
-        case INTERNAL_MDT_CMD_WRITE_MEM:
-            status = hal_write_memory(mem_id, address, data, length);
-            break;
- 
-        case INTERNAL_MDT_CMD_WRITE_REG:
-            status = hal_write_register(address, data);
-            break;
- 
-        case INTERNAL_MDT_CMD_BREAKPOINT:
-            status = mdt_breakpoint_dispatch(mem_id, address);
-            break;
- 
-        case INTERNAL_MDT_CMD_WATCHPOINT:
-            /* mem_id   = control (enable/disable/reset/set_mask)
-             * address  = slot ID
-             * data[0..3] = watched address (enable) or mask value (set_mask) */
-            {
-                uint32_t payload =
-                    ((uint32_t)data[0])        |
-                    ((uint32_t)data[1] <<  8)  |
-                    ((uint32_t)data[2] << 16)  |
-                    ((uint32_t)data[3] << 24);
-                status = mdt_watchpoint_dispatch(mem_id, (uint8_t)address, payload);
-            }
-            break;
- 
-        default:
-            status = 0;
-            break;
-    }
+    
+    return hal_read_memory(mem_id, address, &buf[MDT_OFFSET_DATA], length);
+}
 
-    return status;
+static uint8_t handle_write_mem(uint8_t *buf)
+{
+    uint8_t mem_id = buf[MDT_OFFSET_MEM_ID];
+    uint32_t address =
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
+    uint16_t length =
+        ((uint16_t)buf[MDT_OFFSET_LENGTH]) |
+        ((uint16_t)buf[MDT_OFFSET_LENGTH + 1] << 8);
+    
+    return hal_write_memory(mem_id, address, &buf[MDT_OFFSET_DATA], length);
+}
+
+static uint8_t handle_read_reg(uint8_t *buf)
+{
+    uint32_t address =
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
+    
+    return hal_read_register(address, &buf[MDT_OFFSET_DATA]);
+}
+
+static uint8_t handle_write_reg(uint8_t *buf)
+{
+    uint32_t address =
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
+    
+    return hal_write_register(address, &buf[MDT_OFFSET_DATA]);
+}
+
+static uint8_t handle_ping(uint8_t *buf)
+{
+    (void)buf; /* unused */
+    return 1; /* always succeed */
+}
+
+static uint8_t handle_reset(uint8_t *buf)
+{
+    (void)buf; /* unused */
+    return 0; /* not implemented */
+}
+
+static uint8_t handle_breakpoint(uint8_t *buf)
+{
+    uint8_t id = (uint8_t)buf[MDT_OFFSET_MEM_ID];
+    uint32_t address =
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
+    
+    return mdt_breakpoint_dispatch(id, address);
+}
+
+static uint8_t handle_watchpoint(uint8_t *buf)
+{
+    /* mem_id   = control (enable/disable/reset/set_mask)
+     * address  = slot ID
+
+void m
+     * data[0..3] = watched address (enable) or mask value (set_mask)
+     */
+    uint8_t control = (uint8_t)buf[MDT_OFFSET_MEM_ID];
+    uint32_t address =
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS]) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_ADDRESS + 3] << 24);
+    uint32_t payload =
+        ((uint32_t)buf[MDT_OFFSET_DATA]) |
+        ((uint32_t)buf[MDT_OFFSET_DATA + 1] << 8 ) |
+        ((uint32_t)buf[MDT_OFFSET_DATA + 2] << 16) |
+        ((uint32_t)buf[MDT_OFFSET_DATA + 3] << 24);
+    
+    return mdt_watchpoint_dispatch(control, (uint8_t)address, payload);
+}
+
+static const mdt_cmd_handler_t handlers[MDT_CMD_COUNT] = {
+    [INTERNAL_MDT_CMD_NONE]       = NULL, /* No command, should not be called */
+    [INTERNAL_MDT_CMD_READ_MEM]   = handle_read_mem,
+    [INTERNAL_MDT_CMD_WRITE_MEM]  = handle_write_mem,
+    [INTERNAL_MDT_CMD_READ_REG]   = handle_read_reg,
+    [INTERNAL_MDT_CMD_WRITE_REG]  = handle_write_reg,
+    [INTERNAL_MDT_CMD_PING]       = handle_ping,
+    [INTERNAL_MDT_CMD_RESET]      = handle_reset,
+    [INTERNAL_MDT_CMD_BREAKPOINT] = handle_breakpoint,
+    [INTERNAL_MDT_CMD_WATCHPOINT] = handle_watchpoint,
+};
+
+/* Execute the commands */
+uint8_t mdt_dispatch(uint8_t *buf)
+{
+    uint8_t cmd_id = buf[MDT_OFFSET_CMD_ID];
+
+    if (cmd_id >= MDT_CMD_COUNT || !handlers[cmd_id])
+        return 0; /* Invalid command */
+
+    return handlers[cmd_id](buf);
 }

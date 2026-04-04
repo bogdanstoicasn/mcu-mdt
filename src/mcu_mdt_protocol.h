@@ -38,6 +38,7 @@ typedef enum {
 } mdt_flags_t;
 
 typedef enum {
+    INTERNAL_MDT_CMD_NONE        = 0x00,
     INTERNAL_MDT_CMD_READ_MEM    = 0x01,
     INTERNAL_MDT_CMD_WRITE_MEM   = 0x02,
     INTERNAL_MDT_CMD_READ_REG    = 0x03,
@@ -58,6 +59,12 @@ typedef struct {
     uint8_t data[MDT_DATA_MAX_SIZE]; /* Data */
     uint16_t crc;    /* CRC16 */
 } mdt_packet_t;
+
+/* Command handler define */
+typedef uint8_t (*mdt_cmd_handler_t)(uint8_t *buf);
+
+/* Number of commands */
+#define MDT_CMD_COUNT 9
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len);
 

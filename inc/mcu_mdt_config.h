@@ -32,6 +32,10 @@ typedef enum {
 
 #define MDT_DEFAULT_MAX_RETRIES     3
 
+#ifndef NULL
+    #define NULL ((void *)0)
+#endif
+
 
 /* User configuration — edit these */
 #define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE
