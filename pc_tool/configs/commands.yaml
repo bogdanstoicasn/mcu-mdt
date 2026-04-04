@@ -51,29 +51,29 @@ commands:
     id: 0x06
     description: "Reset the device"
 
-  EXIT:
-    id: 0x07
-    description: "Exit the program (PC-side only)"
-
-  HELP:
-    id: 0x08
-    description: "Show this help message (PC-side only)"
-
-  CLEAR:
-    id: 0x09
-    description: "Clear the console screen (PC-side only)"
-
   BREAKPOINT:
-    id: 0x0A
+    id: 0x07
     description: "Trigger a software breakpoint in the MCU firmware"
     params:
       - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
       - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
-
+  
   WATCHPOINT:
-    id: 0x0B
+    id: 0x08
     description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
       - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
       - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
       - { name: "wp_data",          type: "uint32",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)", format: "hex" }
+
+  EXIT:
+    id: 0x09
+    description: "Exit the program (PC-side only)"
+
+  HELP:
+    id: 0x0A
+    description: "Show this help message (PC-side only)"
+
+  CLEAR:
+    id: 0x0B
+    description: "Clear the console screen (PC-side only)"

@@ -12,11 +12,11 @@ class CommandId(IntEnum):
     WRITE_REG  = 0x04
     PING       = 0x05
     RESET      = 0x06
-    EXIT       = 0x07
-    HELP       = 0x08
-    CLEAR      = 0x09
-    BREAKPOINT = 0x0A
-    WATCHPOINT = 0x0B
+    BREAKPOINT = 0x07
+    WATCHPOINT = 0x08
+    EXIT       = 0x09
+    HELP       = 0x0A
+    CLEAR      = 0x0B
 
 """ UTILITY ENUMS. These are used across the codebase for various purposes. """
 class BreakpointControl(IntEnum):

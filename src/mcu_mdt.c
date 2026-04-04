@@ -49,9 +49,6 @@ void mdt_event_send(void)
     if (!mdt_event_pending())
         return;
 
-    if (!hal_uart_tx_ready())
-        return;
-
     uint8_t pkt[MDT_PACKET_SIZE] = {0};
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
@@ -75,8 +72,7 @@ void mdt_event_send(void)
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
-    for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
-        hal_uart_tx(pkt[i]);
+    hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 
     mdt_event_clear();
 }
@@ -124,8 +120,7 @@ static void mdt_send_nack(const uint8_t *buf)
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
-    for (uint8_t i = 0; i < MDT_PACKET_SIZE; i++)
-        hal_uart_tx(pkt[i]);
+    hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 }
 
 /* Handle a full packet. Returns 1 if success, 0 if fence/critical error */
@@ -158,10 +153,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
     /* Send response */
-    uint8_t *p   = pkt;
-    uint8_t *end = pkt + MDT_PACKET_SIZE;
-    while (p < end)
-        hal_uart_tx(*p++);
+    hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 
     /* Reset buffer for next packet */
     mdt_buffer_reset(buf);

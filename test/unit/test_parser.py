@@ -40,7 +40,7 @@ COMMANDS = {
     },
 
     "BREAKPOINT": {
-        "id": 0x0A,
+        "id": 0x07,
         "params": [
             {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "control_value", "type": "str"},
@@ -48,7 +48,7 @@ COMMANDS = {
     },
 
     "WATCHPOINT": {
-        "id": 0x0B,
+        "id": 0x08,
         "params": [
             {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "control_value", "type": "str"},

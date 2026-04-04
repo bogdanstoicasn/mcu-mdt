@@ -38,7 +38,7 @@ These commands are serialized and sent over UART to the MCU.
 
 | Name     | Type   | Description                     |
 |----------|--------|---------------------------------|
-| mem_type | str    | Memory zone: RAM, FLASH, EEPROM |
+| control_value | str    | Memory zone: RAM, FLASH, EEPROM |
 | address  | uint32 | Start address to read from      |
 | len      | uint32 | Number of bytes to read         |
 
@@ -54,7 +54,7 @@ are split into multiple packets automatically. Reading outside valid memory rang
 
 | Name     | Type   | Description                     |
 |----------|--------|---------------------------------|
-| mem_type | str    | Memory zone: RAM, FLASH, EEPROM |
+| control_value | str    | Memory zone: RAM, FLASH, EEPROM |
 | address  | uint32 | Start address to write to       |
 | len      | uint32 | Number of bytes to write        |
 | data     | bytes  | Data to write                   |
@@ -106,7 +106,7 @@ addresses are rejected. Transfers larger than 4 bytes are split into multiple pa
 > **Note:** Not yet implemented in firmware.
 
 
-### BREAKPOINT (ID: 0x0A)
+### BREAKPOINT (ID: 0x07)
 
 **Description:** Controls a software breakpoint by ID.
 
@@ -115,7 +115,7 @@ addresses are rejected. Transfers larger than 4 bytes are split into multiple pa
 | Name     | Type   | Description                                  |
 |----------|--------|----------------------------------------------|
 | id       | uint32 | Breakpoint ID (0 to `MDT_MAX_BREAKPOINTS-1`) |
-| mem_type | str    | Control: DISABLED, ENABLED, RESET, NEXT      |
+| control_value | str    | Control: DISABLED, ENABLED, RESET, NEXT      |
 
 **Behavior:**
 
@@ -129,6 +129,22 @@ addresses are rejected. Transfers larger than 4 bytes are split into multiple pa
 - `mcu_mdt_poll()` must be called frequently in the main loop for breakpoints to work.
 - Blocking calls like `delay()` temporarily freeze breakpoint handling while blocking.
 - Maximum number of breakpoints is defined by `MDT_MAX_BREAKPOINTS` in `mcu_mdt_config.h`.
+
+### WATCHPOINT (ID: 0x08)
+
+**Description:** Controls a memory watchpoint by ID. Fires an event when watched bits change.
+**Parameters:**
+| Name     | Type   | Description                                  |
+|----------|--------|----------------------------------------------|
+| id       | uint32 | Watchpoint ID (0 to `MDT_MAX_WATCHPOINTS-1`) |
+| control_value | str    | Control: DISABLED, ENABLED, RESET            |
+| wp_data  | uint32 | Watchpoint data: `<addr|mask|->` (enable=watched addr, mask=mask value, else FFFFFFFF) |
+
+**Behavior:**
+- **ENABLED** — arms the watchpoint. MCU will pause execution when any bits masked by `mask` at
+  address `addr` change.
+- **DISABLED** — disarms the watchpoint.
+- **RESET** - clears the watchpoint setting everything to 0.
 
 
 ## CLI-Only Commands

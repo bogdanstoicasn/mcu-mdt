@@ -7,9 +7,16 @@ void hal_uart_init(void)
     uart_init(MDT_UART_BAUDRATE);
 }
 
-void hal_uart_tx(uint8_t byte)
+uint8_t hal_uart_tx_buf(const uint8_t *buf, uint8_t len)
 {
-    uart_putc(byte);
+    uint8_t sent = 0;
+    while (sent < len)
+    {
+        if (!uart_putc(buf[sent]))
+            break;
+        sent++;
+    }
+    return sent;
 }
 
 uint8_t hal_uart_rx(uint8_t *byte)

@@ -158,7 +158,7 @@ parse -> validate -> serialize -> send
 
 - **What the HAL must provide**:
   - `hal_uart_rx` — non-blocking, returns 0 if no byte ready
-  - `hal_uart_tx` — safe to call from main loop
+  - `hal_uart_tx_buf` — safe to call from main loop
   - `hal_uart_tx_ready` — true if TX buffer has space
   - `hal_read_memory` / `hal_write_memory` — return 1 on success, 0 on failure
 
