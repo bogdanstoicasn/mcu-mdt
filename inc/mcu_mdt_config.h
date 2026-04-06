@@ -67,4 +67,4 @@ _Static_assert(MDT_MAX_WATCHPOINTS <= 8,
               "MDT_MAX_WATCHPOINTS cannot exceed 8 (active_mask is uint8_t)");
 
 
-#endif // MCU_MDT_CONFIG_H
+#endif /* MCU_MDT_CONFIG_H */

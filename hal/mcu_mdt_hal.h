@@ -22,6 +22,13 @@ void hal_uart_init(void);
 uint8_t hal_uart_tx_buf(const uint8_t *buf, uint8_t len);
 
 /**
+ * @brief Check if the RX ring buffer dropped a byte since the last call.
+ *        Returns 1 and clears the flag if an overflow occurred, 0 otherwise.
+ *        Called from mcu_mdt_poll() to surface dropped bytes as an event.
+ */
+uint8_t hal_uart_rx_overflow(void);
+
+/**
  * @brief Try to read one byte (non-blocking)
  * @param byte Pointer where received byte is stored
  * @return 1 if byte was read, 0 if no data available

@@ -59,6 +59,16 @@ uint8_t uart_ready(void)
     return !rb_is_full(&tx_buffer);
 }
 
+uint8_t uart_rx_overflow(void)
+{
+    if (rx_buffer.overflow_flag)
+    {
+        rx_buffer.overflow_flag = 0;
+        return 1;
+    }
+    return 0;
+}
+
 void USART1_IRQHandler(void)
 {
     uint32_t isr = USART1->isr;
@@ -71,7 +81,8 @@ void USART1_IRQHandler(void)
     if (isr & USART_ISR_RXNE)
     {
         uint8_t data = (uint8_t)USART1->rdr;
-        rb_push(&rx_buffer, data);
+        if (!rb_push(&rx_buffer, data))
+            rx_buffer.overflow_flag = 1;
     }
 
     /* TX drain ring buffer */

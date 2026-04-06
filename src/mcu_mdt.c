@@ -190,6 +190,12 @@ void mcu_mdt_poll(void)
         return;
     }
 
+    if (hal_uart_rx_overflow())
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
+    }
+
     mdt_watchpoint_poll();
 
     while (hal_uart_rx(&byte))

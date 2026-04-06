@@ -29,6 +29,11 @@ uint8_t hal_uart_tx_ready(void)
     return uart_ready();
 }
 
+uint8_t hal_uart_rx_overflow(void)
+{
+    return uart_rx_overflow();
+}
+
 uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address,
                         uint8_t *buffer, uint16_t length)
 {

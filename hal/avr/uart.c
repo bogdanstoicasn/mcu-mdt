@@ -38,9 +38,22 @@ uint8_t uart_getc_nonblocking(uint8_t *data)
     return rb_pop(&rx_buffer, data);
 }
 
-uint8_t uart_ready()
+uint8_t uart_ready(void)
 {
     return !rb_is_full(&tx_buffer);
+}
+
+/* Returns 1 and clears the flag if an RX overflow occurred since the last
+ * call.  Called from mcu_mdt_poll() to surface dropped bytes as an event. */
+uint8_t uart_rx_overflow(void)
+{
+    if (rx_buffer.overflow_flag)
+    {
+        rx_buffer.overflow_flag = 0;
+        return 1;
+    }
+
+    return 0;
 }
 
 /* Interrupt Service Routines */
@@ -62,7 +75,9 @@ uint8_t uart_ready()
 
 ISR(USART_RX_vect_name)
 {
-    rb_push(&rx_buffer, UDR0);
+    uint8_t byte = UDR0; /* always read UDR0 to clear the RXC flag */
+    if (!rb_push(&rx_buffer, byte))
+        rx_buffer.overflow_flag = 1; /* buffer full — byte dropped, notify poll */
 }
 
 ISR(USART_UDRE_vect_name)
