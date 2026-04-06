@@ -14,7 +14,10 @@ def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
     Returns:
         bool: True if valid, False otherwise.
     """
-    if operation.id == CommandId.READ_MEM:
+    if operation.id == CommandId.RESET:
+        MDTLogger.info("Validating RESET command")
+        return True  # RESET is always valid
+    elif operation.id == CommandId.READ_MEM:
         MDTLogger.info(f"Validating READ_MEM command: {operation}")
         return validate_read_mem(operation, mcu_metadata)
     elif operation.id == CommandId.WRITE_MEM:

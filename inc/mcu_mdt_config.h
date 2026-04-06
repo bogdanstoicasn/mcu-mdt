@@ -66,5 +66,7 @@ _Static_assert((MDT_BUFFER_SIZE & (MDT_BUFFER_SIZE - 1)) == 0,
 _Static_assert(MDT_MAX_WATCHPOINTS <= 8,
               "MDT_MAX_WATCHPOINTS cannot exceed 8 (active_mask is uint8_t)");
 
+_Static_assert(MDT_MAX_BREAKPOINTS <= 8,
+              "MDT_MAX_BREAKPOINTS cannot exceed 8");
 
 #endif /* MCU_MDT_CONFIG_H */
