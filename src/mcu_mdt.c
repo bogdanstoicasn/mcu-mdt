@@ -49,7 +49,9 @@ void mdt_event_send(void)
     if (!mdt_event_pending())
         return;
 
-    uint8_t pkt[MDT_PACKET_SIZE] = {0};
+    uint8_t pkt[MDT_PACKET_SIZE];
+
+    mdt_memset(pkt, 0, MDT_PACKET_SIZE);
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
     pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_EVENT;
@@ -106,7 +108,9 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 
 static void mdt_send_nack(const uint8_t *buf)
 {
-    uint8_t pkt[MDT_PACKET_SIZE] = {0};
+    uint8_t pkt[MDT_PACKET_SIZE];
+
+    mdt_memset(pkt, 0, MDT_PACKET_SIZE);
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
     pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_ACK_NACK | INTERNAL_MDT_FLAG_STATUS_ERROR;

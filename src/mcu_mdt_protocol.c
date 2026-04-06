@@ -65,6 +65,12 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
  * Each handlers receives the raw packet and extracts only what it needs.
  * This allows for more complex commands in the future without changing the dispatch logic.
  */
+static uint8_t handle_reserved(uint8_t *buf)
+{
+    (void)buf;
+    return 0;
+}
+
 static uint8_t handle_read_mem(uint8_t *buf)
 {
     uint8_t mem_id = buf[MDT_OFFSET_MEM_ID];
@@ -145,8 +151,6 @@ static uint8_t handle_watchpoint(uint8_t *buf)
 {
     /* mem_id   = control (enable/disable/reset/set_mask)
      * address  = slot ID
-
-void m
      * data[0..3] = watched address (enable) or mask value (set_mask)
      */
     uint8_t control = (uint8_t)buf[MDT_OFFSET_MEM_ID];
@@ -165,7 +169,7 @@ void m
 }
 
 static const mdt_cmd_handler_t handlers[MDT_CMD_COUNT] = {
-    [INTERNAL_MDT_CMD_NONE]       = NULL, /* No command, should not be called */
+    [INTERNAL_MDT_CMD_NONE]       = handle_reserved, /* No command, should not be called */
     [INTERNAL_MDT_CMD_READ_MEM]   = handle_read_mem,
     [INTERNAL_MDT_CMD_WRITE_MEM]  = handle_write_mem,
     [INTERNAL_MDT_CMD_READ_REG]   = handle_read_reg,
@@ -179,6 +183,9 @@ static const mdt_cmd_handler_t handlers[MDT_CMD_COUNT] = {
 /* Execute the commands */
 uint8_t mdt_dispatch(uint8_t *buf)
 {
+    if (!buf)
+        return 0;
+
     uint8_t cmd_id = buf[MDT_OFFSET_CMD_ID];
 
     if (cmd_id >= MDT_CMD_COUNT || !handlers[cmd_id])
