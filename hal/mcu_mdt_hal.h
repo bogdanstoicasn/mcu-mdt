@@ -14,7 +14,7 @@ void hal_uart_init(void);
  * @brief Enqueue a buffer for async transmission via the TX ring buffer.
  *        Returns the number of bytes actually enqueued; may be less than
  *        len if the ring buffer is full.  The ISR drains the buffer in
- *        the background — the caller does not block.
+ *        the background, the caller does not block.
  * @param buf  Pointer to data to send
  * @param len  Number of bytes to send
  * @return     Number of bytes enqueued (0..len)

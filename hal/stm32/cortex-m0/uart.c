@@ -25,7 +25,7 @@ void uart_init(uint32_t baudrate)
     GPIOA->afrh &= ~(0xFU << USART1_RX_AFRH_POS);
     GPIOA->afrh |=  (GPIO_AF1 << USART1_RX_AFRH_POS);
 
-    /* BRR = PCLK / baudrate — MCU runs at 8MHz HSI by default */
+    /* BRR = PCLK / baudrate: MCU runs at 8MHz HSI by default */
     USART1->brr = (uint32_t)(F_CPU / baudrate);
 
     /* Enable USART, TX, RX and RX interrupt */

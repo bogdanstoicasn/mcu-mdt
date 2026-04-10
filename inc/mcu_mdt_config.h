@@ -2,7 +2,7 @@
 #define MCU_MDT_CONFIG_H
 
 
-/* Non-overridable — protocol and hardware constants */
+/* Non-overridable: protocol and hardware constants */
 #define MDT_FENCE_PATTERN 0xA5A5A5A5
 
 typedef enum {
@@ -11,7 +11,7 @@ typedef enum {
     MDT_MEM_ZONE_EEPROM = 0x02
 } mdt_mem_zone_t;
 
-/* Defaults — do not modify */
+/* Defaults: do not modify */
 #define MDT_DEFAULT_UART_BAUDRATE   19200
 
 #define MDT_DEFAULT_UART_DATA_BITS  8
@@ -37,7 +37,7 @@ typedef enum {
 #endif
 
 
-/* User configuration — edit these */
+/* User configuration: edit these */
 #define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE
 
 #define MDT_UART_DATA_BITS  MDT_DEFAULT_UART_DATA_BITS

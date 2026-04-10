@@ -69,12 +69,12 @@ all: $(HEX)
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -MMD -MP -c $< -o $@
 
-# Compile startup separately — no -Wall/-Wextra, just bare metal flags
+# Compile startup separately: no -Wall/-Wextra, just bare metal flags
 $(STARTUP_OBJ): $(STARTUP)
 	@echo "  CC  startup"
 	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
 
-# Link — startup must come before user objects so the vector table lands first
+# Link: startup must come before user objects so the vector table lands first
 $(ELF): $(STARTUP_OBJ) $(OBJS) $(LIB)
 	@echo "  LD  $(ELF)"
 	@$(CC) $(LDFLAGS) $(STARTUP_OBJ) $(OBJS) -L. -lmcu_mdt_stm32 -lgcc -o $@

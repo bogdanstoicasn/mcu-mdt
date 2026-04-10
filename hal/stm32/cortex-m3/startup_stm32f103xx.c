@@ -394,7 +394,7 @@ const void* const vector_table[] =
     /* IRQ40 0x00E0 */ EXTI15_10_IRQHandler,      /* EXTI Lines 15:10               */
     /* IRQ41 0x00E4 */ RTCAlarm_IRQHandler,       /* RTC alarm via EXTI             */
     /* IRQ42 0x00E8 */ USBWakeUp_IRQHandler,      /* USB wakeup via EXTI            */
-    /* IRQ43–59: not present on LD/MD — table ends here                           */
+    /* IRQ43–59: not present on LD/MD table ends here                           */
 #endif
 };
 

@@ -51,6 +51,18 @@ class MDTLogger:
         self._log_file = path
         return path
 
+    def suppress_console(self) -> None:
+        """Silence the stream handler: output goes to file only."""
+        for handler in self._logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                handler.setLevel(logging.CRITICAL + 1)
+
+    def restore_console(self) -> None:
+        """Restore the stream handler to its normal level."""
+        for handler in self._logger.handlers:
+            if isinstance(handler, logging.StreamHandler) and not isinstance(handler, logging.FileHandler):
+                handler.setLevel(logging.DEBUG)
+
     def _log_file_only(self, msg: str) -> None:
         """Write a line to the log file only, bypassing the console handler."""
         for handler in self._logger.handlers:
@@ -62,7 +74,7 @@ class MDTLogger:
                 handler.emit(record)
 
     def session_start(self, build_info: dict) -> None:
-        """Log session header with build metadata — file only."""
+        """Log session header with build metadata: file only."""
         sep = "=" * 60
         for line in [
             sep,
@@ -77,7 +89,7 @@ class MDTLogger:
             self._log_file_only(line)
 
     def session_end(self) -> None:
-        """Log session footer — file only."""
+        """Log session footer: file only."""
         sep = "=" * 60
         for line in [sep, "MCU-MDT SESSION END", sep]:
             self._log_file_only(line)

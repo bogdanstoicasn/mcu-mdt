@@ -3,6 +3,11 @@
 
 #include <stdint.h>
 
+/* STM-private UART driver */
 void uart_init(uint32_t baudrate);
+uint8_t uart_putc(uint8_t data);
+uint8_t uart_getc_nonblocking(uint8_t *data);
+uint8_t uart_ready(void);
+uint8_t uart_rx_overflow(void);
 
 #endif

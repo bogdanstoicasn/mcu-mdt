@@ -47,11 +47,14 @@ def run_script(script_path: str, loader, serial_link, threads):
     metadata = loader.mcu_metadata
     dispatch = build_dispatch(loader, serial_link, threads)
 
+    MDTLogger.suppress_console()
+
     try:
         with open(script_path, 'r') as f:
             lines = f.readlines()
     except OSError as e:
         MDTLogger.error(f"Cannot open script file: {e}", code=1)
+        MDTLogger.restore_console()
         MDTLogger.session_end()
         return
 
@@ -75,7 +78,7 @@ def run_script(script_path: str, loader, serial_link, threads):
             MDTLogger.warning(f"Skipping PC-only command at line {lineno}: {command.name}")
             continue
 
-        # Dispatched commands (PING, etc.) bypass validation, same as interactive loop
+        # Dispatched commands (PING, etc.) bypass validation: same as interactive loop
         if command.name in dispatch:
             dispatch[command.name](command)
             continue
@@ -87,6 +90,7 @@ def run_script(script_path: str, loader, serial_link, threads):
         execute_command(command, serial_link)
 
     MDTLogger.info("Script complete.")
+    MDTLogger.restore_console()
     MDTLogger.session_end()
 
 

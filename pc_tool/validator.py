@@ -48,7 +48,7 @@ def _resolve_group_base(module: dict, rg_name: str) -> int:
     not on the register group itself. The register group offset is relative
     to the instance and is usually 0.
 
-    For SVD (STM32): there are no separate instances — the base address is
+    For SVD (STM32): there are no separate instances: the base address is
     stored directly on the register group offset field, so we fall back to
     reading it from there when no matching instance is found.
 
@@ -66,7 +66,7 @@ def _resolve_group_base(module: dict, rg_name: str) -> int:
                 return int(offset, 0)
             return offset
 
-    # SVD fallback — base address stored directly on the group
+    # SVD fallback: base address stored directly on the group
     return 0
 
 

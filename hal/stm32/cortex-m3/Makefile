@@ -33,7 +33,7 @@ STARTUP_FILE     := $(HAL_DIR)/startup_stm32f030xx.c
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
 HAL_FILES := $(wildcard $(HAL_DIR)/*.c)
 
-# Object files — prefixed to avoid collision if filenames overlap across src/ and hal/
+# Object files: prefixed to avoid collision if filenames overlap across src/ and hal/
 SRC_OBJS    := $(patsubst $(SRC_DIR)/%.c, $(BUILD_DIR)/src_%.o, $(SRC_FILES))
 HAL_OBJS    := $(patsubst $(HAL_DIR)/%.c, $(BUILD_DIR)/hal_%.o, $(HAL_FILES))
 STARTUP_OBJ := $(BUILD_DIR)/startup.o
@@ -89,7 +89,7 @@ CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR) -I$(BASE_HAL_DIR) -I$(SRC_DIR)
 CFLAGS  += -DPLATFORM_STM32
 CFLAGS  += -DF_CPU=$(F_CPU)
 
-# Linker flags — use preprocessed linker script
+# Linker flags: use preprocessed linker script
 LDFLAGS  := $(CPU_FLAGS)
 LDFLAGS  += -T$(LINKER_SCRIPT_PP)
 LDFLAGS  += -Wl,--gc-sections
@@ -114,7 +114,7 @@ all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUI
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# Preprocess linker script — resolves #ifdef MCU_<name> into plain ld syntax
+# Preprocess linker script: resolves #ifdef MCU_<name> into plain ld syntax
 $(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
 	@echo "  PP  linker.ld -> linker_pp.ld"
 	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
