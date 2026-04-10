@@ -31,9 +31,9 @@ typedef struct {
 #define USART_CR1_RXNEIE  (1U << 5)
 #define USART_CR1_TXEIE   (1U << 7)
 
-#define USART_SR_RXNE    (1U << 5)
+#define USART_SR_RXNE   (1U << 5)
 #define USART_SR_ORE    (1U << 3)
-#define USART_SR_TXE     (1U << 7)
+#define USART_SR_TXE    (1U << 7)
 
 /* RCC */
 #define RCC_BASE 0x40021000UL
@@ -57,8 +57,9 @@ typedef struct {
 
 #define RCC ((volatile rcc_def_t *) RCC_BASE)
 
-#define RCC_APB2ENR_USART1EN  (1U << 14)
-#define RCC_AHBENR_GPIOAEN    (1U << 2)
+#define RCC_APB2ENR_AFIOEN    (1U << 0)   /* Alternate function I/O clock */
+#define RCC_APB2ENR_IOPAEN    (1U << 2)   /* GPIOA clock APB2 */
+#define RCC_APB2ENR_USART1EN  (1U << 14)  /* USART1 clock */
 
 /* GPIOA */
 #define GPIOA_BASE 0x40010800UL
