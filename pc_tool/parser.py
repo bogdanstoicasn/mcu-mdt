@@ -57,6 +57,13 @@ def parse_args():
         type=str,
         help="Path to build_info.yaml file",
     )
+    parser.add_argument(
+        "--script",
+        type=str,
+        required=False,
+        default=None,
+        help="Path to a script file with commands to execute (exits after completion)",
+    )
 
     return parser.parse_args()
 

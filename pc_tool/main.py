@@ -36,6 +36,60 @@ def setup(build_info_path: str):
 
     return loader, serial_link, threads
 
+def run_script(script_path: str, loader, serial_link, threads):
+    """
+    Execute commands from a script file line by line, then exit.
+    Blank lines and lines starting with # are skipped.
+    Stops on the first command that fails validation or parsing.
+    """
+    commands = loader.yaml_command_data['commands']
+    control  = loader.yaml_command_data['control_values']
+    metadata = loader.mcu_metadata
+    dispatch = build_dispatch(loader, serial_link, threads)
+
+    try:
+        with open(script_path, 'r') as f:
+            lines = f.readlines()
+    except OSError as e:
+        MDTLogger.error(f"Cannot open script file: {e}", code=1)
+        MDTLogger.session_end()
+        return
+
+    MDTLogger.info(f"Running script: {script_path} ({len(lines)} lines)")
+
+    for lineno, raw in enumerate(lines, start=1):
+        line = raw.strip()
+
+        if not line or line.startswith('#'):
+            continue
+
+        MDTLogger.info(f"[{lineno}] {line}")
+
+        command = parse_line(line, commands, control, metadata)
+        if not command:
+            MDTLogger.error(f"Script aborted: parse error at line {lineno}: {line!r}", code=2)
+            break
+
+        # PC-only commands (EXIT, HELP, CLEAR) are skipped silently
+        if command.name in ('EXIT', 'HELP', 'CLEAR'):
+            MDTLogger.warning(f"Skipping PC-only command at line {lineno}: {command.name}")
+            continue
+
+        # Dispatched commands (PING, etc.) bypass validation, same as interactive loop
+        if command.name in dispatch:
+            dispatch[command.name](command)
+            continue
+
+        if not validate_commands(command, metadata):
+            MDTLogger.error(f"Script aborted: validation failed at line {lineno}: {line!r}", code=3)
+            break
+
+        execute_command(command, serial_link)
+
+    MDTLogger.info("Script complete.")
+    MDTLogger.session_end()
+
+
 def run_loop(loader, serial_link, threads):
     cli      = CLIHistory()
     commands = loader.yaml_command_data['commands']
@@ -78,7 +132,11 @@ def run_loop(loader, serial_link, threads):
 
 def main(args):
     loader, serial_link, threads = setup(args.build_info)
-    run_loop(loader, serial_link, threads)
+
+    if args.script:
+        run_script(args.script, loader, serial_link, threads)
+    else:
+        run_loop(loader, serial_link, threads)
 
 if __name__ == "__main__":
     args = parse_args()

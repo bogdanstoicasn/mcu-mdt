@@ -4,9 +4,11 @@
 # Targets that do NOT require PLATFORM/MCU
 NO_CONFIG_TARGETS := wipe help clean_logs
 
+# Returns non-empty ONLY if at least one goal REQUIRES config
+REQUIRES_CONFIG := $(filter-out $(NO_CONFIG_TARGETS),$(MAKECMDGOALS))
+
 # Only enforce configuration if target requires it
-ifneq ($(filter $(NO_CONFIG_TARGETS),$(MAKECMDGOALS)),wipe)
-ifneq ($(filter $(NO_CONFIG_TARGETS),$(MAKECMDGOALS)),help)
+ifneq ($(REQUIRES_CONFIG),)
 
 ifndef PLATFORM
 $(error PLATFORM is not set. Example: PLATFORM=avr)
@@ -16,7 +18,6 @@ ifndef MCU
 $(error MCU is not set. Example: MCU=atmega328p)
 endif
 
-endif
 endif
 
 # Public include directories (exported to sub-makefiles)
@@ -29,11 +30,9 @@ PORT ?= /dev/ttyACM0
 PLATFORM_MAKE := hal/$(PLATFORM)/Makefile
 
 # Only check platform file when configuration is required
-ifneq ($(filter $(NO_CONFIG_TARGETS),$(MAKECMDGOALS)),wipe)
-ifneq ($(filter $(NO_CONFIG_TARGETS),$(MAKECMDGOALS)),help)
+ifneq ($(REQUIRES_CONFIG),)
 ifeq ("$(wildcard $(PLATFORM_MAKE))","")
 $(error Unsupported PLATFORM '$(PLATFORM)'. No file '$(PLATFORM_MAKE)')
-endif
 endif
 endif
 
