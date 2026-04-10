@@ -1,7 +1,7 @@
 #include "mcu_mdt_watchpoint.h"
 #include "mcu_mdt_private.h"
 
-static volatile mdt_watchpoint_state_t watchpoints_descriptor = {0};
+static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 
 void mdt_watchpoint_poll(void)
 {

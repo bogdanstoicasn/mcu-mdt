@@ -2,7 +2,7 @@
 #include "mcu_mdt.h"
 #include "mcu_mdt_private.h"
 
-static volatile mdt_breakpoint_state_t bp_state = {0};
+static mdt_breakpoint_state_t bp_state = {0};
 
 __attribute__((noinline))
 void mdt_breakpoint_trigger(uint8_t id)
