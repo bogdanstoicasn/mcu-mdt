@@ -2,7 +2,7 @@
 # Usage: make PLATFORM=avr MCU=atmega328p [F_CPU=16000000UL]
 
 # Targets that do NOT require PLATFORM/MCU
-NO_CONFIG_TARGETS := wipe help
+NO_CONFIG_TARGETS := wipe help clean_logs
 
 # Only enforce configuration if target requires it
 ifneq ($(filter $(NO_CONFIG_TARGETS),$(MAKECMDGOALS)),wipe)
@@ -37,7 +37,7 @@ endif
 endif
 endif
 
-.PHONY: all clean flash wipe help
+.PHONY: all clean flash wipe clean_logs help
 
 BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
 
@@ -59,6 +59,11 @@ wipe:
 	@rm -rf build
 	@echo "All build artifacts removed."
 
+clean_logs:
+	@echo "Removing logs..."
+	@rm -rf logs
+	@echo "Logs removed."
+
 help:
 	@echo ""
 	@echo "Build usage:"
@@ -67,5 +72,6 @@ help:
 	@echo "  make PLATFORM=<platform> MCU=<mcu> clean"
 	@echo ""
 	@echo "Maintenance:"
-	@echo "  make wipe      Remove ALL build artifacts"
+	@echo "  make wipe        Remove ALL build artifacts"
+	@echo "  make clean_logs  Remove all session log files"
 	@echo ""

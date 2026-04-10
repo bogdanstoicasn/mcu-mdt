@@ -17,6 +17,9 @@ def build_dispatch(loader, serial_link, threads):
 def setup(build_info_path: str):
     loader = ConfigLoader(build_info_path)
 
+    MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
+    MDTLogger.session_start(loader.yaml_build_data)
+
     serial_link = serial_link_command(
         port=loader.yaml_build_data['port'],
         baudrate=loader.yaml_build_data.get('baudrate', 19200),
@@ -70,6 +73,8 @@ def run_loop(loader, serial_link, threads):
         except (EOFError, KeyboardInterrupt):
             MDTLogger.info("Exiting...")
             break
+
+    MDTLogger.session_end()
 
 def main(args):
     loader, serial_link, threads = setup(args.build_info)

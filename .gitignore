@@ -10,3 +10,4 @@ build_info_*.yaml
 plan.txt
 build/
 .mdt_history
+logs/

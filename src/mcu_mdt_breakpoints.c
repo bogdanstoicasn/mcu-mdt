@@ -53,26 +53,22 @@ static inline __attribute__((always_inline)) void mdt_breakpoint_next(uint8_t id
         bp_state.slots[id].next = INTERNAL_MDT_BP_ENABLE;
 }
 
+static const mdt_breakpoint_handler_t bkp_handlers[] = {
+    [INTERNAL_MDT_BP_DISABLE] = mdt_breakpoint_disable,
+    [INTERNAL_MDT_BP_ENABLE]  = mdt_breakpoint_enable,
+    [INTERNAL_MDT_BP_RESET]   = mdt_breakpoint_reset,
+    [INTERNAL_MDT_BP_NEXT]    = mdt_breakpoint_next,
+};
+
 uint8_t mdt_breakpoint_dispatch(uint8_t cmd_id, uint32_t id)
 {
     if (id >= MDT_MAX_BREAKPOINTS)
         return 0;
 
-    switch (cmd_id)
-    {
-        case INTERNAL_MDT_BP_DISABLE:
-            mdt_breakpoint_disable(id);
-            return 1;
-        case INTERNAL_MDT_BP_ENABLE:
-            mdt_breakpoint_enable(id);
-            return 1;
-        case INTERNAL_MDT_BP_RESET:
-            mdt_breakpoint_reset(id);
-            return 1;
-        case INTERNAL_MDT_BP_NEXT:
-            mdt_breakpoint_next(id);
-            return 1;
-        default:
-            return 0;
-    }
+    if (cmd_id >= sizeof(bkp_handlers) / sizeof(bkp_handlers[0]))
+        return 0;
+    
+    bkp_handlers[cmd_id]((uint8_t)id);
+
+    return 1;
 }

@@ -168,7 +168,7 @@ static uint8_t handle_watchpoint(uint8_t *buf)
     return mdt_watchpoint_dispatch(control, (uint8_t)address, payload);
 }
 
-static const mdt_cmd_handler_t handlers[MDT_CMD_COUNT] = {
+static const mdt_cmd_handler_t handlers[] = {
     [INTERNAL_MDT_CMD_NONE]       = handle_reserved, /* No command, should not be called */
     [INTERNAL_MDT_CMD_READ_MEM]   = handle_read_mem,
     [INTERNAL_MDT_CMD_WRITE_MEM]  = handle_write_mem,
@@ -188,7 +188,7 @@ uint8_t mdt_dispatch(uint8_t *buf)
 
     uint8_t cmd_id = buf[MDT_OFFSET_CMD_ID];
 
-    if (cmd_id >= MDT_CMD_COUNT || !handlers[cmd_id])
+    if (cmd_id >= sizeof(handlers) / sizeof(handlers[0]))
         return 0; /* Invalid command */
 
     return handlers[cmd_id](buf);

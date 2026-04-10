@@ -22,6 +22,9 @@ typedef enum {
     INTERNAL_MDT_BP_NEXT    = 3
 } mdt_breakpoint_control_t;
 
+/* Breakpoint handler define */
+typedef void (*mdt_breakpoint_handler_t)(uint8_t id);
+
 /* Internal function triggered by macro */
 void mdt_breakpoint_trigger(uint8_t id);
 

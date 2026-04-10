@@ -63,9 +63,6 @@ typedef struct {
 /* Command handler define */
 typedef uint8_t (*mdt_cmd_handler_t)(uint8_t *buf);
 
-/* Number of commands */
-#define MDT_CMD_COUNT 9
-
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len);
 
 /* Function to validate a MDT packet */
