@@ -201,6 +201,30 @@ static void mdt_process_byte(uint8_t byte)
 static void mdt_process_pending(void)
 {
     uint8_t byte;
+ 
+    /* Send any queued event first */
+    if (mdt_event_pending())
+        mdt_event_send();
+ 
+    /* Fence check — detects stack overflow or buffer corruption */
+    if (!mdt_buffer_check(&rx_packet))
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
+                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+        return;
+    }
+ 
+    /* RX ring buffer overflow — ISR dropped bytes, resync required */
+    if (hal_uart_rx_overflow())
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
+        return;
+    }
+ 
+    mdt_watchpoint_poll();
+ 
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
 }
