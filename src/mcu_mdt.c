@@ -165,6 +165,34 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     return 1;
 }
 
+/* Process one byte */
+static void mdt_process_byte(uint8_t byte)
+{
+    /* Wait for START byte */
+    if (!rx_packet.started)
+    {
+        if (byte != MDT_START_BYTE)
+            return;
+        rx_packet.started = 1;
+        rx_packet.idx = 0;
+        rx_packet.buf[rx_packet.idx++] = byte;
+        return;
+    }
+
+    /* Prevent buffer overflow */
+    if (rx_packet.idx >= MDT_PACKET_SIZE)
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+        return;
+    }
+
+    /* Store byte */
+    rx_packet.buf[rx_packet.idx++] = byte;
+    if (rx_packet.idx == MDT_PACKET_SIZE)
+        mdt_handle_packet(&rx_packet);
+}
+
 void mcu_mdt_init(void)
 {
     /* Initialization code for MCU MDT */
@@ -198,38 +226,6 @@ void mcu_mdt_poll(void)
 
     mdt_watchpoint_poll();
 
-    while (hal_uart_rx(&byte))
-    {
-        /* Wait for START byte */
-        if (!rx_packet.started)
-        {
-            if (byte != MDT_START_BYTE) continue;
-            rx_packet.started = 1;
-            rx_packet.idx = 0;
-            rx_packet.buf[rx_packet.idx++] = byte;
-            continue;
-        }
-
-        /* Prevent buffer overflow */
-        if (rx_packet.idx >= MDT_PACKET_SIZE)
-        {
-            mdt_buffer_reset(&rx_packet);
-            mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
-            continue;
-        }
-
-        /* Store byte */
-        rx_packet.buf[rx_packet.idx++] = byte;
-
-        /* Full packet received */
-        if (rx_packet.idx == MDT_PACKET_SIZE)
-        {
-            /* Handle the packet */
-            if (!mdt_handle_packet(&rx_packet))
-            {
-                /* Fence/validation failed, break current loop iteration */
-                break;
-            }
-        }
-    }
+    if (hal_uart_rx(&byte))
+        mdt_process_byte(byte);
 }

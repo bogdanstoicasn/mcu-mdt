@@ -1,3 +1,20 @@
+"""
+CRC16 TESTS (CRC-CCITT, 0x1021)
+
+
+Validates the correctness of the protocol CRC implementation
+against a trusted reference (binascii.crc_hqx).
+
+Coverage:
+1. Known test vectors (e.g., "123456789")
+2. Empty input
+3. Randomly generated data of varying lengths (0 to 256 bytes)
+4. Stress test with 1000 random inputs
+
+Goal:
+Ensure that the CRC16 implementation in the protocol matches the reference impleemntation.
+"""
+
 import random
 import binascii
 from test.common.asserts import assert_eq

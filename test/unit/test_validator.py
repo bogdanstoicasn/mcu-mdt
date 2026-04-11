@@ -1,3 +1,27 @@
+"""
+VALIDATOR TESTS FOR MCU-MDT
+
+
+Validates the correctness of command validation logic against various metadata configurations.
+
+Coverage:
+1. Memory read/write validation (RAM, Flash, EEPROM)
+2. Register read/write validation (read-only, write-only, read-write)
+3. Breakpoint validation (valid/invalid IDs, control values)
+4. Watchpoint validation (valid/invalid IDs, control values, data requirements)
+5. Dispatch validation (ensuring correct validator is called based on command ID)
+6. Edge cases (addresses at segment boundaries, missing metadata, invalid control values)
+
+Assumptions:
+1. Metadata structure as defined in the code (memories and modules)
+2. Command dataclass and enums are defined as per protocol
+3. Validation functions return True for valid commands and False for invalid ones
+
+Goal:
+Ensure that the command validation logic correctly identifies valid and invalid commands based on the provided metadata, preventing
+potentially harmful operations and ensuring correct usage of the protocol.
+"""
+
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 from pc_tool.common.dataclasses import Command

@@ -1,3 +1,31 @@
+"""
+COMMAND PARSER TESTS FOR MCU-MDT
+
+
+Validates parsing of cli into structured commands.
+
+Coverage:
+1. Command recognition (case-insensitive, e.g. PING)
+2. Invalid input handling
+3. Memory commands (READ_MEM / WRITE_MEM)
+4. Memory types (RAM, FLASH, EEPROM)
+5. Address and length parsing
+6. Data decoding
+7. Register commands (READ_REG / WRITE_REG)
+8. Breakpoint commands (ENABLED, DISABLED, RESET, NEXT)
+9. Watchpoint commands (ENABLED, DISABLED, MASK)
+10. Control value mapping to enums
+11. Input validation (invalid data, missing params)
+
+Setup:
+1. COMMANDS dict defining command structure and expected parameters
+2. CONTROL_VALUES dict mapping control strings to enum values
+3. MCU_METADATA (empty, no hardware dependencies)
+
+Goal:
+Ensure that the command parser correctly translates user input into structured command objects with proper types and values.
+"""
+
 from test.common.asserts import assert_eq
 from pc_tool.common.enums import CommandId, MemType, BreakpointControl, WatchpointControl
 from pc_tool.parser import parse_line

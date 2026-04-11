@@ -1,3 +1,28 @@
+"""
+PIPELINE TESTS FOR MCU-MDT
+
+Validates the end-to-end command processing pipeline from CLI input to UART output and back.
+
+Coverage:
+1. End-to-end flow for all command types (PING, READ_MEM, WRITE_MEM,
+    READ_REG, WRITE_REG, BREAKPOINT, WATCHPOINT)
+2. Multi-packet sequences for large payloads
+3. Validation rejects bad commands before they hit the wire
+4. MCU responses (ACK, NACK, events) are correctly parsed and validated
+5. Round-trip fidelity of all command fields (address, mem_id, length, data, seq)
+6. Resilience to corrupted or malformed MCU responses
+7. Event packet handling (flags, event type, breakpoint ID)
+
+Assumptions:
+1. Command definitions and control value mappings are as per parser.py fixtures.
+2. MockUART simulates a perfect loopback for testing.
+3. CRC16 implementation is correct (validated separately in test_crc.py).
+
+Goal:
+Validate that the complete PC-side pipeline correctly processes user commands, produces valid packets, and handles MCU
+responses, making sure all components work together as intended.
+"""
+
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 
@@ -186,6 +211,32 @@ def _full_pipeline(line: str, meta: dict, uart: MockUART,
     raw = uart.read_packet()
     return deserialize_command_packet(raw)
 
+def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[CommandPacket]:
+    """
+    Split a payload into 4-byte chunks and serialize each as a
+    multi-packet sequence. Returns a list of deserialized packets.
+    """
+    chunk_size = UtilEnum.WORD_SIZE
+    chunks = [payload[i:i + chunk_size] for i in range(0, len(payload), chunk_size)]
+    received = []
+
+    for i, chunk in enumerate(chunks):
+        # Pad last chunk if necessary
+        padded = chunk.ljust(chunk_size, b'\x00')
+        is_last = (i == len(chunks) - 1)
+        cmd = Command(
+            name="WRITE_MEM", id=CommandId.WRITE_MEM,
+            mem=MemType.RAM,
+            address=address + i * chunk_size,
+            data=padded,
+            length=len(chunk),
+        )
+        pkt = serialize_command_packet(cmd, seq=i, multi=True, last=is_last)
+        uart.write(pkt)
+        received.append(deserialize_command_packet(uart.read_packet()))
+
+    return received
+
 
 # Every command end-to-end
 def test_e2e_ping():
@@ -254,32 +305,6 @@ def test_e2e_packet_is_validated_after_loopback():
 
 
 # Multi-packet sequences
-def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[CommandPacket]:
-    """
-    Split a payload into 4-byte chunks and serialize each as a
-    multi-packet sequence. Returns a list of deserialized packets.
-    """
-    chunk_size = UtilEnum.WORD_SIZE
-    chunks = [payload[i:i + chunk_size] for i in range(0, len(payload), chunk_size)]
-    received = []
-
-    for i, chunk in enumerate(chunks):
-        # Pad last chunk if necessary
-        padded = chunk.ljust(chunk_size, b'\x00')
-        is_last = (i == len(chunks) - 1)
-        cmd = Command(
-            name="WRITE_MEM", id=CommandId.WRITE_MEM,
-            mem=MemType.RAM,
-            address=address + i * chunk_size,
-            data=padded,
-            length=len(chunk),
-        )
-        pkt = serialize_command_packet(cmd, seq=i, multi=True, last=is_last)
-        uart.write(pkt)
-        received.append(deserialize_command_packet(uart.read_packet()))
-
-    return received
-
 def test_chunked_transfer_16_bytes():
     uart = MockUART()
     payload = bytes(range(16))       # 4 chunks of 4 bytes

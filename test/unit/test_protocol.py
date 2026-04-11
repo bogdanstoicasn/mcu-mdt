@@ -1,3 +1,29 @@
+"""
+PROTOCOL & PACKET TESTS
+
+
+Validates the correctness of command packet serialization, deserialization, and integrity checking.
+
+Coverage:
+1. Packet construction
+2. Packet parsing
+3. Round trip consistency
+4. Fixed-size packet structure (18 bytes)
+5. CRC16 integrity checking
+6. Multi-packet flags (SEQ_PRESENT, LAST_PACKET)
+7. NACK packet detection
+8. Edge cases for CRC and packet validation
+9. Deserialization of invalid packets (empty, oversized)
+10. Address encoding/decoding
+
+Assumptions:
+1. Command dataclass and enums are defined as per protocol.
+2. CRC16 implementation is correct (validated separately in test_crc.py).
+
+Goal:
+Ensure protocol layer guarantees correct packet construction, reliable CRC validation and handling of modified/corrupted packets.
+"""
+
 import struct
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
