@@ -9,6 +9,7 @@ uint8_t uart_putc(uint8_t data);
 uint8_t uart_getc_nonblocking(uint8_t *data);
 uint8_t uart_ready(void);
 uint8_t uart_rx_overflow(void);
+void uart_set_idle_callback(void (*cb)(void));
 
 /* USART1 */
 #define USART1_BASE 0x40013800UL
@@ -33,16 +34,19 @@ typedef struct {
 #define USART_CR1_UE      (1U << 0)
 #define USART_CR1_RE      (1U << 2)
 #define USART_CR1_TE      (1U << 3)
+#define USART_CR1_IDLEIE  (1U << 4)
 #define USART_CR1_RXNEIE  (1U << 5)
 #define USART_CR1_TXEIE   (1U << 7)
 
 /* ISR bits */
 #define USART_ISR_ORE     (1U << 3)
+#define USART_ISR_IDLE    (1U << 4)
 #define USART_ISR_RXNE    (1U << 5)
 #define USART_ISR_TXE     (1U << 7)
 
 /* ICR bits */
 #define USART_ICR_ORECF   (1U << 3)
+#define USART_ICR_IDLECF  (1U << 4)
 
 /* RCC */
 

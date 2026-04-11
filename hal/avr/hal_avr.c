@@ -29,6 +29,11 @@ uint8_t hal_uart_tx_ready(void)
     return uart_ready();
 }
 
+void hal_uart_set_idle_callback(void (*cb)(void))
+{
+    (void)cb; /* AVR: no IDLE interrupt: mcu_mdt_poll() used in breakpoint loop */
+}
+
 uint8_t hal_uart_rx_overflow(void)
 {
     return uart_rx_overflow();

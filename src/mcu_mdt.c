@@ -179,24 +179,36 @@ static void mdt_process_byte(uint8_t byte)
         return;
     }
 
-    /* Prevent buffer overflow */
+    /* Prevent overflow */
     if (rx_packet.idx >= MDT_PACKET_SIZE)
     {
         mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
+                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
         return;
     }
 
     /* Store byte */
     rx_packet.buf[rx_packet.idx++] = byte;
+
     if (rx_packet.idx == MDT_PACKET_SIZE)
         mdt_handle_packet(&rx_packet);
 }
 
+/* Drain the RX ring buffer: called from USART IDLE ISR on STM32.
+ * Processes one byte at a time through mdt_process_byte.
+ * Not used on AVR where mcu_mdt_poll() is called from the main loop. */
+static void mdt_process_pending(void)
+{
+    uint8_t byte;
+    while (hal_uart_rx(&byte))
+        mdt_process_byte(byte);
+}
+
 void mcu_mdt_init(void)
 {
-    /* Initialization code for MCU MDT */
     hal_uart_init();
+    hal_uart_set_idle_callback(mdt_process_pending);
 }
 
 /* Poll function */
@@ -206,15 +218,14 @@ void mcu_mdt_poll(void)
 
     /* Check for pending events */
     if (mdt_event_pending())
-    {
         mdt_event_send();
-    }
 
-    /* Fence check at entry */
+    /* Fence check */
     if (!mdt_buffer_check(&rx_packet))
     {
         mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
+                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
         return;
     }
 
@@ -222,6 +233,7 @@ void mcu_mdt_poll(void)
     {
         mdt_buffer_reset(&rx_packet);
         mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
+        return;
     }
 
     mdt_watchpoint_poll();
