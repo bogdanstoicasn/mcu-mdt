@@ -36,6 +36,13 @@ typedef enum {
     #define NULL ((void *)0)
 #endif
 
+#if defined(PLATFORM_STM32)
+/* Can be set to 0 but use mcu_mdt_poll in while loop */
+#define MDT_HAS_IDLE_INTERRUPT 1
+#else
+#define MDT_HAS_IDLE_INTERRUPT 0
+#endif
+
 
 /* User configuration: edit these */
 #define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE

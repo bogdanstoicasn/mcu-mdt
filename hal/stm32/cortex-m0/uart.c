@@ -93,6 +93,8 @@ void USART1_IRQHandler(void)
             rx_buffer.overflow_flag = 1;
     }
 
+#if MDT_HAS_IDLE_INTERRUPT
+
     /* IDLE: line went quiet after a burst, process pending bytes */
     if (isr & USART_ISR_IDLE)
     {
@@ -100,6 +102,7 @@ void USART1_IRQHandler(void)
         if (idle_callback)
             idle_callback();
     }
+#endif
 
     /* TX drain ring buffer */
     if (isr & USART_ISR_TXE)
