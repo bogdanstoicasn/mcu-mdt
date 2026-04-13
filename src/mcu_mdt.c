@@ -232,7 +232,10 @@ static void mdt_process_pending(void)
 void mcu_mdt_init(void)
 {
     hal_uart_init();
+
+#if defined(PLATFORM_STM32)
     hal_uart_set_idle_callback(mdt_process_pending);
+#endif
 }
 
 /* Poll function */
