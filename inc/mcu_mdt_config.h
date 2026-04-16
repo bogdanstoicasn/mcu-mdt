@@ -36,6 +36,12 @@ typedef enum {
     #define NULL ((void *)0)
 #endif
 
+#if defined(PLATFORM_STM32)
+#define MDT_FEATURE_UART_IDLE 1
+#else
+#define MDT_FEATURE_UART_IDLE 0
+#endif
+
 
 /* User configuration: edit these */
 #define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE

@@ -9,6 +9,7 @@ uint8_t uart_putc(uint8_t data);
 uint8_t uart_getc_nonblocking(uint8_t *data);
 uint8_t uart_ready(void);
 uint8_t uart_rx_overflow(void);
+void    uart_set_idle_callback(void (*cb)(void));
 
 /* USART1 */
 #define USART1_BASE 0x40013800UL
@@ -33,16 +34,19 @@ typedef struct {
 #define USART_CR1_UE      (1U << 0)
 #define USART_CR1_RE      (1U << 2)
 #define USART_CR1_TE      (1U << 3)
+#define USART_CR1_IDLEIE  (1U << 4)
 #define USART_CR1_RXNEIE  (1U << 5)
 #define USART_CR1_TXEIE   (1U << 7)
 
 /* ISR bits */
 #define USART_ISR_ORE     (1U << 3)
+#define USART_ISR_IDLE    (1U << 4)
 #define USART_ISR_RXNE    (1U << 5)
 #define USART_ISR_TXE     (1U << 7)
 
 /* ICR bits */
 #define USART_ICR_ORECF   (1U << 3)
+#define USART_ICR_IDLECF  (1U << 4)
 
 /* RCC */
 
@@ -106,5 +110,14 @@ typedef struct {
 /* NVIC */
 #define NVIC_ISER        ((volatile uint32_t *)0xE000E100)
 #define USART1_IRQ       27
+
+/* Cortex-M0 System Control Block — for PendSV */
+#define SCB_ICSR         (*((volatile uint32_t *)0xE000ED04UL))
+/* On Cortex-M0, PendSV is exception 14.
+ * System handler priorities are in SHP[0..7] at 0xE000ED18.
+ * SHP[2] at 0xE000ED20 covers exceptions 12-15: bits 23:16 = PendSV priority. */
+#define SCB_SHP3         (*((volatile uint32_t *)0xE000ED20UL))
+#define SCB_PENDSV_SET   (1U << 28)
+#define PENDSV_PRI_LOWEST (0xFFU << 16)  /* bits 23:16 of SHP[2] = PendSV pri */
 
 #endif /* UART_H */

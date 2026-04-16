@@ -4,6 +4,12 @@
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0 };
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0 };
 
+/* Set by IDLE ISR, consumed by PendSV_Handler */
+static volatile uint8_t pending_flag = 0;
+
+/* Registered by HAL — called from PendSV_Handler to process received packet */
+static void (*idle_callback)(void) = 0;
+
 void uart_init(uint32_t baudrate)
 {
     RCC->ahbenr  |= RCC_AHBENR_GPIOAEN;
@@ -29,7 +35,7 @@ void uart_init(uint32_t baudrate)
     USART1->brr = (uint32_t)(F_CPU / baudrate);
 
     /* Enable USART, TX, RX and RX interrupt */
-    USART1->cr1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE;
+    USART1->cr1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE | USART_CR1_RXNEIE | USART_CR1_IDLEIE;
 
     /* Enable NVIC for USART1 */
     NVIC_ISER[USART1_IRQ / 32] = 1U << (USART1_IRQ % 32);
@@ -69,6 +75,24 @@ uint8_t uart_rx_overflow(void)
     return 0;
 }
 
+void uart_set_idle_callback(void (*cb)(void))
+{
+    idle_callback = cb;
+}
+
+/* PendSV_Handler — runs at lowest priority, after all IRQs have completed.
+ * Consumes the pending_flag set by the IDLE ISR and calls the registered
+ * callback (mdt_process_pending) to drain the ring buffer and dispatch. */
+void PendSV_Handler(void)
+{
+    if (pending_flag)
+    {
+        pending_flag = 0;
+        if (idle_callback)
+            idle_callback();
+    }
+}
+
 void USART1_IRQHandler(void)
 {
     uint32_t isr = USART1->isr;
@@ -83,6 +107,13 @@ void USART1_IRQHandler(void)
         uint8_t data = (uint8_t)USART1->rdr;
         if (!rb_push(&rx_buffer, data))
             rx_buffer.overflow_flag = 1;
+    }
+
+    if (isr & USART_ISR_IDLE)
+    {
+        USART1->icr  = USART_ICR_IDLECF;
+        pending_flag = 1;
+        SCB_ICSR     = SCB_PENDSV_SET;
     }
 
     /* TX drain ring buffer */

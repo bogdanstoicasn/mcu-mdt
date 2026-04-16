@@ -77,4 +77,13 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buff
  */
 uint8_t hal_write_register(uint32_t address, const uint8_t *buffer);
 
+/**
+ * @brief Register a callback invoked from the USART IDLE interrupt.
+ *        Called once after the RX line goes quiet following a burst of bytes.
+ *        Use this to trigger packet processing without polling from main loop.
+ *        Pass NULL to disable.
+ */
+void hal_uart_set_idle_callback(void (*cb)(void));
+
+
 #endif /* MCU_MDT_HAL_H */

@@ -55,3 +55,8 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buffer)
 {
     return write_memory(MDT_MEM_ZONE_SRAM, address, buffer, 4);
 }
+
+void hal_uart_set_idle_callback(void (*cb)(void))
+{
+    uart_set_idle_callback(cb);
+}
