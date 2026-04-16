@@ -42,7 +42,7 @@ CFLAGS  += -ffunction-sections
 CFLAGS  += -fdata-sections
 CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
-CFLAGS  += -I$(HAL_DIR) -I$(BASE_HAL_DIR) -I$(SRC_DIR)
+CFLAGS  += -I$(HAL_DIR)
 CFLAGS  += -DF_CPU=$(F_CPU)
 CFLAGS  += -DPLATFORM_AVR
 

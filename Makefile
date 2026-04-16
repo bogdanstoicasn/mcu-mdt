@@ -21,7 +21,7 @@ endif
 endif
 
 # Public include directories (exported to sub-makefiles)
-INCLUDES := -I$(CURDIR)/inc -I$(CURDIR)/hal
+INCLUDES := -I$(CURDIR)/inc
 export INCLUDES
 
 # Optional: Port
