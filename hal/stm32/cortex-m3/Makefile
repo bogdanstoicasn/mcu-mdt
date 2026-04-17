@@ -87,6 +87,7 @@ CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32
+CFLAGS  += -DMDT_HAL_HAS_UART_IDLE=1
 CFLAGS  += -DF_CPU=$(F_CPU)
 
 # Linker flags: use preprocessed linker script
