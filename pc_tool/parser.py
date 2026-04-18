@@ -237,6 +237,7 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
     except (ValueError, IndexError, KeyError) as e:
         MDTLogger.error(f"Failed to parse line: {line}", code=str(e))
         return None
+
 def parse_packet(packet: bytes) -> None:
     """
     Function that prints the contents of a received packet in a human-readable format."""
