@@ -20,8 +20,13 @@ typedef struct {
 
 /* Event structure */
 typedef struct {
+    uint32_t address;
     uint32_t data;
-    uint8_t type;
+    uint16_t length;
+    uint8_t  seq;
+    uint8_t  mem_id;
+
+    volatile uint8_t pending;
 } mdt_event_t;
 
 /* Event type enumeration */
@@ -34,6 +39,11 @@ typedef enum {
     /* TODO: Add more event types */
 } mdt_event_type_t;
 
-void mdt_event_wrapper(mdt_event_type_t type, uint32_t data);
+void mdt_event_wrapper(
+    uint8_t seq,
+    uint8_t mem_id,
+    uint32_t address,
+    uint16_t length,
+    uint32_t data);
 
 #endif /* MCU_MDT_PRIVATE_H */

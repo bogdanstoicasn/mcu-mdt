@@ -13,7 +13,13 @@ void mdt_breakpoint_trigger(uint8_t id)
     if (!bp_state.slots[id].enabled)
         return;
 
-    mdt_event_wrapper(INTERNAL_MDT_EVENT_BREAKPOINT_HIT, id);
+    mdt_event_wrapper(
+        id,                             /* seq = breakpoint ID */
+        INTERNAL_MDT_EVENT_BREAKPOINT_HIT,  /* mem_id = event type */
+        0,                              /* address */
+        0,                              /* length */
+        bp_state.slots[id].hit_count    /* data */
+    );
 
     bp_state.slots[id].hit_count++;
 

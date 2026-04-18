@@ -41,13 +41,23 @@ def event_listener(serial_link):
             if pkt is None:
                 continue
 
-            event_type = pkt[MDTOffset.ADDRESS]
-            event_data = int.from_bytes(pkt[MDTOffset.DATA:MDTOffset.DATA + 4], byteorder='little')
+            event_type = pkt[MDTOffset.MEM_ID]
+            event_id   = pkt[MDTOffset.SEQ]
+
+            event_data = int.from_bytes(
+                pkt[MDTOffset.DATA:MDTOffset.DATA + 4],
+                byteorder='little'
+            )
 
             # Clear the current line (erases dangling "> " prompt), print event, reprint prompt
             sys.stdout.write("\r\033[K")
             sys.stdout.flush()
-            MDTLogger.info(f"[Event] {EventType(event_type).name} (data=0x{event_data:08X})")
+
+            MDTLogger.info(
+                f"[Event] {EventType(event_type).name} "
+                f"(id={event_id}, data=0x{event_data:08X})"
+            )
+
             sys.stdout.write("> ")
             sys.stdout.flush()
 

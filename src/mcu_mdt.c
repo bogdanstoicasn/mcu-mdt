@@ -25,23 +25,38 @@ static volatile mdt_event_t pending_event = { 0 };
 
 /* Event handling functions */
 
-static inline void mdt_event_set(mdt_event_type_t type, uint32_t data)
+static inline void mdt_event_set(
+    uint8_t seq,
+    uint8_t mem_id,
+    uint32_t address,
+    uint16_t length,
+    uint32_t data)
 {
-    if (pending_event.type != INTERNAL_MDT_EVENT_TYPE_NONE)
-        return; /* event already pending */
-    pending_event.data = data;
-    pending_event.type = (uint8_t)type;
+    if (pending_event.pending)
+        return;
+
+    pending_event.seq     = seq;
+    pending_event.mem_id  = mem_id;
+    pending_event.address = address;
+    pending_event.length  = length;
+    pending_event.data    = data;
+
+    pending_event.pending = 1;
 }
 
 static inline void mdt_event_clear(void)
 {
-    pending_event.data = 0;
-    pending_event.type = INTERNAL_MDT_EVENT_TYPE_NONE;
+    pending_event.pending    = 0;
+    pending_event.seq        = 0;
+    pending_event.mem_id     = 0;
+    pending_event.address    = 0;
+    pending_event.length     = 0;
+    pending_event.data       = 0;
 }
 
 static inline uint8_t mdt_event_pending(void)
 {
-    return pending_event.type != INTERNAL_MDT_EVENT_TYPE_NONE;
+    return pending_event.pending;
 }
 
 void mdt_event_send(void)
@@ -50,14 +65,29 @@ void mdt_event_send(void)
         return;
 
     uint8_t pkt[MDT_PACKET_SIZE];
+    uint16_t crc;
 
     mdt_memset(pkt, 0, MDT_PACKET_SIZE);
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
-    pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_EVENT;
 
-    /* Event type in address field */
-    pkt[MDT_OFFSET_ADDRESS] = (uint8_t)(pending_event.type);
+    /* Must stay fixed */
+    pkt[MDT_OFFSET_CMD_ID] = 0;
+    pkt[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_EVENT;
+
+    /* Free fields */
+    pkt[MDT_OFFSET_SEQ]    = pending_event.seq;
+    pkt[MDT_OFFSET_MEM_ID] = pending_event.mem_id;
+
+    /* ADDRESS */
+    pkt[MDT_OFFSET_ADDRESS]     = (uint8_t)(pending_event.address & 0xFF);
+    pkt[MDT_OFFSET_ADDRESS + 1] = (uint8_t)((pending_event.address >> 8)  & 0xFF);
+    pkt[MDT_OFFSET_ADDRESS + 2] = (uint8_t)((pending_event.address >> 16) & 0xFF);
+    pkt[MDT_OFFSET_ADDRESS + 3] = (uint8_t)((pending_event.address >> 24) & 0xFF);
+
+    /* LENGTH */
+    pkt[MDT_OFFSET_LENGTH]     = (uint8_t)(pending_event.length & 0xFF);
+    pkt[MDT_OFFSET_LENGTH + 1] = (uint8_t)((pending_event.length >> 8)  & 0xFF);
 
     /* Full 32-bit event data in data field (little-endian) */
     pkt[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data & 0xFF);
@@ -67,7 +97,7 @@ void mdt_event_send(void)
 
     pkt[MDT_OFFSET_END] = MDT_END_BYTE;
 
-    uint16_t crc = mdt_crc16(
+    crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
         MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
     );
@@ -79,12 +109,14 @@ void mdt_event_send(void)
     mdt_event_clear();
 }
 
-void mdt_event_wrapper(mdt_event_type_t type, uint32_t data)
+void mdt_event_wrapper(
+    uint8_t seq,
+    uint8_t mem_id,
+    uint32_t address,
+    uint16_t length,
+    uint32_t data)
 {
-    mdt_event_set(type, data);
-    /* Do not send immediately — the TX buffer may still be draining an
-     * in-flight ACK or response. mcu_mdt_poll() flushes pending events
-     * at the top of every iteration, by which point TX is clear. */
+    mdt_event_set(seq, mem_id, address, length, data);
 }
 
 /* End of event handling functions */
@@ -110,18 +142,18 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
  * Returns 1 if buffer is healthy, 0 if a fault was detected and handled. */
 static uint8_t mdt_buffer_guard(void)
 {
-    if (!mdt_buffer_check(&rx_packet))
+    if (!mdt_buffer_check(&rx_packet) || hal_uart_rx_overflow())
     {
         mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
-                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
-        return 0;
-    }
 
-    if (hal_uart_rx_overflow())
-    {
-        mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
+        mdt_event_wrapper(
+            0,                                  /* seq */
+            INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = event type */
+            (uint32_t)(uintptr_t)&rx_packet,    /* address = buffer */
+            sizeof(rx_packet),                  /* length */
+            0                                   /* data */
+        );
+
         return 0;
     }
 
@@ -156,8 +188,16 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     uint8_t *pkt = buf->buf;
     if (!mdt_packet_validate(pkt, MDT_PACKET_SIZE))
     {
-        mdt_send_nack(pkt); /* Send nack so PC knows to retransmit */
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_FAILED_PACKET, ((uintptr_t)buf) & 0xFFFFFF); /* Send event with buffer address for debugging */
+        mdt_send_nack(pkt); /* Send NACK so PC knows to retransmit */
+
+        mdt_event_wrapper(
+            0,                               /* seq */
+            INTERNAL_MDT_EVENT_FAILED_PACKET,/* mem_id = event type */
+            (uint32_t)(uintptr_t)buf,        /* address = buffer address */
+            MDT_PACKET_SIZE,                 /* length = expected packet size */
+            0                                /* data = debug info */
+        );
+
         mdt_buffer_reset(buf);
         return 0;
     }
@@ -205,7 +245,15 @@ static void mdt_process_byte(uint8_t byte)
     if (rx_packet.idx >= MDT_PACKET_SIZE)
     {
         mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+
+        mdt_event_wrapper(
+            0,                                  /* seq */
+            INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = event type */
+            (uint32_t)(uintptr_t)&rx_packet,    /* address = buffer */
+            MDT_PACKET_SIZE,                    /* length = capacity */
+            rx_packet.idx                       /* data = overflow index */
+        );
+
         return;
     }
 
