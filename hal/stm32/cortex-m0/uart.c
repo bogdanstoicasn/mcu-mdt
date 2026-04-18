@@ -72,6 +72,11 @@ uint8_t uart_ready(void)
     return !rb_is_full(&tx_buffer);
 }
 
+uint8_t uart_tx_empty(void)
+{
+    return rb_is_empty(&tx_buffer);
+}
+
 uint8_t uart_rx_overflow(void)
 {
     if (rx_buffer.overflow_flag)

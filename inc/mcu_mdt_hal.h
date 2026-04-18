@@ -42,6 +42,14 @@ uint8_t hal_uart_rx(uint8_t *byte);
 uint8_t hal_uart_tx_ready(void);
 
 /**
+ * @brief Check if the TX ring buffer is completely empty (all bytes sent).
+ *        Use this before firing async events to avoid interleaving event
+ *        bytes with an in-flight ACK or response packet.
+ * @return 1 if empty, 0 if bytes are still pending transmission
+ */
+uint8_t hal_uart_tx_empty(void);
+
+/**
  * @brief Read memory from the target device
  * @param mem_zone Memory zone to read from (SRAM, FLASH, EEPROM)
  * @param address Address to read from

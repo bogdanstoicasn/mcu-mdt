@@ -82,7 +82,9 @@ void mdt_event_send(void)
 void mdt_event_wrapper(mdt_event_type_t type, uint32_t data)
 {
     mdt_event_set(type, data);
-    mdt_event_send();
+    /* Do not send immediately — the TX buffer may still be draining an
+     * in-flight ACK or response. mcu_mdt_poll() flushes pending events
+     * at the top of every iteration, by which point TX is clear. */
 }
 
 /* End of event handling functions */
@@ -207,8 +209,6 @@ static void mdt_process_byte(uint8_t byte)
         return;
     }
 
-    mcu_mdt_watchpoint_check();
-
     /* Store byte */
     rx_packet.buf[rx_packet.idx++] = byte;
     if (rx_packet.idx == MDT_PACKET_SIZE)
@@ -238,19 +238,25 @@ void mcu_mdt_init(void)
 #endif
 }
 
-/* Poll function — call from your main loop.
- * On STM32 with MDT_FEATURE_UART_IDLE=1: RX is handled by PendSV, but this
- * still needs to be called to flush any pending events. */
+/* Poll function — call from your main loop. */
 void mcu_mdt_poll(void)
 {
     uint8_t byte;
 
-    if (mdt_event_pending())
+    /* 1. Flush pending event — only if TX is fully idle so the event packet
+     *    never interleaves with a response still draining through the ISR. */
+    if (mdt_event_pending() && hal_uart_tx_empty())
         mdt_event_send();
 
+    /* 2. Guard: fence + overflow check */
     if (!mdt_buffer_guard())
         return;
 
-    if (hal_uart_rx(&byte))
+    /* 3. Drain RX ring buffer fully */
+    while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
+
+    /* 4. Watchpoints last — event stored here is sent on the next poll
+     *    iteration once TX is confirmed idle at step 1. */
+    mcu_mdt_watchpoint_check();
 }

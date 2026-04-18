@@ -43,6 +43,11 @@ uint8_t uart_ready(void)
     return !rb_is_full(&tx_buffer);
 }
 
+uint8_t uart_tx_empty(void)
+{
+    return rb_is_empty(&tx_buffer);
+}
+
 /* Returns 1 and clears the flag if an RX overflow occurred since the last
  * call.  Called from mcu_mdt_poll() to surface dropped bytes as an event. */
 uint8_t uart_rx_overflow(void)

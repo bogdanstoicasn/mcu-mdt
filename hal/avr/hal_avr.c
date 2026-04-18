@@ -29,6 +29,11 @@ uint8_t hal_uart_tx_ready(void)
     return uart_ready();
 }
 
+uint8_t hal_uart_tx_empty(void)
+{
+    return uart_tx_empty();
+}
+
 uint8_t hal_uart_rx_overflow(void)
 {
     return uart_rx_overflow();
