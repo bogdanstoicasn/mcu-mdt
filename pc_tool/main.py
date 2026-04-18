@@ -45,6 +45,7 @@ def run_script(script_path: str, loader, serial_link, threads):
     commands = loader.yaml_command_data['commands']
     control  = loader.yaml_command_data['control_values']
     metadata = loader.mcu_metadata
+    symbols  = loader.elf_symbols
     dispatch = build_dispatch(loader, serial_link, threads)
 
     MDTLogger.suppress_console()
@@ -68,7 +69,7 @@ def run_script(script_path: str, loader, serial_link, threads):
 
         MDTLogger.info(f"[{lineno}] {line}")
 
-        command = parse_line(line, commands, control, metadata)
+        command = parse_line(line, commands, control, metadata, symbols)
         if not command:
             MDTLogger.error(f"Script aborted: parse error at line {lineno}: {line!r}", code=2)
             break
@@ -99,6 +100,7 @@ def run_loop(loader, serial_link, threads):
     commands = loader.yaml_command_data['commands']
     control  = loader.yaml_command_data['control_values']
     metadata = loader.mcu_metadata
+    symbols  = loader.elf_symbols
     dispatch = build_dispatch(loader, serial_link, threads)
 
     MDTLogger.info(intro_text())
@@ -109,7 +111,7 @@ def run_loop(loader, serial_link, threads):
             if not line:
                 continue
 
-            command = parse_line(line, commands, control, metadata)
+            command = parse_line(line, commands, control, metadata, symbols)
             if not command:
                 MDTLogger.error("Invalid command or parsing error.", code=2)
                 continue

@@ -62,9 +62,9 @@ commands:
     id: 0x08
     description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
-      - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
-      - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
-      - { name: "wp_data",          type: "uint32",  hint: "<addr|mask|-> (enable=watched addr, mask=mask value, else FFFFFFFF)", format: "hex" }
+      - { name: "address",       type: "uint32",          hint: "<id>",               format: "hex" }
+      - { name: "control_value", type: "str",              hint: "<control>",          format: "dec" }
+      - { name: "wp_data",       type: "symbol_or_uint32", hint: "<symbol|addr|mask>", format: "hex" }
 
   EXIT:
     id: 0x09

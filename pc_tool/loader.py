@@ -3,6 +3,7 @@ import os
 import xml.etree.ElementTree as ET
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.enums import MCUPlatforms
+from pc_tool.common.elf_symbols import load_elf_symbols
 
 class ConfigLoader:
     def __init__(
@@ -15,11 +16,26 @@ class ConfigLoader:
         self.yaml_command_data = load_configs(commands_path)
         self.yaml_platform_data = load_platforms(platforms_path)
 
-        mcu = self.yaml_build_data.get('mcu')
-        platform = self.yaml_build_data.get('platform')
-
+        mcu      = self.yaml_build_data.get('mcu')
+        platform = self.yaml_build_data.get('platform', '')
 
         self.mcu_metadata = load_mcu_metadata(mcu, platform)
+
+        # ELF symbol table — optional, populated if 'elf' key present in build_info.yaml
+        elf_path = self.yaml_build_data.get('elf')
+        if elf_path:
+            # Resolve relative to build_info.yaml directory so the path works
+            # regardless of where the tool is invoked from
+            build_info_dir = os.path.dirname(os.path.abspath(build_info_path))
+            elf_path = os.path.normpath(os.path.join(build_info_dir, elf_path))
+            self.elf_symbols = load_elf_symbols(elf_path, platform)
+            MDTLogger.info(f"Loaded {len(self.elf_symbols)} symbol(s) from {elf_path}")
+        else:
+            self.elf_symbols = {}
+            MDTLogger.info(
+                "No 'elf' key in build_info.yaml — symbol resolution disabled. "
+                "Add 'elf: path/to/firmware.elf' to enable watchpoint symbol lookup."
+            )
 
 
 def load_configs(file_path: str) -> dict:

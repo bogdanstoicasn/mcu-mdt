@@ -169,6 +169,7 @@ $(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
 	@echo "core: cortex-m0"  >> $@
 	@echo "mcu: $(MCU)"      >> $@
 	@echo "port: $(PORT)"    >> $@
+	@echo "elf: $(ELF_NAME)" >> $@
 
 flash: all
 	@test -f $(EXAMPLE_BIN) || \

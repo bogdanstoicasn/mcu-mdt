@@ -5,6 +5,7 @@ from pathlib import Path
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.dataclasses import Command, CommandPacket
 from pc_tool.common.protocol import deserialize_command_packet
+from pc_tool.common.elf_symbols import resolve_symbol, check_watchpoint_alignment
 
 try:
     import readline
@@ -92,11 +93,12 @@ def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
 
     return None
 
-
-def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata: dict) -> Command | None:
+def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata: dict,
+               elf_symbols: dict = None) -> Command | None:
     """
     Parse CLI line into a Command object according to YAML definition.
-    Supports uint (with or without 0x prefix) and bytes (also 0x optional).
+    Supports uint (with or without 0x prefix), bytes (also 0x optional),
+    and symbol_or_uint32 (symbol name from ELF or hex address).
     """
     tokens = line.strip().split()
     if not tokens:
@@ -131,7 +133,46 @@ def parse_line(line: str, command_dict: dict, control_values: dict, mcu_metadata
             ptype = param["type"]
             pvalue = tokens[i + 1]
  
-            if ptype == "uint32_or_str":
+            if ptype == "symbol_or_uint32":
+                # Try hex address first, then fall back to ELF symbol lookup
+                try:
+                    parsed_args[pname] = int(pvalue, 16 if not pvalue.startswith("0x") else 0)
+                except ValueError:
+                    if not elf_symbols:
+                        MDTLogger.error(
+                            f"Cannot resolve symbol '{pvalue}': no ELF loaded. "
+                            f"Add 'elf: path/to/firmware.elf' to build_info.yaml.",
+                            code=line
+                        )
+                        return None
+                    sym = resolve_symbol(pvalue, elf_symbols)
+                    if sym is None:
+                        # Search for compiler-mangled local static variants (e.g. var_my.0)
+                        candidates = [s for k, s in elf_symbols.items()
+                                    if k == pvalue or k.startswith(pvalue + ".")]
+                        if len(candidates) == 1:
+                            sym = candidates[0]
+                            MDTLogger.info(f"Resolved '{pvalue}' -> '{sym.name}' (local static)")
+                        elif len(candidates) > 1:
+                            names = ", ".join(s.name for s in candidates)
+                            MDTLogger.error(
+                                f"Ambiguous symbol '{pvalue}': multiple local statics found: {names}. "
+                                f"Use the full mangled name.",
+                                code=line
+                            )
+                            return None
+                        else:
+                            MDTLogger.error(
+                                f"Symbol '{pvalue}' not found in ELF symbol table. "
+                                f"Tip: only static/global variables are watchable. "
+                                f"Local variables live on the stack and have no fixed address.",
+                                code=line
+                            )
+                            return None
+                    check_watchpoint_alignment(sym)
+                    parsed_args[pname] = sym.address
+
+            elif ptype == "uint32_or_str":
                 # Try numeric first using format hint, then resolve as register name
                 fmt = param.get("format", "hex")
                 try:

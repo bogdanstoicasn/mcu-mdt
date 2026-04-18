@@ -207,6 +207,8 @@ static void mdt_process_byte(uint8_t byte)
         return;
     }
 
+    mcu_mdt_watchpoint_check();
+
     /* Store byte */
     rx_packet.buf[rx_packet.idx++] = byte;
     if (rx_packet.idx == MDT_PACKET_SIZE)
