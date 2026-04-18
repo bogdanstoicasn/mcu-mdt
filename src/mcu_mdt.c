@@ -104,7 +104,27 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
     buffer->fence_post = MDT_FENCE_PATTERN;
 }
 
-/* End of buffer management functions */
+/* Shared guard: fence check + overflow check.
+ * Returns 1 if buffer is healthy, 0 if a fault was detected and handled. */
+static uint8_t mdt_buffer_guard(void)
+{
+    if (!mdt_buffer_check(&rx_packet))
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
+                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+        return 0;
+    }
+
+    if (hal_uart_rx_overflow())
+    {
+        mdt_buffer_reset(&rx_packet);
+        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
+        return 0;
+    }
+
+    return 1;
+}
 
 static void mdt_send_nack(const uint8_t *buf)
 {
@@ -193,30 +213,16 @@ static void mdt_process_byte(uint8_t byte)
         mdt_handle_packet(&rx_packet);
 }
 
-/* Drain the RX ring buffer: called from USART IDLE ISR on STM32.
+/* Drain the RX ring buffer: called from USART IDLE ISR on STM32 via PendSV.
  * Processes one byte at a time through mdt_process_byte.
  * Not used on AVR where mcu_mdt_poll() is called from the main loop. */
 static void mdt_process_pending(void)
 {
     uint8_t byte;
- 
-    /* Fence check — detects stack overflow or buffer corruption */
-    if (!mdt_buffer_check(&rx_packet))
-    {
-        mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
-                          ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+
+    if (!mdt_buffer_guard())
         return;
-    }
- 
-    /* RX ring buffer overflow — ISR dropped bytes, resync required */
-    if (hal_uart_rx_overflow())
-    {
-        mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
-        return;
-    }
- 
+
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
 }
@@ -230,32 +236,18 @@ void mcu_mdt_init(void)
 #endif
 }
 
-/* Poll function */
+/* Poll function — call from your main loop.
+ * On STM32 with MDT_FEATURE_UART_IDLE=1: RX is handled by PendSV, but this
+ * still needs to be called to flush any pending events. */
 void mcu_mdt_poll(void)
 {
     uint8_t byte;
 
-    /* Check for pending events */
     if (mdt_event_pending())
-    {
         mdt_event_send();
-    }
 
-    /* Fence check at entry */
-    if (!mdt_buffer_check(&rx_packet))
-    {
-        mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ((uintptr_t)&rx_packet) & 0xFFFFFFFF);
+    if (!mdt_buffer_guard())
         return;
-    }
-
-    if (hal_uart_rx_overflow())
-    {
-        mdt_buffer_reset(&rx_packet);
-        mdt_event_wrapper(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 0);
-    }
-
-    mdt_watchpoint_poll();
 
     if (hal_uart_rx(&byte))
         mdt_process_byte(byte);

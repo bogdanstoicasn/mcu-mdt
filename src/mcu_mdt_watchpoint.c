@@ -1,9 +1,10 @@
 #include "mcu_mdt_watchpoint.h"
 #include "mcu_mdt_private.h"
+#include "mcu_mdt.h"
 
 static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 
-void mdt_watchpoint_poll(void)
+void mcu_mdt_watchpoint_check(void)
 {
     if (!watchpoints_descriptor.active_mask)
         return;
@@ -16,7 +17,8 @@ void mdt_watchpoint_poll(void)
         if (mask & 1)
         {
             uint32_t current = *((volatile uint32_t *)(uintptr_t)watchpoints_descriptor.slots[slot].address);
-            if ((current & watchpoints_descriptor.slots[slot].mask) != (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
+            if ((current & watchpoints_descriptor.slots[slot].mask) !=
+                (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
             {
                 watchpoints_descriptor.slots[slot].snapshot = current;
                 mdt_event_wrapper(INTERNAL_MDT_EVENT_WATCHPOINT_HIT, (uint32_t)slot);
@@ -72,7 +74,7 @@ uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address)
         case INTERNAL_MDT_WP_RESET:
             mdt_watchpoint_reset(id);
             return 1;
-        
+
         case INTERNAL_MDT_WP_MASK:
             if (!(watchpoints_descriptor.active_mask & (1u << id)))
                 return 0; /* watchpoint not active, mask ignored */

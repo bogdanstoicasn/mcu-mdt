@@ -9,6 +9,13 @@ void mcu_mdt_init(void);
 /* Polling function must be called in the main loop */
 void mcu_mdt_poll(void);
 
+/* Sample all active watchpoints and fire an event if any have changed.
+ * Call this periodically from wherever fits your architecture:
+ *   - Super-loop (AVR or STM32 poll mode): call from your while(1)
+ *   - STM32 interrupt mode: call from SysTick_Handler or any periodic timer ISR
+ * Safe to call from an ISR. No-op if no watchpoints are active. */
+void mcu_mdt_watchpoint_check(void);
+
 /* Forward declaration for the breakpoint macro */
 void mdt_breakpoint_trigger(uint8_t id);
 

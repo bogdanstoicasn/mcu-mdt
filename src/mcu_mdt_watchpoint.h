@@ -24,9 +24,6 @@ typedef enum {
 
 #define INTERNAL_MDT_DEFAULT_WP_MASK 0xffffffff
 
-/* If no active watchpoints, return fast */
-void mdt_watchpoint_poll(void);
- 
 /* Dispatch function for watchpoint control commands */
 uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address);
 
