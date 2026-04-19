@@ -11,17 +11,7 @@ static mdt_buffer_t rx_packet = {
     .fence_post = MDT_FENCE_PATTERN
 };
 
-static inline void mdt_memset(void *buf, uint8_t value, uint32_t len)
-{
-    uint8_t *p = (uint8_t *)buf;
-
-    while (len--)
-    {
-        *p++ = value;
-    }
-}
-
-static volatile mdt_event_t pending_event = { 0 };
+static mdt_event_t pending_event = { 0 };
 
 /* Event handling functions */
 
@@ -46,7 +36,8 @@ void mdt_event_set(
 
 static inline void mdt_event_clear(void)
 {
-    pending_event = (mdt_event_t){ 0 };
+    /* The other fields don't need clearing because are set before pending*/
+    pending_event.pending = 0;
 }
 
 uint8_t mdt_event_pending(void)
@@ -266,6 +257,7 @@ static void mdt_process_byte(uint8_t byte)
         mdt_handle_packet(&rx_packet);
 }
 
+#if MDT_FEATURE_UART_IDLE
 /* Drain the RX ring buffer: called from USART IDLE ISR on STM32 via PendSV.
  * Processes one byte at a time through mdt_process_byte.
  * Not used on AVR where mcu_mdt_poll() is called from the main loop. */
@@ -279,6 +271,7 @@ static void mdt_process_pending(void)
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
 }
+#endif
 
 void mcu_mdt_init(void)
 {
