@@ -1,6 +1,7 @@
 #include "mcu_mdt_breakpoints.h"
 #include "mcu_mdt.h"
 #include "mcu_mdt_private.h"
+#include "mcu_mdt_hal.h"
 
 static mdt_breakpoint_state_t bp_state = {0};
 
@@ -13,20 +14,40 @@ void mdt_breakpoint_trigger(uint8_t id)
     if (!bp_state.slots[id].enabled)
         return;
 
-    mdt_event_wrapper(
-        id,                             /* seq = breakpoint ID */
+    mdt_event_set(
+        id,                                 /* seq = breakpoint ID */
         INTERNAL_MDT_EVENT_BREAKPOINT_HIT,  /* mem_id = event type */
-        0,                              /* address */
-        0,                              /* length */
-        bp_state.slots[id].hit_count    /* data */
+        0,                                  /* address */
+        0,                                  /* length */
+        bp_state.slots[id].hit_count        /* data = hit count */
     );
 
     bp_state.slots[id].hit_count++;
 
-    /* Cooperative loop: MCU can still service PC commands */
+#if MDT_FEATURE_UART_IDLE
+    /* STM32 interrupt mode — PendSV handles all RX automatically.
+     * Spin here: flush the pending event, sample watchpoints, and
+     * wait for the PC to send NEXT or DISABLE. */
+    while (__builtin_expect(bp_state.slots[id].enabled, INTERNAL_MDT_BP_ENABLE))
+    {
+        if (mdt_event_pending() && hal_uart_tx_empty())
+            mdt_event_send();
+
+        mcu_mdt_watchpoint_check();
+
+        if (bp_state.slots[id].next)
+        {
+            bp_state.slots[id].next = INTERNAL_MDT_BP_DISABLE;
+            break;
+        }
+    }
+#else
+    /* Poll mode (AVR) — must service RX manually in the spin loop.
+     * mcu_mdt_poll() flushes the pending event and drains the RX buffer. */
     while (__builtin_expect(bp_state.slots[id].enabled, INTERNAL_MDT_BP_ENABLE))
     {
         mcu_mdt_poll();
+
         if (bp_state.slots[id].next)
         {
             bp_state.slots[id].next = INTERNAL_MDT_BP_DISABLE;
@@ -34,6 +55,7 @@ void mdt_breakpoint_trigger(uint8_t id)
         }
         /* TODO: watchdog timeout to avoid infinite loop if PC disconnects */
     }
+#endif
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_enable(uint8_t id)

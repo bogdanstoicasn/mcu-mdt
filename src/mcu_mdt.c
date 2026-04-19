@@ -25,7 +25,7 @@ static volatile mdt_event_t pending_event = { 0 };
 
 /* Event handling functions */
 
-static inline void mdt_event_set(
+void mdt_event_set(
     uint8_t seq,
     uint8_t mem_id,
     uint32_t address,
@@ -54,7 +54,7 @@ static inline void mdt_event_clear(void)
     pending_event.data       = 0;
 }
 
-static inline uint8_t mdt_event_pending(void)
+uint8_t mdt_event_pending(void)
 {
     return pending_event.pending;
 }
@@ -109,16 +109,6 @@ void mdt_event_send(void)
     mdt_event_clear();
 }
 
-void mdt_event_wrapper(
-    uint8_t seq,
-    uint8_t mem_id,
-    uint32_t address,
-    uint16_t length,
-    uint32_t data)
-{
-    mdt_event_set(seq, mem_id, address, length, data);
-}
-
 /* End of event handling functions */
 
 
@@ -146,7 +136,7 @@ static uint8_t mdt_buffer_guard(void)
     {
         mdt_buffer_reset(&rx_packet);
 
-        mdt_event_wrapper(
+        mdt_event_set(
             0,                                  /* seq */
             INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = event type */
             (uint32_t)(uintptr_t)&rx_packet,    /* address = buffer */
@@ -190,7 +180,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     {
         mdt_send_nack(pkt); /* Send NACK so PC knows to retransmit */
 
-        mdt_event_wrapper(
+        mdt_event_set(
             0,                               /* seq */
             INTERNAL_MDT_EVENT_FAILED_PACKET,/* mem_id = event type */
             (uint32_t)(uintptr_t)buf,        /* address = buffer address */
@@ -246,7 +236,7 @@ static void mdt_process_byte(uint8_t byte)
     {
         mdt_buffer_reset(&rx_packet);
 
-        mdt_event_wrapper(
+        mdt_event_set(
             0,                                  /* seq */
             INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = event type */
             (uint32_t)(uintptr_t)&rx_packet,    /* address = buffer */

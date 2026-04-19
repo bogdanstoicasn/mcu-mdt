@@ -39,11 +39,14 @@ typedef enum {
     /* TODO: Add more event types */
 } mdt_event_type_t;
 
-void mdt_event_wrapper(
+void mdt_event_set(
     uint8_t seq,
     uint8_t mem_id,
     uint32_t address,
     uint16_t length,
     uint32_t data);
+
+void mdt_event_send(void);
+uint8_t mdt_event_pending(void);
 
 #endif /* MCU_MDT_PRIVATE_H */
