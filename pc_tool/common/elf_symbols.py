@@ -114,10 +114,10 @@ def resolve_symbol(name: str, symbols: dict[str, SymbolInfo]) -> SymbolInfo | No
 
 def check_watchpoint_alignment(sym: SymbolInfo) -> None:
     """
-    Warn if the symbol is smaller than 4 bytes or at an unaligned address.
-    The MCU always reads 4 bytes — adjacent memory will be included in the
-    snapshot. The suggested MASK command is printed to help the user filter
-    only the relevant bits.
+    Warn if the symbol is smaller than 4 bytes — the MCU always reads 4 bytes
+    so adjacent variables will be included in the snapshot.
+    The suggested MASK command is printed to help the user filter only the
+    relevant bits.
     """
     if sym.size > 0 and sym.size < 4:
         type_str = {1: "uint8_t", 2: "uint16_t"}.get(sym.size, f"{sym.size}-byte")
@@ -125,12 +125,6 @@ def check_watchpoint_alignment(sym: SymbolInfo) -> None:
             f"'{sym.name}' is {type_str} at 0x{sym.address:08X}. "
             f"MCU reads 4 bytes — adjacent variables will be included. "
             f"Suggested: WATCHPOINT <id> MASK 0x{_size_to_mask(sym.size):08X}"
-        )
-
-    if sym.address % 4 != 0:
-        MDTLogger.warning(
-            f"'{sym.name}' is at unaligned address 0x{sym.address:08X}. "
-            f"4-byte read will cross into adjacent memory."
         )
 
 

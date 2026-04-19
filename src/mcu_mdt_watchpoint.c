@@ -4,6 +4,19 @@
 
 static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 
+/* Byte-by-byte 32-bit read
+ * Safe at any address on all targets.
+ * Avoids undefined behaviour from unaligned pointer casts
+ * Prevents hardware alignment faults on Cortex-M0 */
+static inline uint32_t mdt_read_u32(uint32_t address)
+{
+    const uint8_t *p = (const uint8_t *)(uintptr_t)address;
+    return (uint32_t)p[0]
+         | ((uint32_t)p[1] << 8)
+         | ((uint32_t)p[2] << 16)
+         | ((uint32_t)p[3] << 24);
+}
+
 void mcu_mdt_watchpoint_check(void)
 {
     if (!watchpoints_descriptor.active_mask)
@@ -16,7 +29,7 @@ void mcu_mdt_watchpoint_check(void)
     {
         if (mask & 1)
         {
-            uint32_t current = *((volatile uint32_t *)(uintptr_t)watchpoints_descriptor.slots[slot].address);
+            uint32_t current = mdt_read_u32(watchpoints_descriptor.slots[slot].address);
             if ((current & watchpoints_descriptor.slots[slot].mask) !=
                 (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
             {
@@ -39,7 +52,7 @@ void mcu_mdt_watchpoint_check(void)
 static inline void mdt_watchpoint_enable(uint8_t id, uint32_t address)
 {
     watchpoints_descriptor.slots[id].address  = address;
-    watchpoints_descriptor.slots[id].snapshot = *((volatile uint32_t *)(uintptr_t)address);
+    watchpoints_descriptor.slots[id].snapshot = mdt_read_u32(address);
     watchpoints_descriptor.slots[id].mask     = INTERNAL_MDT_DEFAULT_WP_MASK;
     watchpoints_descriptor.active_mask       |= (uint8_t)(1u << id);
 }

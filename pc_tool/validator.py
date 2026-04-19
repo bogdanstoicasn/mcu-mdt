@@ -410,10 +410,11 @@ def validate_watchpoint(operation: Command) -> bool:
             return False
         watched_addr = int.from_bytes(operation.data, byteorder="little")
         if watched_addr % 4 != 0:
-            MDTLogger.error(
-                f"Watch address 0x{watched_addr:X} is not 4-byte aligned.", code=3
+            MDTLogger.warning(
+                f"Watch address 0x{watched_addr:X} is not 4-byte aligned — "
+                f"adjacent bytes will be included in the 4-byte read. "
+                f"Use MASK to filter only the relevant bits."
             )
-            return False
 
     MDTLogger.info(f"Valid watchpoint: slot={operation.address} control={control.name}")
     return True
