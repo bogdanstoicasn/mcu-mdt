@@ -29,11 +29,13 @@ typedef struct {
 #define USART_CR1_UE (1U << 13)
 #define USART_CR1_RE (1U << 2)
 #define USART_CR1_TE (1U << 3)
+#define USART_CR1_IDLEIE  (1U << 4)
 #define USART_CR1_RXNEIE  (1U << 5)
 #define USART_CR1_TXEIE   (1U << 7)
 
-#define USART_SR_RXNE   (1U << 5)
 #define USART_SR_ORE    (1U << 3)
+#define USART_SR_IDLE   (1U << 4)
+#define USART_SR_RXNE   (1U << 5)
 #define USART_SR_TXE    (1U << 7)
 
 /* RCC */
@@ -82,6 +84,13 @@ typedef struct {
 /* NVIC */
 #define NVIC_ISER  ((volatile uint32_t *)0xE000E100)
 #define USART1_IRQ 37
+
+/* Cortex-M3 System Control Block — for PendSV */
+#define SCB_ICSR         (*((volatile uint32_t *)0xE000ED04UL))
+
+#define SCB_SHP3         (*((volatile uint32_t *)0xE000ED20UL))
+#define SCB_PENDSV_SET   (1U << 28)
+#define PENDSV_PRI_LOWEST (0xFFU << 16)  /* bits 23:16 of SHP[2] = PendSV pri */
 
 
 #endif

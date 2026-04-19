@@ -22,7 +22,7 @@ extern uint32_t _edata;   /* End   of .data in RAM                  */
 extern uint32_t _sbss;    /* Start of .bss  in RAM                  */
 extern uint32_t _ebss;    /* End   of .bss  in RAM                  */
 
-
+int main(void);
 void Reset_Handler(void) __attribute__((noreturn, naked));
 static void Default_Handler(void);
 

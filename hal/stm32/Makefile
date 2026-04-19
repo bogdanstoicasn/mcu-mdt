@@ -7,6 +7,8 @@ MCU_UPPER := $(shell echo $(MCU) | tr '[:lower:]' '[:upper:]')
 # Map STM32 chip family prefix -> Cortex-M core subdirectory
 ifneq ($(filter F0%,$(MCU_UPPER)),)
   CORE := cortex-m0
+else ifneq ($(filter F1%,$(MCU_UPPER)),)
+  CORE := cortex-m3
 else
   $(error "Unsupported STM32 MCU family: $(MCU)")
 endif

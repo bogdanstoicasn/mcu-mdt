@@ -1,6 +1,7 @@
 #include "mcu_mdt_hal.h"
 #include "uart.h"
 #include "commands.h"
+#include "mcu_mdt_config.h"
 
 void hal_uart_init(void)
 {
