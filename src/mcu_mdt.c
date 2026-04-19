@@ -46,12 +46,7 @@ void mdt_event_set(
 
 static inline void mdt_event_clear(void)
 {
-    pending_event.pending    = 0;
-    pending_event.seq        = 0;
-    pending_event.mem_id     = 0;
-    pending_event.address    = 0;
-    pending_event.length     = 0;
-    pending_event.data       = 0;
+    pending_event = (mdt_event_t){ 0 };
 }
 
 uint8_t mdt_event_pending(void)
@@ -66,8 +61,6 @@ void mdt_event_send(void)
 
     uint8_t pkt[MDT_PACKET_SIZE];
     uint16_t crc;
-
-    mdt_memset(pkt, 0, MDT_PACKET_SIZE);
 
     pkt[MDT_OFFSET_START] = MDT_START_BYTE;
 
@@ -99,7 +92,7 @@ void mdt_event_send(void)
 
     crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
-        MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
+        MDT_CRC_COVER_LEN  /* exclude START, CRC, END */
     );
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
@@ -123,9 +116,13 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
 {
     buffer->idx     = 0;
     buffer->started = 0;
-    mdt_memset(buffer->buf, 0, MDT_PACKET_SIZE);
+
     buffer->fence_pre  = MDT_FENCE_PATTERN;
     buffer->fence_post = MDT_FENCE_PATTERN;
+
+    uint8_t *p = buffer->buf;
+    uint8_t  n = MDT_PACKET_SIZE;
+    while (n--) *p++ = 0;
 }
 
 /* Shared guard: fence check + overflow check.
@@ -153,21 +150,36 @@ static uint8_t mdt_buffer_guard(void)
 static void mdt_send_nack(const uint8_t *buf)
 {
     uint8_t pkt[MDT_PACKET_SIZE];
-
-    mdt_memset(pkt, 0, MDT_PACKET_SIZE);
-
-    pkt[MDT_OFFSET_START] = MDT_START_BYTE;
-    pkt[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_ACK_NACK | INTERNAL_MDT_FLAG_STATUS_ERROR;
-    pkt[MDT_OFFSET_SEQ]   = buf[MDT_OFFSET_SEQ];
-    pkt[MDT_OFFSET_END]   = MDT_END_BYTE;
-
+ 
+    pkt[MDT_OFFSET_START]  = MDT_START_BYTE;
+    pkt[MDT_OFFSET_CMD_ID] = buf[MDT_OFFSET_CMD_ID];
+    pkt[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_ACK_NACK | INTERNAL_MDT_FLAG_STATUS_ERROR;
+    pkt[MDT_OFFSET_SEQ]    = buf[MDT_OFFSET_SEQ];
+    pkt[MDT_OFFSET_MEM_ID] = 0;
+ 
+    pkt[MDT_OFFSET_ADDRESS]     = 0;
+    pkt[MDT_OFFSET_ADDRESS + 1] = 0;
+    pkt[MDT_OFFSET_ADDRESS + 2] = 0;
+    pkt[MDT_OFFSET_ADDRESS + 3] = 0;
+ 
+    pkt[MDT_OFFSET_LENGTH]      = 0;
+    pkt[MDT_OFFSET_LENGTH + 1]  = 0;
+ 
+    pkt[MDT_OFFSET_DATA]        = 0;
+    pkt[MDT_OFFSET_DATA + 1]    = 0;
+    pkt[MDT_OFFSET_DATA + 2]    = 0;
+    pkt[MDT_OFFSET_DATA + 3]    = 0;
+ 
     uint16_t crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
-        MDT_PACKET_SIZE - 1 - 2 - 1  /* exclude START, CRC, END */
+        MDT_CRC_COVER_LEN  /* exclude START, CRC, END */
     );
+
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
-
+ 
+    pkt[MDT_OFFSET_END] = MDT_END_BYTE;
+ 
     hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 }
 
@@ -203,7 +215,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     /* Recalculate CRC */
     uint16_t crc = mdt_crc16(
         &pkt[MDT_OFFSET_CMD_ID],
-        MDT_PACKET_SIZE - 1 - 2 - 1
+        MDT_CRC_COVER_LEN
     );
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
@@ -234,7 +246,6 @@ static void mdt_process_byte(uint8_t byte)
     /* Prevent buffer overflow */
     if (rx_packet.idx >= MDT_PACKET_SIZE)
     {
-        mdt_buffer_reset(&rx_packet);
 
         mdt_event_set(
             0,                                  /* seq */
@@ -243,6 +254,8 @@ static void mdt_process_byte(uint8_t byte)
             MDT_PACKET_SIZE,                    /* length = capacity */
             rx_packet.idx                       /* data = overflow index */
         );
+
+        mdt_buffer_reset(&rx_packet);
 
         return;
     }

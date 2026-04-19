@@ -29,6 +29,6 @@ typedef void (*mdt_breakpoint_handler_t)(uint8_t id);
 void mdt_breakpoint_trigger(uint8_t id);
 
 /* Dispatch function for breakpoint control commands */
-uint8_t mdt_breakpoint_dispatch(uint8_t cmd_id, uint32_t id);
+uint8_t mdt_breakpoint_dispatch(uint8_t control, uint32_t id);
 
 #endif /* MCU_MDT_BREAKPOINTS_H */

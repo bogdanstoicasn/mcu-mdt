@@ -60,6 +60,9 @@ typedef struct {
     uint16_t crc;    /* CRC16 */
 } mdt_packet_t;
 
+/* Number of bytes covered by the CRC (excludes START, CRC itself, END) */
+#define MDT_CRC_COVER_LEN  (MDT_PACKET_SIZE - 1 - 2 - 1)
+
 /* Command handler define */
 typedef uint8_t (*mdt_cmd_handler_t)(uint8_t *buf);
 

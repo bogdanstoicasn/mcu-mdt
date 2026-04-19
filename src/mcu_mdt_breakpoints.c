@@ -88,15 +88,15 @@ static const mdt_breakpoint_handler_t bkp_handlers[] = {
     [INTERNAL_MDT_BP_NEXT]    = mdt_breakpoint_next,
 };
 
-uint8_t mdt_breakpoint_dispatch(uint8_t cmd_id, uint32_t id)
+uint8_t mdt_breakpoint_dispatch(uint8_t control, uint32_t id)
 {
     if (id >= MDT_MAX_BREAKPOINTS)
         return 0;
 
-    if (cmd_id >= sizeof(bkp_handlers) / sizeof(bkp_handlers[0]))
+    if (control >= sizeof(bkp_handlers) / sizeof(bkp_handlers[0]))
         return 0;
-    
-    bkp_handlers[cmd_id]((uint8_t)id);
+
+    bkp_handlers[control]((uint8_t)id);
 
     return 1;
 }

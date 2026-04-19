@@ -41,22 +41,43 @@ def event_listener(serial_link):
             if pkt is None:
                 continue
 
-            event_type = pkt[MDTOffset.MEM_ID]
-            event_id   = pkt[MDTOffset.SEQ]
+            event_type = pkt[MDTOffset.MEM_ID]   # mem_id encodes the event type
+            slot_id    = pkt[MDTOffset.SEQ]       # seq encodes the BP/WP slot ID
 
-            event_data = int.from_bytes(
+            address = int.from_bytes(
+                pkt[MDTOffset.ADDRESS:MDTOffset.ADDRESS + 4],
+                byteorder='little'
+            )
+            length = int.from_bytes(
+                pkt[MDTOffset.LENGTH:MDTOffset.LENGTH + 2],
+                byteorder='little'
+            )
+            data = int.from_bytes(
                 pkt[MDTOffset.DATA:MDTOffset.DATA + 4],
                 byteorder='little'
             )
 
-            # Clear the current line (erases dangling "> " prompt), print event, reprint prompt
             sys.stdout.write("\r\033[K")
             sys.stdout.flush()
 
-            MDTLogger.info(
-                f"[Event] {EventType(event_type).name} "
-                f"(id={event_id}, data=0x{event_data:08X})"
-            )
+            ev = EventType(event_type)
+
+            if ev == EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT:
+                MDTLogger.info(
+                    f"[Event] {ev.name} "
+                    f"(slot={slot_id}, hit_count={data})"
+                )
+            elif ev == EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT:
+                MDTLogger.info(
+                    f"[Event] {ev.name} "
+                    f"(slot={slot_id}, old=0x{address:08X}, new=0x{data:08X}, width={length})"
+                )
+            else:
+                # Generic fallback for BUFFER_OVERFLOW, FAILED_PACKET, future types
+                MDTLogger.info(
+                    f"[Event] {ev.name} "
+                    f"(slot={slot_id}, address=0x{address:08X}, length={length}, data=0x{data:08X})"
+                )
 
             sys.stdout.write("> ")
             sys.stdout.flush()
