@@ -38,10 +38,5 @@ typedef struct {
 #define FLASH_KEY1  0x45670123
 #define FLASH_KEY2  0xCDEF89AB
 
-/* End of Flash zone */
-
-uint8_t read_memory(uint8_t mem_zone, uint32_t address, uint8_t *buffer, uint16_t length);
-
-uint8_t write_memory(uint8_t mem_zone, uint32_t address, const uint8_t *buffer, uint16_t length);
 
 #endif /* COMMANDS_H */
