@@ -69,6 +69,10 @@ else ifeq ($(MCU_NORM),F103xD)
   MCU_LD_DEFINE := -DMCU_F103xD
 else ifeq ($(MCU_NORM),F103xE)
   MCU_LD_DEFINE := -DMCU_F103xE
+else ifeq ($(MCU_NORM),F103xF)
+  MCU_LD_DEFINE := -DMCU_F103xF
+else ifeq ($(MCU_NORM),F103xG)
+  MCU_LD_DEFINE := -DMCU_F103xG
 else
   $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m3/Makefile)
 endif
@@ -84,6 +88,7 @@ CFLAGS  += -ffunction-sections
 CFLAGS  += -fdata-sections
 CFLAGS  += -ffreestanding -nostdlib
 CFLAGS  += -MMD -MP
+CFLAGS  += -I$(INC_DIR)
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32

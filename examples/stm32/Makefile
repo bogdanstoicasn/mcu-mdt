@@ -1,12 +1,14 @@
 # ===== MCU MDT Example Makefile =====
 # Drop this in your project directory alongside main.c (or any .c files)
-# Usage: make MCU=F030F4 PORT=/dev/ttyUSB0
+# Usage:
+#   make MCU=F103C8 PORT=/dev/ttyACM0          # Cortex-M3 (Blue Pill)
+#   make MCU=F030F4 PORT=/dev/ttyUSB0           # Cortex-M0
 
 # ── User configuration ──
 
-MCU   ?= F030F4
-PORT  ?= /dev/ttyUSB0
-F_CPU ?= 48000000UL
+MCU   ?= F103C8
+PORT  ?= /dev/ttyACM0
+F_CPU ?= 8000000UL
 
 # Add your own source files here, or leave as wildcard to grab all .c in this dir
 USER_SRCS := $(wildcard *.c)
@@ -17,11 +19,24 @@ CC      := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
 SIZE    := arm-none-eabi-size
 
+# MCU family detection (mirrors hal/stm32/Makefile router)
+
+MCU_UPPER := $(shell echo $(MCU) | tr '[:lower:]' '[:upper:]')
+
+ifneq ($(filter F0%,$(MCU_UPPER)),)
+  CPU_FLAGS := -mcpu=cortex-m0 -mthumb
+  STARTUP   := startup_stm32f030xx.c
+else ifneq ($(filter F1%,$(MCU_UPPER)),)
+  CPU_FLAGS := -mcpu=cortex-m3 -mthumb
+  STARTUP   := startup_stm32f103xx.c
+else
+  $(error Unsupported MCU family '$(MCU)'. Supported: F0xx (Cortex-M0), F1xx (Cortex-M3))
+endif
+
 # Paths
 
 LIB           := libmcu_mdt_stm32.a
 LINKER_SCRIPT := linker.ld
-STARTUP       := startup_stm32f030xx.c
 
 # Output
 
@@ -30,8 +45,6 @@ BIN := mcu_mdt_user.bin
 HEX := mcu_mdt_user.hex
 
 # Flags
-
-CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
 CFLAGS  := $(CPU_FLAGS)
 CFLAGS  += -Wall -Wextra -Os
@@ -46,7 +59,6 @@ LDFLAGS := $(CPU_FLAGS)
 LDFLAGS += -T$(LINKER_SCRIPT)
 LDFLAGS += -Wl,--gc-sections
 LDFLAGS += -nostdlib
-LDFLAGS += -DMCU=$(MCU)
 
 # Object files
 

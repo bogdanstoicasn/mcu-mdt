@@ -46,6 +46,10 @@ void uart_init(uint32_t baudrate)
 
     /* Enable NVIC for USART1 */
     NVIC_ISER[USART1_IRQ / 32] = 1U << (USART1_IRQ % 32);
+
+#if MDT_FEATURE_UART_IDLE
+    SCB_SHP3 |= PENDSV_PRI_LOWEST;
+#endif
 }
 
 uint8_t uart_putc(uint8_t data)
