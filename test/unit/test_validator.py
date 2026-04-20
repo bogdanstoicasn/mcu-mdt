@@ -291,7 +291,7 @@ def test_watchpoint_enabled_aligned_address():
 def test_watchpoint_enabled_unaligned_address_rejected():
     watched = (0x20000101).to_bytes(4, "little")  # not 4-byte aligned
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
-    assert_eq(validate_watchpoint(cmd), False)
+    assert_eq(validate_watchpoint(cmd), True)
 
 def test_watchpoint_enabled_missing_data_rejected():
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=None)

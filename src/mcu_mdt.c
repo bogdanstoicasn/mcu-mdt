@@ -143,7 +143,7 @@ static void mdt_send_nack(const uint8_t *buf)
     uint8_t pkt[MDT_PACKET_SIZE];
  
     pkt[MDT_OFFSET_START]  = MDT_START_BYTE;
-    pkt[MDT_OFFSET_CMD_ID] = buf[MDT_OFFSET_CMD_ID];
+    pkt[MDT_OFFSET_CMD_ID] = 0;
     pkt[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_ACK_NACK | INTERNAL_MDT_FLAG_STATUS_ERROR;
     pkt[MDT_OFFSET_SEQ]    = buf[MDT_OFFSET_SEQ];
     pkt[MDT_OFFSET_MEM_ID] = 0;
