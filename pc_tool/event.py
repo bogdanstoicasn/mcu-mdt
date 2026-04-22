@@ -1,7 +1,12 @@
 import sys
+import time
 import threading
 from pc_tool.common.enums import MDTFlags, MDTOffset, EventType
+from pc_tool.common.protocol import serialize_command_packet
+from pc_tool.common.dataclasses import Command
 from pc_tool.common.logger import MDTLogger
+
+EVENT_POLL_INTERVAL = 0.5  # seconds
 
 
 def rx_worker(serial_link):
@@ -17,10 +22,13 @@ def rx_worker(serial_link):
             if pkt is None:
                 continue
 
-            flags = pkt[MDTOffset.FLAGS]
+            flags  = pkt[MDTOffset.FLAGS]
+            cmd_id = pkt[MDTOffset.CMD_ID]
 
-            if flags & MDTFlags.EVENT_PACKET and pkt[MDTOffset.CMD_ID] == 0:
+            if cmd_id == 0 and (flags & MDTFlags.EVENT_PACKET):
                 serial_link.push_back_event_packet(pkt)
+            elif cmd_id == 0 and not (flags & MDTFlags.EVENT_PACKET):
+                pass  # plain poll ACK — no event pending, discard silently
             else:
                 serial_link.push_back_packet(pkt)
 
@@ -87,7 +95,33 @@ def event_listener(serial_link):
                 MDTLogger.error(f"\n[Event Listener Error] {e}\n> ", code=5)
 
 
-def start_async_handlers(serial_link):
+def event_poll_worker(serial_link):
+    """
+    Sends a CMD_ID=0 poll packet every EVENT_POLL_INTERVAL seconds.
+    The MCU fills the response with any pending event data and sets FLAG_EVENT
+    if one is present. rx_worker routes that response to the event queue.
+    No response is consumed here — sending is fire-and-forget.
+    """
+    poll_command = Command(
+        name="POLL",
+        id=0x00,
+        mem=None,
+        address=0,
+        data=None
+    )
+    poll_packet = serialize_command_packet(poll_command, seq=0, multi=False, last=False)
+
+    while serial_link.running:
+        try:
+            serial_link.send_packet(poll_packet)
+        except Exception as e:
+            if serial_link.running:
+                MDTLogger.error(f"\n[Poll Worker Error] {e}\n> ", code=5)
+
+        time.sleep(EVENT_POLL_INTERVAL)
+
+
+def start_async_handlers(serial_link, uart_idle: bool = False):
     """
     Starts RX worker and event listener threads.
     """
@@ -107,4 +141,18 @@ def start_async_handlers(serial_link):
     rx_thread.start()
     event_thread.start()
 
-    return rx_thread, event_thread
+    threads = [rx_thread, event_thread]
+
+    if uart_idle:
+        poll_thread = threading.Thread(
+            target=event_poll_worker,
+            args=(serial_link,),
+            daemon=True
+        )
+        poll_thread.start()
+        threads.append(poll_thread)
+        MDTLogger.info("UART idle interrupt mode — event poll thread started.")
+    else:
+        MDTLogger.info("Poll mode — MCU drains events via mcu_mdt_poll(), no event poll thread needed.")
+
+    return threads

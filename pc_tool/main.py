@@ -32,7 +32,10 @@ def setup(build_info_path: str):
         MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
 
-    threads = start_async_handlers(serial_link)
+    threads = start_async_handlers(
+        serial_link,
+        uart_idle=bool(loader.yaml_build_data.get('uart_idle', False))
+    )
 
     return loader, serial_link, threads
 

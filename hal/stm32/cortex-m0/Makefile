@@ -82,7 +82,12 @@ CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32
+
+# MDT_USE_UART_IDLE: default 1 on this target (hardware supports IDLE interrupt).
+# Override with: make MDT_USE_UART_IDLE=0 to use poll mode instead.
+MDT_USE_UART_IDLE ?= 1
 CFLAGS  += -DMDT_HAL_HAS_UART_IDLE=1
+CFLAGS  += -DMDT_USE_UART_IDLE=$(MDT_USE_UART_IDLE)
 CFLAGS  += -DF_CPU=$(F_CPU)
 
 # Linker flags: use preprocessed linker script
@@ -165,11 +170,12 @@ build_example: $(EXAMPLE_OBJ) $(LIB_PATH) $(LINKER_SCRIPT_PP)
 
 # Build info
 $(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
-	@echo "platform: STM32"   > $@
-	@echo "core: cortex-m0"  >> $@
-	@echo "mcu: $(MCU)"      >> $@
-	@echo "port: $(PORT)"    >> $@
-	@echo "elf: $(ELF_NAME)" >> $@
+	@echo "platform: STM32"                          > $@
+	@echo "core: cortex-m0"                         >> $@
+	@echo "mcu: $(MCU)"                             >> $@
+	@echo "port: $(PORT)"                           >> $@
+	@echo "elf: $(ELF_NAME)"                        >> $@
+	@echo "uart_idle: $(MDT_USE_UART_IDLE)"         >> $@
 
 flash: all
 	@test -f $(EXAMPLE_BIN) || \
