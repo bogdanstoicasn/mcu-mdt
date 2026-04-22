@@ -1,6 +1,5 @@
 #include "mcu_mdt_watchpoint.h"
-#include "mcu_mdt_private.h"
-#include "mcu_mdt.h"
+#include "mcu_mdt_event.h"
 
 static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 

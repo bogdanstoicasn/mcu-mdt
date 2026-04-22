@@ -27,4 +27,7 @@ typedef enum {
 /* Dispatch function for watchpoint control commands */
 uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address);
 
+/* Check for change in watchpoitns */
+void mcu_mdt_watchpoint_check(void);
+
 #endif

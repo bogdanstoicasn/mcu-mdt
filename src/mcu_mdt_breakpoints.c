@@ -1,7 +1,6 @@
 #include "mcu_mdt_breakpoints.h"
+#include "mcu_mdt_event.h"
 #include "mcu_mdt.h"
-#include "mcu_mdt_private.h"
-#include "mcu_mdt_hal.h"
 
 static mdt_breakpoint_state_t bp_state = {0};
 
@@ -29,10 +28,6 @@ void mdt_breakpoint_trigger(uint8_t id)
      * wait for the PC to send NEXT or DISABLE. */
     while (__builtin_expect(bp_state.slots[id].enabled, INTERNAL_MDT_BP_ENABLE))
     {
-        if (mdt_event_pending() && hal_uart_tx_empty())
-            mdt_event_send();
-
-        mcu_mdt_watchpoint_check();
 
         if (bp_state.slots[id].next)
         {

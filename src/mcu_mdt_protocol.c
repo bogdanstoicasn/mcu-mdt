@@ -1,7 +1,8 @@
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_event.h"
 #include "mcu_mdt_breakpoints.h"
 #include "mcu_mdt_watchpoint.h"
-#include "mcu_mdt_private.h"
+#include "mcu_mdt_protocol.h"
 
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
@@ -58,6 +59,7 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
 static uint8_t handle_reserved(uint8_t *buf)
 {
 #if MDT_FEATURE_UART_IDLE
+    mcu_mdt_watchpoint_check();
     return mdt_event_fill_buf(buf);
 #else
     (void)buf;
