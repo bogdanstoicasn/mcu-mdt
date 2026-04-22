@@ -48,5 +48,6 @@ void mdt_event_set(
 
 void mdt_event_send(void);
 uint8_t mdt_event_pending(void);
+uint8_t mdt_event_fill_buf(uint8_t *buf);
 
 #endif /* MCU_MDT_PRIVATE_H */

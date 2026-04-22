@@ -1,0 +1,20 @@
+# STM32F030F4 (mcu_mdt example)
+# Connect with: nc localhost 3456
+
+mach create
+machine LoadPlatformDescription @platforms/cpus/stm32f0.repl
+
+# STM32F030F4 specifics: 16KB flash, 4KB SRAM
+machine LoadPlatformDescriptionFromString "flash: Memory.MappedMemory @ sysbus 0x08000000 { size: 0x4000 }"
+machine LoadPlatformDescriptionFromString "sram: Memory.MappedMemory @ sysbus 0x20000000 { size: 0x1000 }"
+
+sysbus LoadELF @build/F030F4/mcu_mdt_example.elf
+
+# Expose USART1 as a raw TCP socket on port 3456
+# 'false' disables the telnet negotiation bytes(important for binary protocols)
+emulation CreateServerSocketTerminal 3456 "uart_term" false
+connector Connect sysbus.usart1 uart_term
+
+machine StartGdbServer 3333 true
+
+start

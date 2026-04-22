@@ -28,22 +28,32 @@ class MCUSerialLink:
     def open(self):
         if self.ser is not None and self.ser.is_open:
             return
-        
-        self.ser = serial.Serial(
-            self.port,
-            self.baudrate,
-            timeout=self.timeout,
-            xonxoff=False,
-            rtscts=False,
-            dsrdtr=False
-        )
+
+        if self.port.startswith("socket://"):
+            self.ser = serial.serial_for_url(
+                self.port,
+                baudrate=self.baudrate,
+                timeout=self.timeout,
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False
+            )
+        else:
+            self.ser = serial.Serial(
+                self.port,
+                self.baudrate,
+                timeout=self.timeout,
+                xonxoff=False,
+                rtscts=False,
+                dsrdtr=False
+            )
 
         if self.reset_delay > 0:
             time.sleep(self.reset_delay)
-        
+
         if self.startup_ping:
             self._synch_with_mcu()
-    
+ 
     def close(self):
         self.running = False
         if self.ser:

@@ -271,6 +271,34 @@ static void mdt_process_pending(void)
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
 }
+
+uint8_t mdt_event_fill_buf(uint8_t *buf)
+{
+    mcu_mdt_watchpoint_check();
+
+    if (!mdt_event_pending())
+        return 1; /* no event — clean ACK, no payload */
+
+    buf[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_EVENT;
+    buf[MDT_OFFSET_SEQ]    = pending_event.seq;
+    buf[MDT_OFFSET_MEM_ID] = pending_event.mem_id;
+
+    buf[MDT_OFFSET_ADDRESS]     = (uint8_t)(pending_event.address & 0xFF);
+    buf[MDT_OFFSET_ADDRESS + 1] = (uint8_t)((pending_event.address >> 8)  & 0xFF);
+    buf[MDT_OFFSET_ADDRESS + 2] = (uint8_t)((pending_event.address >> 16) & 0xFF);
+    buf[MDT_OFFSET_ADDRESS + 3] = (uint8_t)((pending_event.address >> 24) & 0xFF);
+
+    buf[MDT_OFFSET_LENGTH]     = (uint8_t)(pending_event.length & 0xFF);
+    buf[MDT_OFFSET_LENGTH + 1] = (uint8_t)((pending_event.length >> 8)  & 0xFF);
+
+    buf[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data & 0xFF);
+    buf[MDT_OFFSET_DATA + 1] = (uint8_t)((pending_event.data >> 8)  & 0xFF);
+    buf[MDT_OFFSET_DATA + 2] = (uint8_t)((pending_event.data >> 16) & 0xFF);
+    buf[MDT_OFFSET_DATA + 3] = (uint8_t)((pending_event.data >> 24) & 0xFF);
+
+    mdt_event_clear();
+    return 1;
+}
 #endif
 
 void mcu_mdt_init(void)
