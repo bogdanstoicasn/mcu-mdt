@@ -26,10 +26,14 @@ def rx_worker(serial_link):
             cmd_id = pkt[MDTOffset.CMD_ID]
 
             if cmd_id == 0 and (flags & MDTFlags.EVENT_PACKET):
+                # Event response to a poll packet, push to event queue
                 serial_link.push_back_event_packet(pkt)
-            elif cmd_id == 0 and not (flags & MDTFlags.EVENT_PACKET):
-                pass  # plain poll ACK — no event pending, discard silently
+            elif cmd_id == 0 and (flags & MDTFlags.ACK_NACK) and not (flags & MDTFlags.STATUS_ERROR):
+                # Clean poll ACK, discard silently
+                pass
             else:
+                # Everything else (NACKs, normal command responses) goes to
+                # the response queue for the caller waiting on get_response_packet().
                 serial_link.push_back_packet(pkt)
 
         except Exception as e:
