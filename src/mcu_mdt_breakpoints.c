@@ -47,9 +47,11 @@ void mdt_breakpoint_trigger(uint8_t id)
             bp_state.slots[id].next = INTERNAL_MDT_BP_DISABLE;
             break;
         }
-        /* TODO: watchdog timeout to avoid infinite loop if PC disconnects */
     }
 #endif
+    /* NOTE: If the PC disconnects while a breakpoint is active the MCU
+         * will spin here indefinitely. A hardware-independent timeout is not
+         * implemented in v1.0. To recover, reset the MCU. */
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_enable(uint8_t id)

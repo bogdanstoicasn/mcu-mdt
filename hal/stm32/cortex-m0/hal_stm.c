@@ -159,6 +159,17 @@ void hal_uart_set_idle_callback(void (*cb)(void))
 #endif
 }
 
+void hal_reset(void)
+{
+    /* Drain TX ring buffer so the ACK packet is fully sent before reset */
+    while (!rb_is_empty(&tx_buffer));
+ 
+    /* Request system reset via AIRCR — works on Cortex-M0 and M3/M4 */
+    *((volatile uint32_t *)0xE000ED0C) = 0x05FA0004;
+ 
+    while (1); /* unreachable — suppress noreturn warning */
+}
+
 
 /* Flash helpers — private to this file */
 

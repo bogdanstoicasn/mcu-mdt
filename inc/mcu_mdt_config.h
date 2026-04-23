@@ -36,22 +36,13 @@ typedef enum {
     #define NULL ((void *)0)
 #endif
 
-/* MDT_USE_UART_IDLE: user preference (default: enabled when hw supports it).
- * Set to 0 in your Makefile (-DMDT_USE_UART_IDLE=0) to disable IDLE-interrupt
- * driven processing and use mcu_mdt_poll() from your main loop instead.
- * Useful on STM32 if your application uses HAL_Delay() or other blocking calls
- * that prevent timely polling — in that case leave this at 1 (default).
- * Has no effect on AVR: the hardware has no UART IDLE interrupt. */
-#ifndef MDT_USE_UART_IDLE
-#define MDT_USE_UART_IDLE 1
-#endif
- 
-/* MDT_HAL_HAS_UART_IDLE: set by the HAL Makefile when the hardware supports
- * a UART IDLE interrupt. Do not define this yourself. */
-#if defined(MDT_HAL_HAS_UART_IDLE) && MDT_USE_UART_IDLE
-#define MDT_FEATURE_UART_IDLE 1
-#else
-#define MDT_FEATURE_UART_IDLE 0
+/* MDT_FEATURE_UART_IDLE: set by the HAL Makefile.
+ * 1 = interrupt-driven (STM32 default), 0 = poll mode.
+ * Override with: make MDT_USE_UART_IDLE=0
+ * AVR always sets this to 0 — no UART IDLE hardware support. */
+#ifndef MDT_FEATURE_UART_IDLE
+    #error "MDT_FEATURE_UART_IDLE must be defined by the build system. \
+See hal/stm32/cortex-m0/Makefile or hal/avr/Makefile."
 #endif
 
 

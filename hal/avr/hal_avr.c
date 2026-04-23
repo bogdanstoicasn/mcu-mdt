@@ -18,6 +18,7 @@
 #include <avr/interrupt.h>
 #include <avr/pgmspace.h>
 #include <avr/eeprom.h>
+#include <avr/wdt.h>
 
 /*  Ring buffers */
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
@@ -111,6 +112,16 @@ uint8_t hal_uart_rx_overflow(void)
         return 1;
     }
     return 0;
+}
+
+void hal_reset(void)
+{
+    /* Drain TX ring buffer so the ACK packet is fully sent before reset */
+    while (!rb_is_empty(&tx_buffer));
+ 
+    /* Trigger a watchdog reset — shortest timeout available (15 ms) */
+    wdt_enable(WDTO_15MS);
+    while (1);
 }
 
 

@@ -93,5 +93,12 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buffer);
  */
 void hal_uart_set_idle_callback(void (*cb)(void));
 
+/**
+ * @brief Perform a hardware reset of the MCU.
+ *        Waits for the TX ring buffer to drain so the ACK packet is sent
+ *        before the reset fires. Does not return.
+ */
+void hal_reset(void);
+
 
 #endif /* MCU_MDT_HAL_H */

@@ -46,6 +46,10 @@ CFLAGS  += -I$(HAL_DIR)
 CFLAGS  += -DF_CPU=$(F_CPU)
 CFLAGS  += -DPLATFORM_AVR
 
+# Interrupt flag, hardcoded to 0 (poll mode) since AVR UART doesn't support IDLE interrupt
+MDT_USE_UART_IDLE = 0
+CFLAGS += -DMDT_FEATURE_UART_IDLE=$(MDT_USE_UART_IDLE)
+
 # Linker flags
 LDFLAGS  := -mmcu=$(MCU)
 LDFLAGS  += -Wl,--gc-sections

@@ -26,6 +26,8 @@ static mdt_buffer_t rx_packet = {
     .fence_post = MDT_FENCE_PATTERN
 };
 
+uint8_t pending_reset = 0;
+
 /* Buffer helpers */
 
 static inline uint8_t mdt_buffer_check(const mdt_buffer_t *buffer)
@@ -134,6 +136,10 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 
     mdt_buffer_reset(buf);
+
+    if (pending_reset)
+        hal_reset(); /* drains TX then resets — does not return */
+
     return 1;
 }
 

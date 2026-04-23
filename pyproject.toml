@@ -8,53 +8,30 @@ version = "0.0.1"
 description = "Debugger for embedded microcontrollers"
 readme = "README.md"
 requires-python = ">=3.10"
-authors = [
-    { name = "Mihai-Bogdan Stoica" }
-]
+authors = [{ name = "Mihai-Bogdan Stoica" }]
 license = { text = "MIT" }
+dependencies = ["pyserial", "pyyaml"]
 
-dependencies = [
-    "pyserial",
-    "pyyaml",
-]
-
-# Optional CLI entry point (VERY useful)
 [project.scripts]
 mcu-mdt = "pc_tool.main:main"
 
-# SETUPTOOLS CONFIG
-[tool.setuptools]
-packages = ["pc_tool"]
-
-# If later add subpackages automatically:
-# [tool.setuptools.packages.find]
-# where = ["."]
-# include = ["pc_tool*"]
-
-# DEV DEPENDENCIES
 [project.optional-dependencies]
-dev = [
-    "pytest",
-    "pytest-cov",
-    "ruff",
-]
+dev = ["pytest", "pytest-cov", "ruff"]
 
-# PYTEST CONFIG
+[tool.setuptools.packages.find]
+include = ["pc_tool*"]
+
 [tool.pytest.ini_options]
 testpaths = ["test"]
 addopts = "-v"
-markers = [
-    "hw: hardware tests (require MCU + UART)",
-]
+markers = ["hw: hardware tests (require MCU + UART)"]
 
-# RUFF (LINTER)
 [tool.ruff]
 line-length = 100
 select = ["E", "F", "W", "C90", "N", "B", "I", "Q000", "S"]
 ignore = ["E501"]
-exclude = ["build/", "dist/", ".venv/", "plan.txt"]
+exclude = ["build/", "dist/", ".venv/"]
 
-# Optional but recommended
 [tool.ruff.lint.isort]
 known-first-party = ["pc_tool"]
 

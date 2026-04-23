@@ -1,4 +1,5 @@
 import sys
+import os
 import time
 import threading
 from pc_tool.common.enums import MDTFlags, MDTOffset, EventType
@@ -36,6 +37,13 @@ def rx_worker(serial_link):
                 # the response queue for the caller waiting on get_response_packet().
                 serial_link.push_back_packet(pkt)
 
+        except OSError as e:
+            if e.errno == 5:  # EIO — USB-serial adapter disconnected
+                MDTLogger.error("\nBoard disconnected. Exiting.")
+                serial_link.running = False
+                os._exit(1)
+            if serial_link.running:
+                MDTLogger.error(f"\n[RX Worker Error] {e}\n> ", code=5)
         except Exception as e:
             if serial_link.running:
                 MDTLogger.error(f"\n[RX Worker Error] {e}\n> ", code=5)

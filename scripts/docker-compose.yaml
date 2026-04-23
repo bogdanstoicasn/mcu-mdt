@@ -1,0 +1,64 @@
+services:
+
+  # Dev container
+  # Interactive container with the full toolchain.
+  # Usage:
+  #   docker compose run --rm dev
+  #   docker compose run --rm dev make PLATFORM=avr MCU=atmega328p
+  dev:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    volumes:
+      - ..:/workspace          # live source mount — edits on host reflect immediately
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    # Forward a USB serial adapter into the container if present.
+    # Uncomment and adjust the path to match your host device.
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0
+    #   - /dev/ttyACM0:/dev/ttyACM0
+
+
+  # Avr firmware build
+  # Builds the AVR firmware for the given MCU (default: atmega328p).
+  # Override with: docker compose run --rm build-avr -e MCU=atmega2560
+  # Usage:
+  #   docker compose run --rm build-avr
+  build-avr:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    volumes:
+      - ..:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    environment:
+      MCU:  ${MCU:-atmega328p}
+      PORT: ${PORT:-/dev/ttyACM0}
+    command: >
+      bash -c "make PLATFORM=avr MCU=$${MCU} PORT=$${PORT}"
+
+  # STM32 firmware build
+  # Builds the STM32 firmware for the given MCU (default: F030F4).
+  # Usage:
+  #   docker compose run --rm build-stm32
+  #   MCU=F103 docker compose run --rm build-stm32
+  build-stm32:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    volumes:
+      - ..:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    environment:
+      MCU:  ${MCU:-F030F4}
+      PORT: ${PORT:-/dev/ttyUSB0}
+    command: >
+      bash -c "make PLATFORM=stm32 MCU=$${MCU} PORT=$${PORT}"
+
+volumes:
+  build-cache:

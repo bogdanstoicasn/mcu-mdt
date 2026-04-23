@@ -162,6 +162,15 @@ void hal_uart_set_idle_callback(void (*cb)(void))
 #endif
 }
 
+void hal_reset(void)
+{
+    while (!rb_is_empty(&tx_buffer));
+ 
+    *((volatile uint32_t *)0xE000ED0C) = 0x05FA0004;
+ 
+    while (1);
+}
+
 
 /* HAL: Memory */
 

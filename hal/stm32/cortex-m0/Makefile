@@ -86,8 +86,7 @@ CFLAGS  += -DPLATFORM_STM32
 # MDT_USE_UART_IDLE: default 1 on this target (hardware supports IDLE interrupt).
 # Override with: make MDT_USE_UART_IDLE=0 to use poll mode instead.
 MDT_USE_UART_IDLE ?= 1
-CFLAGS  += -DMDT_HAL_HAS_UART_IDLE=1
-CFLAGS  += -DMDT_USE_UART_IDLE=$(MDT_USE_UART_IDLE)
+CFLAGS += -DMDT_FEATURE_UART_IDLE=$(MDT_USE_UART_IDLE)
 CFLAGS  += -DF_CPU=$(F_CPU)
 
 # Linker flags: use preprocessed linker script
