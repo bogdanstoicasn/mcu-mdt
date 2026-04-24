@@ -158,10 +158,10 @@ Each platform has a single `hal_*.c` file that directly implements `mcu_mdt_hal.
 intermediate wrapper layers — the `hal_*` functions are the only entry points.
 
 ```
-inc/mcu_mdt_hal.h          ← contract (8 functions)
-hal/avr/hal_avr.c          ← AVR implementation (UART ISRs + SRAM/FLASH/EEPROM access)
-hal/stm32/cortex-m0/hal_stm.c  ← M0 implementation (UART ISRs + SRAM/FLASH access + flash write)
-hal/stm32/cortex-m3/hal_stm.c  ← M3 implementation (UART ISRs + SRAM/FLASH access)
+inc/mcu_mdt_hal.h          - contract (8 functions)
+hal/avr/hal_avr.c          - AVR implementation (UART ISRs + SRAM/FLASH/EEPROM access)
+hal/stm32/cortex-m0/hal_stm.c  - M0 implementation (UART ISRs + SRAM/FLASH access + flash write)
+hal/stm32/cortex-m3/hal_stm.c  - M3 implementation (UART ISRs + SRAM/FLASH access)
 ```
 
 The `uart.h` files in each STM32 target carry all peripheral register struct definitions and bit

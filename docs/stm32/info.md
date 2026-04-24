@@ -186,6 +186,113 @@ To add support for a new Cortex core (e.g. Cortex-M4 for STM32F4xx):
 3. `src/` is never modified.
 
 
+## Processing Mode
+
+STM32 supports two distinct modes for handling incoming UART packets. The mode is
+selected at build time and written into `build_info.yaml` so the PC tool knows whether
+to send periodic event poll packets.
+
+### Interrupt mode (default)
+
+```
+MDT_USE_UART_IDLE=1   - default, set in the Makefile
+```
+
+The USART1 peripheral fires three interrupt sources:
+
+- **RXNE** — a byte arrived, pushed into the RX ring buffer immediately
+- **IDLE** — the RX line went quiet after a burst (i.e. a full packet just landed)
+- **TXE** — TX register empty, next byte popped from TX ring buffer and sent
+
+When the IDLE interrupt fires, PendSV is triggered at the lowest interrupt priority.
+`PendSV_Handler` calls `mdt_process_pending()` which drains the RX ring buffer and
+dispatches the packet. Your `main()` loop runs freely between PendSV invocations.
+
+Because `mcu_mdt_poll()` is never called in this mode, the MCU cannot push events
+autonomously. Instead the PC tool sends a CMD_ID=0 poll packet every 500 ms. The
+MCU's `handle_reserved()` responds with any pending event payload, and the PC
+`rx_worker` routes the response to the event queue.
+
+**Minimal `main.c` — interrupt mode:**
+```c
+#include "mcu_mdt.h"
+
+int main(void)
+{
+    mcu_mdt_init(); /* registers IDLE callback automatically */
+
+    while (1)
+    {
+        /* application code runs freely — UART handled by ISR + PendSV */
+    }
+}
+```
+
+Use this mode when your application does not have a tight cooperative main loop —
+for example if it uses `HAL_Delay()`, blocking I2C/SPI transactions, or any other
+operation that stalls the loop for more than a few milliseconds.
+
+
+
+### Poll mode
+
+```
+make PLATFORM=stm32 MCU=F030F4 PORT=... MDT_USE_UART_IDLE=0
+```
+
+RXNE and TXE interrupts still run (the ring buffers are always ISR-driven), but the
+IDLE interrupt is not used. Your `main()` loop must call `mcu_mdt_poll()` regularly.
+Each call flushes any pending event, drains the RX ring buffer, and checks watchpoints.
+
+```
+main loop
+  └── mcu_mdt_poll()
+        ├── 1. flush pending event if TX idle
+        ├── 2. fence + overflow guard
+        ├── 3. drain RX ring buffer → packet dispatch
+        └── 4. mcu_mdt_watchpoint_check()
+```
+
+**Minimal `main.c` — poll mode:**
+```c
+#include "mcu_mdt.h"
+
+int main(void)
+{
+    mcu_mdt_init();
+
+    while (1)
+    {
+        mcu_mdt_poll();
+        /* application code here */
+    }
+}
+```
+
+In poll mode the PC tool does **not** send CMD_ID=0 poll packets — `build_info.yaml`
+will contain `uart_idle: 0` and the PC tool's `event_poll_worker` thread is not
+started. Events are delivered automatically by `mcu_mdt_poll()` at step 1.
+
+Use this mode when your main loop is tight and runs frequently (every few ms or less),
+or when you want deterministic, application-controlled timing for packet processing.
+
+
+
+### Which mode to choose
+
+| Situation | Recommended mode |
+|---|---|
+| Application uses `HAL_Delay()` or blocking calls | Interrupt |
+| Application has no main loop (RTOS task-based) | Interrupt |
+| Tight cooperative main loop running continuously | Poll |
+| You want deterministic packet timing | Poll |
+| Default / unsure | Interrupt |
+
+The choice has **no effect on the protocol** — packet format, CRC, commands, and
+events are identical in both modes. The only difference is which side initiates
+event delivery.
+
+
 ## Notes
 
 1. Do not use USART1 in your application code — it is owned by the MDT UART driver.

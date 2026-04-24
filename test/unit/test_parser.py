@@ -30,66 +30,7 @@ from test.common.asserts import assert_eq
 from pc_tool.common.enums import CommandId, MemType, BreakpointControl, WatchpointControl
 from pc_tool.parser import parse_line
 from test.pymdtest import parametrize
-
-
-COMMANDS = {
-    "PING": {"id": 0x05, "params": []},
-
-    "READ_MEM": {
-        "id": 0x01,
-        "params": [
-            {"name": "control_value", "type": "str"},
-            {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "len",           "type": "uint32", "format": "dec"},
-        ]
-    },
-
-    "WRITE_MEM": {
-        "id": 0x02,
-        "params": [
-            {"name": "control_value", "type": "str"},
-            {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "len",           "type": "uint32", "format": "dec"},
-            {"name": "data",          "type": "bytes"},
-        ]
-    },
-
-    "READ_REG": {
-        "id": 0x03,
-        "params": [{"name": "address", "type": "uint32_or_str", "format": "hex"}]
-    },
-
-    "WRITE_REG": {
-        "id": 0x04,
-        "params": [
-            {"name": "address", "type": "uint32_or_str", "format": "hex"},
-            {"name": "data",    "type": "bytes"},
-        ]
-    },
-
-    "BREAKPOINT": {
-        "id": 0x07,
-        "params": [
-            {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "control_value", "type": "str"},
-        ]
-    },
-
-    "WATCHPOINT": {
-        "id": 0x08,
-        "params": [
-            {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "control_value", "type": "str"},
-            {"name": "wp_data",       "type": "uint32", "format": "hex"},
-        ]
-    },
-}
-
-CONTROL_VALUES = {
-    "RAM": 0, "FLASH": 1, "EEPROM": 2,
-    "DISABLED": 0, "ENABLED": 1, "RESET": 2, "NEXT": 3,
-    "MASK": 3,
-}
+from test.common.mdtfixtures import CONTROL_VALUES, COMMANDS
 
 MCU_METADATA = {"modules": {}, "memories": {}}
 
