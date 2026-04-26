@@ -29,9 +29,11 @@ class MCUSerialLink:
         if self.ser is not None and self.ser.is_open:
             return
 
-        if self.port.startswith("socket://"):
+        port = self._resolve_port(self.port)
+
+        if port.startswith("socket://"):
             self.ser = serial.serial_for_url(
-                self.port,
+                port,
                 baudrate=self.baudrate,
                 timeout=self.timeout,
                 xonxoff=False,
@@ -40,7 +42,7 @@ class MCUSerialLink:
             )
         else:
             self.ser = serial.Serial(
-                self.port,
+                port,
                 self.baudrate,
                 timeout=self.timeout,
                 xonxoff=False,
@@ -53,6 +55,29 @@ class MCUSerialLink:
 
         if self.startup_ping:
             self._synch_with_mcu()
+
+    @staticmethod
+    def _resolve_port(port: str, wait: float = 5.0) -> str:
+        """
+        Resolve the actual port path.
+
+        If the port does not exist yet (e.g. simavr creates /tmp/simavr-uart0
+        asynchronously after startup), poll for up to `wait` seconds.
+        Raises SerialException on timeout so the caller gets a clear message.
+        KeyboardInterrupt is never caught — Ctrl-C always works.
+        """
+        import os
+        if os.path.exists(port):
+            return port
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            time.sleep(0.1)     # KeyboardInterrupt propagates naturally here
+            if os.path.exists(port):
+                return port
+        raise serial.SerialException(
+            f"Port '{port}' did not appear within {wait:.0f}s. "
+            "Is simavr running?"
+        )
  
     def close(self):
         self.running = False
