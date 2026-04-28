@@ -18,7 +18,6 @@ AVR_SRAM_MIN = 0x60
 # STM32 RAM region: 0x20000000 - 0x2FFFFFFF
 STM32_RAM_BASE  = STM32Type.RAM_BASE   # 0x20000000
 STM32_RAM_END   = 0x2FFFFFFF
-STM32_FLASH_BASE = STM32Type.FLASH_BASE  # 0x08000000
 
 
 @dataclass
@@ -101,8 +100,8 @@ def load_elf_symbols(elf_path: str, platform: str) -> dict[str, SymbolInfo]:
 
     except FileNotFoundError:
         MDTLogger.warning(f"ELF file not found: {elf_path}")
-    except Exception as e:
-        MDTLogger.warning(f"Failed to parse ELF symbols: {e}")
+    except Exception as exc:
+        MDTLogger.warning(f"Failed to parse ELF symbols: {exc}")
 
     return symbols
 

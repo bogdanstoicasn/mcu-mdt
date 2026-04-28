@@ -1,17 +1,17 @@
 from pc_tool.loader import ConfigLoader
 from pc_tool.parser import parse_line, parse_args, CLIHistory
-from pc_tool.commander import execute_command, help_command, intro_text, clear_command, ping_command, serial_link_command, exit_command
+from pc_tool.commander import Commander, help_command, intro_text, clear_command, serial_link_command, exit_command
 from pc_tool.validator import validate_commands
 from pc_tool.event import start_async_handlers
 from pc_tool.common.logger import MDTLogger
 
 
-def build_dispatch(loader, serial_link, threads):
+def build_dispatch(loader, serial_link, commander, threads):
     return {
         "EXIT":  lambda cmd: exit_command(serial_link, threads=threads),
         "HELP":  lambda cmd: help_command(loader.yaml_command_data),
         "CLEAR": lambda cmd: clear_command(),
-        "PING":  lambda cmd: ping_command(cmd, loader.yaml_build_data, serial_link),
+        "PING":  lambda cmd: commander.ping(cmd),
     }
 
 def setup(build_info_path: str):
@@ -37,11 +37,14 @@ def setup(build_info_path: str):
         uart_idle=bool(loader.yaml_build_data.get('uart_idle', False))
     )
 
-    return loader, serial_link, threads
+    commander = Commander(serial_link)
 
-def run_script(script_path: str, loader, serial_link, threads):
-    """
-    Execute commands from a script file line by line, then exit.
+    return loader, serial_link, commander, threads
+
+
+def run_script(script_path: str, loader, serial_link, commander, threads):
+    """Execute commands from a script file line by line, then exit.
+
     Blank lines and lines starting with # are skipped.
     Stops on the first command that fails validation or parsing.
     """
@@ -49,7 +52,7 @@ def run_script(script_path: str, loader, serial_link, threads):
     control  = loader.yaml_command_data['control_values']
     metadata = loader.mcu_metadata
     symbols  = loader.elf_symbols
-    dispatch = build_dispatch(loader, serial_link, threads)
+    dispatch = build_dispatch(loader, serial_link, commander, threads)
 
     MDTLogger.suppress_console()
 
@@ -77,12 +80,10 @@ def run_script(script_path: str, loader, serial_link, threads):
             MDTLogger.error(f"Script aborted: parse error at line {lineno}: {line!r}", code=2)
             break
 
-        # PC-only commands (EXIT, HELP, CLEAR) are skipped silently
         if command.name in ('EXIT', 'HELP', 'CLEAR'):
             MDTLogger.warning(f"Skipping PC-only command at line {lineno}: {command.name}")
             continue
 
-        # Dispatched commands (PING, etc.) bypass validation: same as interactive loop
         if command.name in dispatch:
             dispatch[command.name](command)
             continue
@@ -91,20 +92,20 @@ def run_script(script_path: str, loader, serial_link, threads):
             MDTLogger.error(f"Script aborted: validation failed at line {lineno}: {line!r}", code=3)
             break
 
-        execute_command(command, serial_link)
+        commander.execute(command)
 
     MDTLogger.info("Script complete.")
     MDTLogger.restore_console()
     MDTLogger.session_end()
 
 
-def run_loop(loader, serial_link, threads):
+def run_loop(loader, serial_link, commander, threads):
     cli      = CLIHistory()
     commands = loader.yaml_command_data['commands']
     control  = loader.yaml_command_data['control_values']
     metadata = loader.mcu_metadata
     symbols  = loader.elf_symbols
-    dispatch = build_dispatch(loader, serial_link, threads)
+    dispatch = build_dispatch(loader, serial_link, commander, threads)
 
     MDTLogger.info(intro_text())
 
@@ -131,7 +132,7 @@ def run_loop(loader, serial_link, threads):
                 MDTLogger.error("Command validation failed.", code=3)
                 continue
 
-            execute_command(command, serial_link)
+            commander.execute(command)
 
         except (EOFError, KeyboardInterrupt):
             MDTLogger.info("Exiting...")
@@ -140,12 +141,13 @@ def run_loop(loader, serial_link, threads):
     MDTLogger.session_end()
 
 def main(args):
-    loader, serial_link, threads = setup(args.build_info)
+    loader, serial_link, commander, threads = setup(args.build_info)
 
     if args.script:
-        run_script(args.script, loader, serial_link, threads)
+        run_script(args.script, loader, serial_link, commander, threads)
     else:
-        run_loop(loader, serial_link, threads)
+        run_loop(loader, serial_link, commander, threads)
+
 
 if __name__ == "__main__":
     args = parse_args()

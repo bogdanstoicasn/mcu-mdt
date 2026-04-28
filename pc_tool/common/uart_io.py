@@ -1,8 +1,13 @@
-import serial
-import time
+import os
 import queue
+import time
+import serial
+
 from pc_tool.common.enums import MDT_PACKET_SIZE, FenceType
 from pc_tool.common.logger import MDTLogger
+
+_START_BYTE = FenceType.START_BYTE.to_bytes(1, "little")
+
 
 class MCUSerialLink:
     def __init__(
@@ -11,44 +16,39 @@ class MCUSerialLink:
         baudrate: int = 19200,
         timeout: float = 1.0,
         reset_delay: float = 2.0,
-        startup_ping: bytes | None = None
-    ):
-        self.port = port
-        self.baudrate = baudrate
-        self.timeout = timeout
-        self.reset_delay = reset_delay
-        self.startup_ping = startup_ping
-        self.running = True
+        startup_ping: bytes | None = None,
+    ) -> None:
+        self.port          = port
+        self.baudrate      = baudrate
+        self.timeout       = timeout
+        self.reset_delay   = reset_delay
+        self.startup_ping  = startup_ping
+        self.running       = True
         self.response_queue = queue.Queue()
-        self.event_queue = queue.Queue()
-        self._rx_buf = bytearray()
-        self.packet_size = MDT_PACKET_SIZE
-        self.ser = None
-    
-    def open(self):
+        self.event_queue    = queue.Queue()
+        self._rx_buf       = bytearray()
+        self.ser           = None
+
+    # Lifecycle
+    def open(self) -> None:
         if self.ser is not None and self.ser.is_open:
             return
 
         port = self._resolve_port(self.port)
 
-        if port.startswith("socket://"):
-            self.ser = serial.serial_for_url(
-                port,
-                baudrate=self.baudrate,
-                timeout=self.timeout,
-                xonxoff=False,
-                rtscts=False,
-                dsrdtr=False
-            )
-        else:
-            self.ser = serial.Serial(
-                port,
-                self.baudrate,
-                timeout=self.timeout,
-                xonxoff=False,
-                rtscts=False,
-                dsrdtr=False
-            )
+        serial_kwargs = dict(
+            baudrate=self.baudrate,
+            timeout=self.timeout,
+            xonxoff=False,
+            rtscts=False,
+            dsrdtr=False,
+        )
+
+        self.ser = (
+            serial.serial_for_url(port, **serial_kwargs)
+            if port.startswith("socket://")
+            else serial.Serial(port, **serial_kwargs)
+        )
 
         if self.reset_delay > 0:
             time.sleep(self.reset_delay)
@@ -56,121 +56,106 @@ class MCUSerialLink:
         if self.startup_ping:
             self._synch_with_mcu()
 
-    @staticmethod
-    def _resolve_port(port: str, wait: float = 5.0) -> str:
-        """
-        Resolve the actual port path.
-
-        If the port does not exist yet (e.g. simavr creates /tmp/simavr-uart0
-        asynchronously after startup), poll for up to `wait` seconds.
-        Raises SerialException on timeout so the caller gets a clear message.
-        KeyboardInterrupt is never caught — Ctrl-C always works.
-        """
-        import os
-        if os.path.exists(port):
-            return port
-        deadline = time.monotonic() + wait
-        while time.monotonic() < deadline:
-            time.sleep(0.1)     # KeyboardInterrupt propagates naturally here
-            if os.path.exists(port):
-                return port
-        raise serial.SerialException(
-            f"Port '{port}' did not appear within {wait:.0f}s. "
-            "Is simavr running?"
-        )
- 
-    def close(self):
+    def close(self) -> None:
         self.running = False
         if self.ser:
             try:
-                # flush input/output to avoid blocking
                 self.ser.reset_input_buffer()
                 self.ser.reset_output_buffer()
             except Exception:
                 pass
             self.ser.close()
             self.ser = None
-        
-    def _synch_with_mcu(self):
+
+    @staticmethod
+    def _resolve_port(port: str, wait: float = 5.0) -> str:
+        """Resolve the port path, polling up to ``wait`` seconds if it doesn't exist yet.
+
+        Useful when simavr creates ``/tmp/simavr-uart0`` asynchronously after startup.
+        Raises ``SerialException`` on timeout. KeyboardInterrupt is never caught.
+        """
+        if os.path.exists(port):
+            return port
+
+        deadline = time.monotonic() + wait
+        while time.monotonic() < deadline:
+            time.sleep(0.1)
+            if os.path.exists(port):
+                return port
+
+        raise serial.SerialException(
+            f"Port '{port}' did not appear within {wait:.0f}s. Is simavr running?"
+        )
+
+    def _synch_with_mcu(self) -> None:
         self.ser.reset_input_buffer()
         self.ser.reset_output_buffer()
-
         self.ser.write(self.startup_ping)
         self.ser.flush()
 
-        echoed = bytearray()
-        start = time.time()
-        while len(echoed) < self.packet_size:
-            if self.ser.in_waiting > 0:
-                echoed += self.ser.read(self.ser.in_waiting)
-            if time.time() - start > 5.0:
-                break
+        echoed   = bytearray()
+        deadline = time.monotonic() + 5.0
 
-        if len(echoed) < self.packet_size:
-            MDTLogger.warning(f"Startup ping echo mismatch: expected {self.packet_size}, got {len(echoed)}")
+        while len(echoed) < MDT_PACKET_SIZE and time.monotonic() < deadline:
+            if self.ser.in_waiting:
+                echoed += self.ser.read(self.ser.in_waiting)
+
+        if len(echoed) < MDT_PACKET_SIZE:
+            MDTLogger.warning(
+                f"Startup ping echo mismatch: expected {MDT_PACKET_SIZE}, got {len(echoed)}."
+            )
             return
 
-        # Push response into queue instead of discarding it
         MDTLogger.info("Startup ping successful — MCU is connected.")
 
-    
-    def send_packet(self, byte_packet: bytes):
+    # I/O
+    def send_packet(self, packet: bytes) -> None:
         if self.ser is None or not self.ser.is_open:
             raise RuntimeError("Serial port is not open.")
-        
-        self.ser.write(byte_packet)
+        self.ser.write(packet)
         self.ser.flush()
-    
-    def read_packet(self, timeout=1.0):
-        """
-        Reads one full MDT packet from UART.
-        Resynchronizes on start byte if necessary.
-        """
+
+    def read_packet(self, timeout: float = 1.0) -> bytes | None:
+        """Read one full MDT packet from UART, resyncing on the start byte if needed."""
         if self.ser is None or not self.ser.is_open:
             return None
 
-        start_time = time.time()
-        while time.time() - start_time < timeout:
+        deadline = time.monotonic() + timeout
+
+        while time.monotonic() < deadline:
             if self.ser.in_waiting:
                 self._rx_buf += self.ser.read(self.ser.in_waiting)
 
-            # Search for start byte
-            start_idx = self._rx_buf.find(FenceType.START_BYTE.to_bytes(1, 'little'))
-            if start_idx == -1:
-                # No start byte, discard buffer
+            idx = self._rx_buf.find(_START_BYTE)
+            if idx == -1:
                 self._rx_buf.clear()
                 continue
 
-            # Remove any preceding junk bytes
-            if start_idx > 0:
-                self._rx_buf = self._rx_buf[start_idx:]
+            if idx > 0:
+                self._rx_buf = self._rx_buf[idx:]
 
-            if len(self._rx_buf) >= self.packet_size:
-                pkt = self._rx_buf[:self.packet_size]
-                self._rx_buf = self._rx_buf[self.packet_size:]
-                
-                # Optional: validate CRC here
-                # if not validate_packet(pkt):
-                #     continue  # discard and resync
-
-                return bytes(pkt)
+            if len(self._rx_buf) >= MDT_PACKET_SIZE:
+                pkt          = bytes(self._rx_buf[:MDT_PACKET_SIZE])
+                self._rx_buf = self._rx_buf[MDT_PACKET_SIZE:]
+                return pkt
 
         return None
-    
-    def get_response_packet(self, timeout=1.0):
+
+    # Queue management
+    def get_response_packet(self, timeout: float = 1.0) -> bytes | None:
         try:
             return self.response_queue.get(timeout=timeout)
         except queue.Empty:
             return None
-    
-    def get_event_packet(self, timeout=1.0):
+
+    def get_event_packet(self, timeout: float = 1.0) -> bytes | None:
         try:
             return self.event_queue.get(timeout=timeout)
         except queue.Empty:
             return None
-    
-    def push_back_packet(self, pkt: bytes):
+
+    def push_back_packet(self, pkt: bytes) -> None:
         self.response_queue.put(pkt)
-    
-    def push_back_event_packet(self, pkt: bytes):
+
+    def push_back_event_packet(self, pkt: bytes) -> None:
         self.event_queue.put(pkt)

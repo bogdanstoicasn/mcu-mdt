@@ -1,210 +1,223 @@
 # MCU-MDT — Testing
 
-## Philosophy
+## Overview
 
-MCU-MDT sits at the boundary between a host-side Python tool and bare-metal firmware
-running on constrained hardware. This creates two fundamentally different testing
-domains that must stay separate: things that can be verified without hardware, and
-things that only make sense against a real MCU.
+MCU-MDT testing splits across three layers: unit, integration, and hardware. Unit and
+integration tests run anywhere with no hardware attached. Hardware tests require a real
+MCU flashed with the MDT firmware.
 
-The unit suite must be fast, deterministic, and runnable anywhere with no hardware
-attached. Hardware tests exist only for behaviour that cannot be faked — actual UART
-framing, real interrupt timing, MCU memory access, and event delivery end-to-end.
+**214 tests total, 214 passing.**
 
 
 ## Test Runner — PyMDTest
 
-The project uses a custom runner (`test/pymdtest.py`) — not pytest. It auto-discovers
+The project uses a custom runner (`test/pymdtest.py`), not pytest. It auto-discovers
 any file matching `test_*.py`, runs every function whose name starts with `test_`, and
-supports parameterized cases via `@parametrize`. Assertions use `assert_eq` from
-`test/common/asserts.py`.
+expands `@parametrize` cases. Assertions come from `test/common/asserts.py`.
 
 ```bash
-python3 -m test.pymdtest              # all categories
+python3 -m test.pymdtest              # everything
 python3 -m test.pymdtest unit         # unit only
+python3 -m test.pymdtest integration  # integration only
 python3 -m test.pymdtest hardware     # hardware only (skips if MDT_PORT unset)
 ```
 
-Do not use `pytest` directly — `@parametrize` is not compatible with it.
+Don't use pytest directly — `@parametrize` is not compatible with it.
 
 
-## Unit Tests (`test/unit/`)
+## Unit Tests (`test/unit/`) — 120 cases
 
-No serial port, no MCU, no hardware dependencies. 126 tests total.
+No serial port, no MCU, no external dependencies.
 
-### `test_crc.py` — 3 tests
+### `test_crc.py` — 3 cases
 
-Validates the CRC-CCITT (0x1021) implementation against `binascii.crc_hqx` as a
-trusted reference. Covers the standard `123456789` → `0x29B1` known vector, empty
-input, and a stress run of 1000 randomly generated inputs at varying lengths. This is
-the foundation — a wrong CRC breaks the entire protocol silently.
+CRC-CCITT (0x1021) validated against `binascii.crc_hqx`. Covers the `123456789` →
+`0x29B1` standard vector, empty input, and 1000 random inputs at varying lengths. A
+wrong CRC breaks the protocol silently, so this runs first.
 
-### `test_protocol.py` — 24 tests
+### `test_protocol.py` — 37 cases
 
-Validates packet construction and parsing end-to-end. Covers serialization,
-deserialization, round-trip consistency, the fixed 18-byte size invariant, CRC
-integrity, multi-packet flags (`SEQ_PRESENT`, `LAST_PACKET`), NACK detection, and
-address encoding/decoding in little-endian. Effectively proves the host and MCU speak
-the same wire format before any hardware is involved.
+Packet construction and parsing end-to-end: serialization, deserialization,
+round-trips, the 18-byte size invariant, CRC integrity, multi-packet flags
+(`SEQ_PRESENT`, `LAST_PACKET`), NACK detection, and little-endian address
+encoding/decoding. Parameterized across several command shapes and addresses.
 
-### `test_parser.py` — 13 tests
+### `test_parser.py` — 23 cases
 
-Validates the CLI parser — the layer that converts user input like
-`WATCHPOINT 0 ENABLED 0x20000100` into a structured `Command` object. Covers all
-command types, memory types, control value mapping, address and length parsing, hex
-data decoding, and invalid input rejection. Parameterized across all control values
-for both breakpoints and watchpoints.
+CLI parser layer: converts strings like `WATCHPOINT 0 ENABLED 0x20000100` into
+`Command` objects. Covers all command types, memory type mapping, control value
+mapping, hex data decoding, and invalid input rejection. Parameterized across all
+control values for both breakpoints and watchpoints.
 
-### `test_validator.py` — 44 tests
+### `test_validator.py` — 57 cases
 
-Validates the command validation layer that checks a parsed command against MCU
-metadata before it is sent. Covers memory boundary checks (RAM, Flash, EEPROM),
-register access permissions (read-only, write-only, read-write), breakpoint and
-watchpoint ID range validation, and dispatch routing. Ensures the tool refuses
-commands that are protocol-valid but wrong for the specific target.
+Validation against MCU metadata before a command hits the wire: memory boundary
+checks (RAM, Flash, EEPROM), register access permissions (read-only, write-only,
+read-write), breakpoint and watchpoint slot range validation, and dispatch routing.
+Parameterized across valid and invalid slot IDs.
 
 
-## Hardware Tests (`test/hardware/`)
+## Integration Tests (`test/integration/`) — 41 cases
 
-Require a real MCU flashed with the MDT firmware. 42 tests total. Every test skips
-gracefully with `[SKIP]` if `MDT_PORT` is not set.
+End-to-end pipeline through `MockUART` — a perfect in-memory loopback — with no
+real serial port. Exercises the full parse → validate → serialize → transmit →
+receive → deserialize path for every command type, plus multi-packet chunking,
+event packet structure, and error handling.
+
+### End-to-end commands — 8 cases
+
+PING, READ_MEM, WRITE_MEM, READ_REG, WRITE_REG, BREAKPOINT, WATCHPOINT, and
+packet validation after loopback. Each runs the full pipeline and checks the
+deserialized response.
+
+### Chunked transfers — 3 cases
+
+A 16-byte write splits into four 4-byte packets. Verifies all are ACKed, that a
+single-chunk write is marked `LAST_PACKET`, and that addresses increment correctly
+across chunks.
+
+### Validation gating — 5 cases
+
+Out-of-range read, invalid breakpoint ID, unaligned watchpoint address, write to a
+non-existent register — all rejected before anything hits the wire. Valid command
+passes through cleanly.
+
+### MCU response handling — 5 cases
+
+ACK recognized as valid, NACK recognized correctly, corrupted response fails
+`validate_command_packet`, truncated response fails, wrong start byte fails.
+
+### Pipeline invariants — 1 case
+
+Exactly one packet written to UART per command.
+
+### Event packets — 6 cases
+
+`EVENT_PACKET` flag set, event not mistaken for NACK, breakpoint slot ID carried in
+`SEQ`, event type in `DATA`, CRC valid. `BUFFER_OVERFLOW` recognized from the
+`EventType` enum.
+
+### Field fidelity — 13 cases
+
+Parameterized address/mem/length triples, data patterns, and sequence numbers —
+round-trip through serialize → deserialize and confirm each field is preserved
+exactly.
+
+
+## Hardware Tests (`test/hardware/`) — 53 cases
+
+Require a real MCU with MDT firmware. Every test skips with `[SKIP]` if `MDT_PORT`
+is not set.
 
 ```bash
 MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest hardware
-MDT_PORT=/dev/ttyUSB0 MDT_PLATFORM=stm32 python3 -m test.pymdtest hardware
+MDT_PORT=/dev/ttyUSB0 MDT_BAUD=19200 MDT_PLATFORM=stm32 python3 -m test.pymdtest hardware
 ```
 
-Configuration via environment variables:
+Environment variables:
 
 | Variable | Default | Description |
 |---|---|---|
-| `MDT_PORT` | _(unset)_ | Serial port — if absent all hardware tests skip |
+| `MDT_PORT` | _(unset)_ | Serial port — absent means all hardware tests skip |
 | `MDT_BAUD` | `19200` | Baud rate |
 | `MDT_TIMEOUT` | `2.0` | Per-packet read timeout in seconds |
 | `MDT_PLATFORM` | `avr` | `avr` or `stm32` — selects SRAM/Flash base addresses |
 
-These are loaded once at module import time into a frozen `HWConfig` dataclass
-(`HW = HWConfig.from_env()`). All tests access `HW.port`, `HW.baud`, etc.
+These are loaded once at module import time into `HW = HWConfig.from_env()`.
 
-### Link health — 7 tests
+### Link health — 7 cases
 
-Ping round-trip, 18-byte response size invariant, START/END framing bytes, CRC
-validity, CMD_ID echo, ACK flag set, STATUS_ERROR flag clear. These are the baseline —
-if any of these fail, nothing else in the suite is meaningful.
+Ping round-trip, 18-byte response invariant, START/END framing, CRC validity,
+CMD_ID echo, ACK flag set, STATUS_ERROR clear. If any of these fail the rest of
+the suite is meaningless.
 
-### Memory read — 4 tests
+### Memory read — 4 cases
 
-SRAM read ACK, 4-byte data field, Flash read structural validity (ACK or NACK, but
-always a well-formed packet), MEM_ID echo. Flash read tests do not assert an ACK
-because some MCU variants may reject a Flash read at address 0 — the test only
-requires the response to be structurally valid.
+SRAM read ACK, 4-byte data field, MEM_ID echo, Flash read structural validity.
+Flash does not assert ACK — some variants reject address 0 — only that the packet
+is well-formed.
 
-### Memory write / readback — 8 tests
+### Memory write/readback — 8 cases
 
-Write ACK, write-then-read-back with `0xCAFEBABE`, all-zeros, all-ones, adjacent word
-non-aliasing, and four parameterized patterns (`0xDEADBEEF`, `0x01020304`,
-`0xAA55AA55`, `0x00FF00FF`). Non-aliasing test writes two different patterns to
-adjacent 4-byte slots and reads both back to confirm there is no bleed between words.
+Write ACK, then write-and-read-back: `0xCAFEBABE`, all-zeros, all-ones, adjacent
+word non-aliasing (two different patterns at adjacent addresses, both verified), and
+four parameterized patterns (`0xDEADBEEF`, `0x01020304`, `0xAA55AA55`, `0x00FF00FF`).
 
-### Register access — 2 tests
+### Register access — 2 cases
 
-`READ_REG` at a known SRAM address returns a structurally valid packet. `WRITE_REG` +
-`READ_REG` round-trip via SRAM verifies the first byte matches what was written.
+`READ_REG` at a known SRAM address returns a structurally valid packet.
+`WRITE_REG` + `READ_REG` round-trip verifies the first byte of the written value
+reads back correctly.
 
-### Protocol robustness — 6 tests
+### Protocol robustness — 6 cases
 
-Bad CRC triggers NACK, NACK itself has a valid CRC, recovery after bad packet (next
-PING still ACKs), resync after truncated send (half-packet timeout), NACK echoes SEQ
-byte of the bad request, unknown CMD_ID (`0xFF`) sets STATUS_ERROR.
+Bad CRC triggers NACK, that NACK has a valid CRC, recovery (next PING still ACKs),
+resync after a truncated send, NACK echoes the SEQ byte of the bad request, unknown
+CMD_ID `0xFF` sets STATUS_ERROR.
 
-### Breakpoints — 4 tests
+### Breakpoints — 4 cases
 
-All six control values ACKed when parameterized (ENABLED/DISABLED on slots 0-3,
-RESET on slot 0, NEXT on slot 1), invalid slot (99) NACKed, enable-then-disable
-sequence both ACKed, RESET ACKed standalone.
+Six control values parameterized across slots (ENABLED/DISABLED on slots 0–3, RESET
+on slot 0, NEXT on slot 1) — all ACKed. Invalid slot 99 NACKed. Enable-then-disable
+sequence both ACKed. RESET standalone ACKed.
 
-### Watchpoints — 6 tests
+### Watchpoints — 6 cases
 
-DISABLE ACKed for all 4 slots (parameterized), ENABLE on aligned SRAM address ACKed
-(then disabled immediately to avoid polluting other tests), RESET ACKed, MASK on
-active slot ACKed, MASK on inactive slot NACKed, invalid slot NACKed.
+DISABLE ACKed for all 4 slots (parameterized). ENABLE on aligned SRAM address ACKed,
+disabled immediately after. RESET ACKed. MASK on active slot ACKed. MASK on inactive
+slot NACKed. Invalid slot NACKed.
 
-### Event packets — 3 tests
+### Event packets — 3 cases
 
-Bad-CRC packet produces NACK then FAILED_PACKET event with EVENT flag set and
-`cmd_id == 0`. All received packets (NACK + event) pass structural validation (size,
-framing, CRC). `rx_worker` routing test starts the background thread, sends a bad
-packet, asserts the NACK arrives in `response_queue` and the event (if emitted) arrives
-in `event_queue`.
+Bad-CRC packet produces a NACK and then a FAILED_PACKET event with EVENT flag set and
+`cmd_id == 0`. All received packets pass structural validation. `rx_worker` routing
+test starts the background thread, sends a bad packet, and confirms the NACK lands in
+`response_queue` and the event (if emitted) in `event_queue`.
 
-### Chunked transfers — 2 tests
+### Chunked transfers — 2 cases
 
-`execute_command()` splits a 16-byte write into 4 × 4-byte packets and all are ACKed.
-8-byte chunked write followed by single-word readback verifies the payload landed in
-SRAM correctly.
+`execute_command()` splits a 16-byte write into 4 × 4-byte packets — all ACKed.
+8-byte chunked write followed by a single-word readback verifies the payload landed
+in SRAM correctly.
 
-### Stress — 2 tests
+### Stress — 2 cases
 
 20 consecutive PINGs all ACKed (catches state machine corruption under load). 10
-interleaved write/read pairs with distinct patterns at the same address, each
-verified (catches buffer aliasing and ring-buffer issues under rapid I/O).
-
-
-## Known Issues
-
-Four hardware tests currently fail against the firmware:
-
-- **`test_hw_bad_crc_triggers_nack`** and **`test_hw_nack_seq_mirrors_request_seq`** —
-  `is_nack_packet()` on the PC side expects `cmd_id == 0` in the NACK, but the
-  firmware echoes the original `cmd_id`. One side needs to agree on the NACK format.
-
-- **`test_hw_failed_packet_event_has_event_flag`** and
-  **`test_hw_rx_worker_routes_event_to_event_queue`** — cascade from the above. The
-  FAILED_PACKET event is only queued after the NACK is sent; on AVR poll mode it may
-  not be delivered before the test's read timeout expires.
+interleaved write/read pairs with distinct patterns at the same address, each verified
+(catches buffer aliasing and ring-buffer issues under rapid I/O).
 
 
 ## What Is Not Tested Yet
 
-**Unit:**
+**Unit/integration:**
 - `event.py` threading — `rx_worker`, `event_poll_worker`, `event_listener` routing
-  logic has no isolated unit coverage. Testable with a `FakeSerialLink` that replays
-  injected byte sequences.
+  logic has no isolated unit coverage yet. A `FakeSerialLink` that replays injected
+  byte sequences would cover this without hardware.
 - `commander.py` — retry logic, timeout handling, and multi-packet assembly are only
-  exercised indirectly in hardware tests.
-- `loader.py` — `build_info.yaml` parsing is not tested. A missing key currently
-  produces a `KeyError` at runtime rather than a clear error message.
+  exercised indirectly through hardware tests.
+- `loader.py` — `build_info.yaml` parsing is untested. A missing key produces a
+  `KeyError` at runtime instead of a clear error.
 
 **Hardware:**
-- `RESET` command — implemented but no hardware test exists yet. Should verify the MCU
-  responds to PING within a bounded time after reset.
-- UART IDLE interrupt mode — all hardware tests run against the poll path. The
-  interrupt-driven path (`MDT_FEATURE_UART_IDLE=1`) has no dedicated hardware test
-  coverage. On STM32 this is the default mode.
-- AVR vs STM32 parity — tests run against one platform at a time. No automated run
-  compares results across both targets.
-- Disconnect recovery — the `EIO` clean shutdown path is implemented but not covered
-  by a test.
+- `RESET` command — implemented, no hardware test. Should verify the MCU responds to
+  PING within a bounded time after reset.
+- UART IDLE interrupt mode — all hardware tests run the poll path. The
+  interrupt-driven path (`MDT_FEATURE_UART_IDLE=1`) has no dedicated coverage; on
+  STM32 this is the default mode.
+- AVR vs STM32 parity — tests run one platform at a time, no automated cross-target
+  comparison.
+- Disconnect recovery — the `EIO` clean-shutdown path in `rx_worker` is implemented
+  but not tested.
 
 
 ## Future Direction
 
-**Short term (v1.x)**
-- Fix the NACK format disagreement so the four failing hardware tests pass.
-- `FakeSerialLink` fixture to unit test `rx_worker` routing without hardware.
-- Hardware test for `RESET` — send, wait, ping, assert response.
-- `loader.py` unit tests with valid and malformed `build_info.yaml` inputs.
+Short term: `FakeSerialLink` fixture to unit-test `rx_worker` routing without
+hardware; hardware test for `RESET`; `loader.py` unit tests with valid and malformed
+`build_info.yaml`.
 
-**Medium term**
-- Dedicated STM32 hardware test run with `MDT_FEATURE_UART_IDLE=1` to cover the
-  interrupt-driven path explicitly.
-- Run both AVR and STM32 hardware suites in CI using two MCUs on a USB hub.
-- Fuzz the MCU packet parser — feed random byte sequences over UART, assert the MCU
-  never hangs and always recovers.
+Medium term: dedicated STM32 run with `MDT_FEATURE_UART_IDLE=1`; both AVR and STM32
+hardware suites in CI on a USB hub; fuzz the MCU packet parser over UART.
 
-**Long term**
-- Renode-based firmware tests — the `.resc` script already exists for STM32F030F4.
-  Automated MCU-side C coverage without physical hardware in CI.
-- Property-based testing for the serializer/deserializer round-trip using
-  `@parametrize` with generated inputs — assert `deserialize(serialize(cmd)) == cmd`
-  across a wide range of command shapes and edge-case values.
+Long term: Renode-based firmware tests using the existing `stm32f030.resc` script;
+property-based round-trip testing for the serializer/deserializer.
