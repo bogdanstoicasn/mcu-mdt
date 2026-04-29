@@ -147,6 +147,11 @@ def test_read_mem_wrong_type_no_match():
     cmd = _cmd(CommandId.READ_MEM, address=0x20000000, mem=MemType.FLASH, length=4)
     assert_eq(validate_read_mem(cmd, meta), False)
 
+def test_read_mem_big_input_length():
+    meta = _meta_ram()
+    cmd = _cmd(CommandId.READ_MEM, address=0x20000000, mem=MemType.RAM, length=0x100000000)  # 4GB length, likely larger than any segment
+    assert_eq(validate_read_mem(cmd, meta), False)
+
 def test_read_mem_hex_string_addresses():
     meta = {
         "memories": {
