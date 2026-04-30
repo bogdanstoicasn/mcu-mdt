@@ -74,6 +74,9 @@ class MCUSerialLink:
         Useful when simavr creates ``/tmp/simavr-uart0`` asynchronously after startup.
         Raises ``SerialException`` on timeout. KeyboardInterrupt is never caught.
         """
+        if port.startswith("socket://"):
+            return port
+
         if os.path.exists(port):
             return port
 

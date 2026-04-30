@@ -45,6 +45,7 @@ Validate that the MCU-MDT functions correctly under real-world usage scenarios.
 import os
 import time
 import threading
+import yaml
 from dataclasses import dataclass
 
 from test.common.asserts import assert_eq
@@ -82,20 +83,50 @@ class HWConfig:
         return bool(self.port)
 
     @classmethod
-    def from_env(cls) -> "HWConfig":
-        platform = os.environ.get("MDT_PLATFORM", "avr").lower()
-        stm32    = platform == "stm32"
+    def from_sources(cls) -> "HWConfig":
+        """
+        Load configuration from:
+        1. build/<MCU>/build_info.yaml  (if MCU is set)
+        2. environment variables (override)
+        3. defaults
+        """
+        mcu = os.environ.get("MCU", "")
+        data = {}
+
+        # Load build_info.yaml if MCU is provided
+        if mcu:
+            path = os.path.join("build", mcu, "build_info.yaml")
+            if not os.path.exists(path):
+                raise FileNotFoundError(
+                    f"Build info not found for MCU='{mcu}' at {path}"
+                )
+
+            with open(path, "r") as f:
+                data = yaml.safe_load(f) or {}
+
+        # Platform normalization
+        platform = (
+            os.environ.get("MDT_PLATFORM")
+            or data.get("platform", "avr")
+        ).lower()
+
+        stm32 = "stm32" in platform
+
+        # Final config (ENV overrides build_info)
+        port = os.environ.get("MDT_PORT", data.get("port", ""))
+        baud = int(os.environ.get("MDT_BAUD", "19200"))
+        timeout = float(os.environ.get("MDT_TIMEOUT", "2.0"))
+
         return cls(
-            port       = os.environ.get("MDT_PORT", ""),
-            baud       = int(os.environ.get("MDT_BAUD", "19200")),
-            timeout    = float(os.environ.get("MDT_TIMEOUT", "2.0")),
-            platform   = platform,
-            sram_base  = 0x20000200 if stm32 else 0x0200,
-            flash_base = 0x08000000 if stm32 else 0x0000,
+            port=port,
+            baud=baud,
+            timeout=timeout,
+            platform=platform,
+            sram_base=0x20000200 if stm32 else 0x0200,
+            flash_base=0x08000000 if stm32 else 0x0000,
         )
 
-
-HW = HWConfig.from_env()
+HW = HWConfig.from_sources()
 
 
 # Helpers
