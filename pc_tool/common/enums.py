@@ -4,6 +4,9 @@ MDT_PACKET_SIZE = 18
 MDT_MAX_BREAKPOINTS = 4
 MDT_MAX_WATCHPOINTS = 4
 
+DEFAULT_BAUDRATE: int   = 19_200
+COMMUNICATION_TIMEOUT: float = 5.0  # seconds — used by uart_io and serial link
+
 
 class CommandId(IntEnum):
     READ_MEM   = 0x01
@@ -71,11 +74,9 @@ class MCUPlatforms(StrEnum):
     STM = "stm32"
 
 class UtilEnum(IntEnum):
-    BAUDRATE_19200 = 19200
-    WORD_SIZE = 4
+    WORD_SIZE      = 4
     HALF_WORD_SIZE = 2
-    COMMUNICATION_TIMEOUT = 5.0  # in seconds
-    MDT_MAX_RETRIES = 3          # max retransmit attempts per packet
+    MDT_MAX_RETRIES = 3  # max retransmit attempts per packet
 
 class EventType(IntEnum):
     INTERNAL_MDT_EVENT_TYPE_NONE = 0

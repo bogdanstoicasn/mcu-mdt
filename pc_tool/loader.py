@@ -12,6 +12,9 @@ from pc_tool.common.enums import MCUPlatforms
 from pc_tool.common.elf_symbols import load_elf_symbols
 from pc_tool.common.logger import MDTLogger
 
+# Resolved at import time
+_DB_ROOT: Path = Path(__file__).parent / "mcu_db"
+
 
 # ---------------------------------------------------------------------------
 # Shared data model
@@ -564,7 +567,7 @@ def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
             raise NotImplementedError("PIC platform support is not implemented yet")
         raise ValueError(f"Unsupported MCU platform: '{platform}'")
 
-    return loader.load(mcu_name, db_root="pc_tool/mcu_db").to_dict()
+    return loader.load(mcu_name, db_root=str(_DB_ROOT)).to_dict()
 
 
 # ---------------------------------------------------------------------------
