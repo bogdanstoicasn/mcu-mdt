@@ -4,9 +4,6 @@
 #include "mcu_mdt_watchpoint.h"
 #include "mcu_mdt_protocol.h"
 
-/* Defined in mcu_mdt.c — set by handle_reset, checked in mdt_handle_packet */
-extern uint8_t pending_reset;
-
 
 uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
 {
@@ -109,7 +106,7 @@ static uint8_t handle_ping(uint8_t *buf)
 static uint8_t handle_reset(uint8_t *buf)
 {
     (void)buf;
-    pending_reset = 1;
+    mdt_request_reset();
     return 1;
 }
 

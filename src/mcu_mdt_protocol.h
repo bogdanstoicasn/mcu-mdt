@@ -74,4 +74,7 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len);
 /* Function to dispatch a MDT packet */
 uint8_t mdt_dispatch(uint8_t *buf);
 
+/* Request a reset after the current packet's ACK has been sent. */
+void mdt_request_reset(void);
+
 #endif /* MCU_MDT_PROTOCOL_H */

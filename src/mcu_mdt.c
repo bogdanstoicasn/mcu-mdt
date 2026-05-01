@@ -26,7 +26,12 @@ static mdt_buffer_t rx_packet = {
     .fence_post = MDT_FENCE_PATTERN
 };
 
-uint8_t pending_reset = 0;
+static uint8_t pending_reset = 0;
+
+void mdt_request_reset(void)
+{
+    pending_reset = 1;
+}
 
 /* Buffer helpers */
 

@@ -26,9 +26,8 @@ void mdt_breakpoint_trigger(uint8_t id)
     /* STM32 interrupt mode — PendSV handles all RX automatically.
      * Spin here: flush the pending event, sample watchpoints, and
      * wait for the PC to send NEXT or DISABLE. */
-    while (__builtin_expect(bp_state.slots[id].enabled, INTERNAL_MDT_BP_ENABLE))
+    while (bp_state.slots[id].enabled)
     {
-
         if (bp_state.slots[id].next)
         {
             bp_state.slots[id].next = INTERNAL_MDT_BP_DISABLE;
@@ -38,7 +37,7 @@ void mdt_breakpoint_trigger(uint8_t id)
 #else
     /* Poll mode (AVR) — must service RX manually in the spin loop.
      * mcu_mdt_poll() flushes the pending event and drains the RX buffer. */
-    while (__builtin_expect(bp_state.slots[id].enabled, INTERNAL_MDT_BP_ENABLE))
+    while (bp_state.slots[id].enabled)
     {
         mcu_mdt_poll();
 
