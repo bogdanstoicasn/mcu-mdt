@@ -5,52 +5,56 @@ HARDWARE TESTS FOR MCU-MDT
 Run these against a real MCU flashed with the MDT firmware.
 
 Usage:
-    # ATmega328P on /dev/ttyACM0  (default baud 19200)
-    MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest hardware
+    # ATmega328P on /dev/ttyACM0
+    MCU=ATmega328P python3 -m test.pymdtest hardware
 
-    # STM32 on /dev/ttyUSB0 at different baud
-    MDT_PORT=/dev/ttyUSB0 MDT_BAUD=19200 MDT_PLATFORM=stm32 python3 -m test.pymdtest hardware
+    # STM32F030F4 on /dev/ttyUSB0
+    MCU=F030F4 python3 -m test.pymdtest hardware
 
     # Windows
-    MDT_PORT=COM3 python3 -m test.pymdtest hardware
+    MCU=F030F4 python3 -m test.pymdtest hardware
 
 Environment variables:
+    MCU           MCU identifier matching build/<MCU>/build_info.yaml.
+                  When set, sram_base and flash_base are derived from the
+                  SVD/ATDF database; otherwise defaults are used.
     MDT_PORT      Serial port.  If unset every test is skipped gracefully.
     MDT_BAUD      Baud rate  (default: 19200)
-    HW.timeout   Per-packet read timeout in seconds  (default: 2.0)
+    MDT_TIMEOUT   Per-packet read timeout in seconds  (default: 2.0)
     MDT_PLATFORM  "avr" or "stm32"  (default: "avr")
-                  Controls which SRAM base address is used for memory tests.
 
 Coverage:
-1. Link health (ping, framing, crc)
-2. Memory read (read from sram and flash, return valid ack)
-3. Memory write/readback (write patters, read them back, verify)
-4. Register access (read/write reg, round-trip via SRAM)
-5. Protocol robustness (bad crc, recovery, resynch)
-6. Breakpoints
-7. Watchpoints
-8. Event packets
-9. Chunked transfer
+1.  Link health       (ping, framing, crc)
+2.  Memory read       (read from sram and flash, return valid ack)
+3.  Memory write/read (write patterns, read them back, verify)
+4.  Register/SRAM     (READ_REG/WRITE_REG round-trip via scratch SRAM)
+5.  Protocol          (bad crc, recovery, resync)
+6.  Breakpoints
+7.  Watchpoints
+8.  Event packets
+9.  Chunked transfer
 10. Stress
 
 Assumptions:
-1. Firmware running (mcu_mdt_poll loop)
-2. ≥64B free SRAM
-3. AVR base: 0x0200, STM32 base: 0x20000200
-
-Goal:
-Validate that the MCU-MDT functions correctly under real-world usage scenarios.
+1. Firmware running (mcu_mdt_poll / interrupt loop)
+2. ≥64B free SRAM above sram_base
+3. sram_base / flash_base resolved from SVD/ATDF when MCU is set,
+   otherwise: AVR 0x0200 / 0x0000, STM32 0x20000200 / 0x08000000
 """
 
 import os
+import struct
 import time
 import threading
+import xml.etree.ElementTree as ET
 import yaml
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Iterator
 
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 
+from pc_tool.loader import load_mcu_metadata
 from pc_tool.common.dataclasses import Command
 from pc_tool.common.enums import (
     MDT_PACKET_SIZE, MDTOffset, MDTFlags,
@@ -75,12 +79,34 @@ class HWConfig:
     baud:       int
     timeout:    float
     platform:   str
-    sram_base:  int
-    flash_base: int
+    sram_base:  int      # first safe scratch word inside SRAM
+    flash_base: int      # start of flash region
+    meta:       dict     # full MCU metadata from SVD/ATDF via load_mcu_metadata
+    registers:  dict     # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
 
     @property
     def available(self) -> bool:
         return bool(self.port)
+
+    def scratch(self, slot: int) -> int:
+        """
+        Return a 4-byte-aligned SRAM address for test slot *slot*.
+        Each slot is 4 bytes wide; slots start at sram_base.
+        Tests use named slots instead of raw offsets so the mapping is
+        explicit and conflicts are visible in one place:
+
+            slot  0  — basic read / watchpoint base
+            slot  1  — write_all_zeros
+            slot  2  — write_all_ones
+            slot  4  — adjacent_writes word A   (gap at 3 is intentional)
+            slot  5  — adjacent_writes word B
+            slot  8  — various_patterns / parametrized write-read
+            slot 12  — reg round-trip
+            slot 16  — chunked 16-byte write (needs 4 consecutive slots: 16-19)
+            slot 20  — chunked write+readback (needs 2 consecutive slots: 20-21)
+            slot 24  — stress interleaved write-read
+        """
+        return self.sram_base + slot * 4
 
     @classmethod
     def from_sources(cls) -> "HWConfig":
@@ -88,43 +114,83 @@ class HWConfig:
         Load configuration from:
         1. build/<MCU>/build_info.yaml  (if MCU is set)
         2. environment variables (override)
-        3. defaults
+        3. Sensible defaults when MCU is absent
+
+        sram_base and flash_base are resolved from the MCU metadata
+        (meta['memories']) when MCU is provided, avoiding any hardcoded
+        addresses in this file.  A safe 0x200-byte guard is added to
+        sram_base so test writes never collide with firmware variables at
+        the bottom of SRAM.
         """
         mcu = os.environ.get("MCU", "")
         data = {}
 
-        # Load build_info.yaml if MCU is provided
         if mcu:
             path = os.path.join("build", mcu, "build_info.yaml")
             if not os.path.exists(path):
                 raise FileNotFoundError(
                     f"Build info not found for MCU='{mcu}' at {path}"
                 )
-
             with open(path, "r") as f:
                 data = yaml.safe_load(f) or {}
 
-        # Platform normalization
         platform = (
             os.environ.get("MDT_PLATFORM")
             or data.get("platform", "avr")
         ).lower()
 
-        stm32 = "stm32" in platform
-
-        # Final config (ENV overrides build_info)
-        port = os.environ.get("MDT_PORT", data.get("port", ""))
-        baud = int(os.environ.get("MDT_BAUD", "19200"))
+        port    = os.environ.get("MDT_PORT",    data.get("port", ""))
+        baud    = int(os.environ.get("MDT_BAUD",    "19200"))
         timeout = float(os.environ.get("MDT_TIMEOUT", "2.0"))
+
+        # Load MCU metadata when we have an MCU identifier; fall back to
+        # empty meta (and hardcoded bases) when running without one.
+        meta      = {}
+        if mcu:
+            try:
+                meta      = load_mcu_metadata(data.get("mcu", mcu), platform)
+            except Exception as exc:
+                print(f"  [WARN] Could not load MCU metadata: {exc}")
+
+        sram_base, flash_base = _resolve_memory_bases(meta, platform)
 
         return cls(
             port=port,
             baud=baud,
             timeout=timeout,
             platform=platform,
-            sram_base=0x20000200 if stm32 else 0x0200,
-            flash_base=0x08000000 if stm32 else 0x0000,
+            sram_base=sram_base,
+            flash_base=flash_base,
+            meta=meta,
+            registers=None,
         )
+
+
+def _resolve_memory_bases(meta: dict, platform: str) -> tuple[int, int]:
+    """
+    Derive sram_base and flash_base from the metadata memory map.
+    Falls back to well-known constants when meta is absent.
+    The 0x200 guard on sram_base keeps test writes away from firmware
+    variables that live at the bottom of SRAM.
+    """
+    memories = meta.get("memories", {})
+
+    ram_seg   = next((v for v in memories.values() if v.get("type") == "ram"),   None)
+    flash_seg = next((v for v in memories.values() if v.get("type") == "flash"), None)
+
+    stm32 = "stm32" in platform
+
+    if ram_seg:
+        sram_base = int(ram_seg["start"]) + 0x200
+    else:
+        sram_base = 0x20000200 if stm32 else 0x0200
+
+    if flash_seg:
+        flash_base = int(flash_seg["start"])
+    else:
+        flash_base = 0x08000000 if stm32 else 0x0000
+
+    return sram_base, flash_base
 
 HW = HWConfig.from_sources()
 
@@ -282,7 +348,7 @@ def test_hw_read_sram_returns_ack():
     link = _link()
     try:
         cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.sram_base, length=4)
+                   address=HW.scratch(0), length=4)
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.READ_MEM)
     finally:
@@ -293,7 +359,7 @@ def test_hw_read_sram_data_is_four_bytes():
     link = _link()
     try:
         cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.sram_base, length=4)
+                   address=HW.scratch(0), length=4)
         pkt = _send_parsed(link, cmd)
         assert_eq(pkt is not None, True)
         assert_eq(len(pkt.data), UtilEnum.WORD_SIZE)
@@ -326,7 +392,7 @@ def test_hw_read_sram_mem_id_echoed():
     link = _link()
     try:
         cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.sram_base, length=4)
+                   address=HW.scratch(0), length=4)
         pkt = _send_parsed(link, cmd)
         assert_eq(pkt is not None, True)
         assert_eq(pkt.mem_id, MemType.RAM)
@@ -340,7 +406,7 @@ def test_hw_write_sram_returns_ack():
     link = _link()
     try:
         cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                   address=HW.sram_base, length=4,
+                   address=HW.scratch(0), length=4,
                    data=b'\x12\x34\x56\x78')
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.WRITE_MEM)
@@ -353,10 +419,10 @@ def test_hw_write_then_read_back_pattern():
     try:
         pattern = b'\xCA\xFE\xBA\xBE'
         _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=HW.sram_base, length=4, data=pattern))
+                         address=HW.scratch(0), length=4, data=pattern))
         _flush(link)
         pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                      address=HW.sram_base, length=4))
+                                      address=HW.scratch(0), length=4))
         assert_eq(pkt is not None, True)
         assert_eq(pkt.data, pattern)
     finally:
@@ -366,7 +432,7 @@ def test_hw_write_all_zeros_read_back():
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr = HW.sram_base + 4
+        addr = HW.scratch(1)
         _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                          address=addr, length=4, data=b'\x00\x00\x00\x00'))
         _flush(link)
@@ -381,7 +447,7 @@ def test_hw_write_all_ones_read_back():
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr = HW.sram_base + 8
+        addr = HW.scratch(2)
         _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                          address=addr, length=4, data=b'\xFF\xFF\xFF\xFF'))
         _flush(link)
@@ -397,7 +463,7 @@ def test_hw_adjacent_writes_do_not_alias():
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr_a, addr_b = HW.sram_base + 0x10, HW.sram_base + 0x14
+        addr_a, addr_b = HW.scratch(4), HW.scratch(5)
         for addr, pat in [(addr_a, b'\xAA\xAA\xAA\xAA'),
                           (addr_b, b'\xBB\xBB\xBB\xBB')]:
             _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
@@ -423,7 +489,7 @@ def test_hw_write_read_various_patterns(pattern):
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr = HW.sram_base + 0x20
+        addr = HW.scratch(8)
         _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                          address=addr, length=4, data=pattern))
         _flush(link)
@@ -444,7 +510,7 @@ def test_hw_read_reg_at_sram_returns_packet():
     if not HW.available: return _skip()
     link = _link()
     try:
-        raw = _send(link, _cmd(CommandId.READ_REG, address=HW.sram_base))
+        raw = _send(link, _cmd(CommandId.READ_REG, address=HW.scratch(0)))
         assert_eq(raw is not None, True)
         assert_eq(len(raw), MDT_PACKET_SIZE)
         crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
@@ -460,7 +526,7 @@ def test_hw_write_reg_read_reg_roundtrip():
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr = HW.sram_base + 0x30
+        addr = HW.scratch(12)
         # Write 0xA5 via WRITE_REG (1-byte register write)
         _send(link, _cmd(CommandId.WRITE_REG, address=addr,
                          data=b'\xA5\x00\x00\x00'))
@@ -668,7 +734,7 @@ def test_hw_watchpoint_enable_acked():
     if not HW.available: return _skip()
     link = _link()
     try:
-        watched_addr = HW.sram_base  # guaranteed 4-byte aligned
+        watched_addr = HW.scratch(0)  # guaranteed 4-byte aligned
         data = watched_addr.to_bytes(4, "little")
         cmd = _cmd(CommandId.WATCHPOINT, mem=int(WatchpointControl.ENABLED),
                    address=0, data=data)
@@ -701,7 +767,7 @@ def test_hw_watchpoint_mask_on_active_slot_acked():
     if not HW.available: return _skip()
     link = _link()
     try:
-        watched_addr = HW.sram_base
+        watched_addr = HW.scratch(0)
         # Enable slot 1
         _send(link, _cmd(CommandId.WATCHPOINT,
                          mem=int(WatchpointControl.ENABLED),
@@ -861,7 +927,7 @@ def test_hw_chunked_16_byte_write_all_acked():
     try:
         payload = bytes(range(16))
         cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                   address=HW.sram_base + 0x40,
+                   address=HW.scratch(16),
                    length=16, data=payload)
         execute_command(cmd, serial_link=link)
     finally:
@@ -878,7 +944,7 @@ def test_hw_chunked_write_then_read_back():
     link = _link()
     t = _start_rx_worker(link)
     try:
-        base = HW.sram_base + 0x50
+        base = HW.scratch(20)
         payload = b'\x10\x20\x30\x40\x50\x60\x70\x80'
 
         write_cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
@@ -932,7 +998,7 @@ def test_hw_interleaved_write_read_stress():
     if not HW.available: return _skip()
     link = _link()
     try:
-        addr = HW.sram_base + 0x60
+        addr = HW.scratch(24)
         for i in range(10):
             pattern = bytes([i, i ^ 0xFF, (i * 3) & 0xFF, (i * 7) & 0xFF])
             _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,

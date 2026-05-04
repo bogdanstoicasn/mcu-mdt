@@ -213,10 +213,30 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
 
 uint8_t hal_read_register(uint32_t address, uint8_t *buffer)
 {
-    return hal_read_memory(MDT_MEM_ZONE_SRAM, address, buffer, 4);
+    if (!buffer || (address & 0x3))
+        return 0;
+
+    uint32_t val = *((volatile uint32_t *)(uintptr_t)address);
+
+    buffer[0] = (uint8_t)(val);
+    buffer[1] = (uint8_t)(val >> 8);
+    buffer[2] = (uint8_t)(val >> 16);
+    buffer[3] = (uint8_t)(val >> 24);
+
+    return 1;
 }
 
 uint8_t hal_write_register(uint32_t address, const uint8_t *buffer)
 {
-    return hal_write_memory(MDT_MEM_ZONE_SRAM, address, buffer, 4);
+    if (!buffer || (address & 0x3))
+        return 0;
+
+    uint32_t val = (uint32_t)buffer[0]
+                 | ((uint32_t)buffer[1] << 8)
+                 | ((uint32_t)buffer[2] << 16)
+                 | ((uint32_t)buffer[3] << 24);
+
+    *((volatile uint32_t *)(uintptr_t)address) = val;
+
+    return 1;
 }
