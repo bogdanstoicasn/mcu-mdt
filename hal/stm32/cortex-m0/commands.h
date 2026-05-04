@@ -2,7 +2,6 @@
 #define COMMANDS_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /* Flash zone */
 #define FLASH_REGISTER_BASE 0x40022000

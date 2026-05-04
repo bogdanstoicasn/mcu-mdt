@@ -172,6 +172,79 @@ void hal_reset(void)
 }
 
 
+/* Flash helpers — private to this file */
+static inline void flash_unlock(void)
+{
+    if (FLASH->cr & FLASH_CR_LOCK)
+    {
+        FLASH->keyr = FLASH_KEY1;
+        FLASH->keyr = FLASH_KEY2;
+    }
+}
+
+static inline void flash_lock(void)
+{
+    FLASH->cr |= FLASH_CR_LOCK;
+}
+
+static inline void flash_wait_busy(void)
+{
+    while (FLASH->sr & FLASH_SR_BSY);
+}
+
+static inline void flash_clear_flags(void)
+{
+    FLASH->sr = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
+}
+
+static uint8_t flash_is_erased(uint32_t address, uint16_t length)
+{
+    uint16_t len_hw = (length + 1U) & ~1U;   /* round up to even */
+    for (uint16_t i = 0; i < len_hw; i += 2)
+    {
+        if (*((volatile uint16_t *)(uintptr_t)(address + i)) != 0xFFFFU)
+            return 0;
+    }
+    return 1;
+}
+
+static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
+{
+    flash_wait_busy();
+    flash_clear_flags();
+
+    FLASH->cr |= FLASH_CR_PG;
+
+    *((volatile uint16_t *)(uintptr_t)address) = data;
+
+    flash_wait_busy();
+
+    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    FLASH->sr  =  FLASH_SR_EOP;    /* clear EOP  (w1c) */
+    FLASH->cr &= ~FLASH_CR_PG;     /* exit programming mode */
+
+    return ok;
+}
+
+static uint8_t flash_erase_page(uint32_t address)
+{
+    flash_wait_busy();
+    flash_clear_flags();
+
+    FLASH->cr |= FLASH_CR_PER;     /* select page-erase mode */
+    FLASH->ar  = address;          /* point at the page      */
+    FLASH->cr |= FLASH_CR_STRT;    /* start the erase        */
+
+    flash_wait_busy();
+
+    uint8_t ok  = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    FLASH->sr   =  FLASH_SR_EOP;
+    FLASH->cr  &= ~FLASH_CR_PER;   /* exit page-erase mode   */
+
+    return ok;
+}
+
+
 /* HAL: Memory */
 
 uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address,
