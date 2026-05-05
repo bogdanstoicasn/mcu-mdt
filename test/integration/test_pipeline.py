@@ -41,7 +41,7 @@ from pc_tool.common.protocol import (
 )
 from pc_tool.parser import parse_line
 from pc_tool.validator import validate_commands
-from test.common.mdtfixtures import COMMANDS, CONTROL_VALUES, MCU_METADATA_RAM, MCU_METADATA_REG, MockUART
+from test.common.mdtfixtures import COMMANDS, CONTROL_VALUES, MCU_METADATA_RAM, MCU_METADATA_FLASH, MCU_METADATA_REG, MockUART
 
 
 def _make_ack_packet(for_cmd_id: int) -> bytes:
@@ -389,3 +389,40 @@ def test_field_fidelity_seq(seq):
     pkt  = serialize_command_packet(cmd, seq=seq, multi=True, last=False)
     back = deserialize_command_packet(pkt)
     assert_eq(back.seq, seq)
+
+
+# Erase tests
+def test_e2e_erase_flash_page():
+    """WRITE_MEM ERASE should serialize with mem_id=3 and the correct address."""
+    uart = MockUART()
+    result = _full_pipeline("WRITE_MEM ERASE 0x08001000 4 00000000", MCU_METADATA_FLASH, uart)
+    assert_eq(result.cmd_id, CommandId.WRITE_MEM)
+    assert_eq(result.mem_id,  MemType.ERASE)
+    assert_eq(result.address, 0x08001000)
+
+def test_validator_accepts_erase_inside_flash():
+    """Validator passes an address that falls within the flash segment."""
+    cmd = Command(
+        name="WRITE_MEM", id=CommandId.WRITE_MEM,
+        mem=MemType.ERASE, address=0x08000400, data=b'\x00\x00\x00\x00', length=1,
+    )
+    assert_eq(validate_commands(cmd, MCU_METADATA_FLASH), True)
+
+def test_validator_rejects_erase_outside_flash():
+    """Validator blocks an erase whose address is not in any flash segment."""
+    cmd = Command(
+        name="WRITE_MEM", id=CommandId.WRITE_MEM,
+        mem=MemType.ERASE, address=0x20000000, data=b'\x00\x00\x00\x00', length=1,
+    )
+    assert_eq(validate_commands(cmd, MCU_METADATA_FLASH), False)
+
+def test_erase_packet_mem_id_is_3():
+    """Serialized erase packet must carry mem_id=3 in the MEM_ID field."""
+    cmd = Command(
+        name="WRITE_MEM", id=CommandId.WRITE_MEM,
+        mem=MemType.ERASE, address=0x08002000, data=b'\x00\x00\x00\x00', length=1,
+    )
+    pkt  = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    back = deserialize_command_packet(pkt)
+    assert_eq(back.mem_id,  MemType.ERASE)
+    assert_eq(back.address, 0x08002000)

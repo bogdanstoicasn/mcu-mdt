@@ -51,13 +51,21 @@ COMMANDS = {
 }
 
 CONTROL_VALUES = {
-    "RAM": 0, "FLASH": 1, "EEPROM": 2,
+    "RAM": 0, "FLASH": 1, "EEPROM": 2, "ERASE": 3,
     "DISABLED": 0, "ENABLED": 1, "RESET": 2, "NEXT": 3, "MASK": 3,
 }
 
 MCU_METADATA_RAM = {
     "memories": {
         "IRAM": {"type": "ram", "start": 0x20000000, "size": 0x5000},
+    },
+    "modules": {},
+}
+
+MCU_METADATA_FLASH = {
+    "memories": {
+        "IRAM":   {"type": "ram",   "start": 0x20000000, "size": 0x5000},
+        "IFLASH": {"type": "flash", "start": 0x08000000, "size": 0x10000},
     },
     "modules": {},
 }

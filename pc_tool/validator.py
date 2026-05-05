@@ -10,6 +10,7 @@ _MEM_TYPE_STR = {
     MemType.FLASH:  "flash",
     MemType.RAM:    "ram",
     MemType.EEPROM: "eeprom",
+    MemType.ERASE:  "flash",   # erase targets flash; reuse flash segment for bounds check
 }
 
 
@@ -114,6 +115,30 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
 
 
 def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
+    try:
+        mem_type = MemType(operation.mem)
+    except ValueError:
+        MDTLogger.error(f"Invalid memory type: {operation.mem}.", code=3)
+        return False
+
+    # ERASE: the MCU ignores data/length — only the address matters.
+    # Validate that the address falls inside a known flash segment.
+    if mem_type == MemType.ERASE:
+        addr = operation.address
+        seg  = _find_mem_segment(mcu_metadata, mem_type, addr, 1)
+        if seg is None:
+            MDTLogger.error(
+                f"ERASE address 0x{addr:X} does not fall within any flash segment.", code=3
+            )
+            return False
+        start = _int(seg["start"])
+        end   = start + _int(seg["size"])
+        MDTLogger.info(
+            f"ERASE valid: flash page containing 0x{addr:X} "
+            f"(flash 0x{start:X}..0x{end - 1:X})."
+        )
+        return True
+
     if operation.length != len(operation.data):
         MDTLogger.error(
             f"Length field {operation.length} does not match data length {len(operation.data)}.",

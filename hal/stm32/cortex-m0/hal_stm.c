@@ -175,6 +175,13 @@ void hal_reset(void)
 
 static inline void flash_unlock(void)
 {
+    /* RM0360 §3.1: HSI must be on for all flash program/erase operations.
+     * If the system is running from HSE or PLL-from-HSE with HSI off, every
+     * flash operation hangs or fails without this. The wait is ~1 µs worst-
+     * case; if HSI is already running (HSIRDY=1) it returns immediately. */
+    RCC->cr |= (1U << 0);             /* HSION */
+    while (!(RCC->cr & (1U << 1)));   /* wait HSIRDY */
+
     if (FLASH->cr & FLASH_CR_LOCK)
     {
         FLASH->keyr = FLASH_KEY1;
@@ -194,7 +201,7 @@ static inline void flash_wait_busy(void)
 
 static inline void flash_clear_flags(void)
 {
-    FLASH->sr = FLASH_SR_PGERR | FLASH_SR_WRPTERR | FLASH_SR_EOP;
+    FLASH->sr = FLASH_SR_PGERR | FLASH_SR_WRPRTERR | FLASH_SR_EOP;
 }
 
 static uint8_t flash_is_erased(uint32_t address, uint16_t length)
@@ -228,7 +235,7 @@ static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
 
 static uint8_t flash_write_word(uint32_t address, uint32_t data)
 {
-    if (address & 0x3)
+    if (address & 0x1)   /* halfword alignment only — word alignment is not required by the flash controller */
         return 0;
 
     flash_unlock();
@@ -236,6 +243,29 @@ static uint8_t flash_write_word(uint32_t address, uint32_t data)
     uint8_t ok = flash_write_halfword(address,     (uint16_t)(data & 0xFFFF));
     if (ok)
         ok     = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
+
+    flash_lock();
+    return ok;
+}
+
+static uint8_t flash_erase_page(uint32_t address)
+{
+    uint32_t page_base = address & ~(FLASH_PAGE_SIZE - 1UL);
+
+    flash_unlock();
+
+    flash_wait_busy();
+    flash_clear_flags();
+
+    FLASH->cr |= FLASH_CR_PER;
+    FLASH->ar  = page_base;
+    FLASH->cr |= FLASH_CR_STRT;
+
+    flash_wait_busy();
+
+    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    FLASH->sr  = FLASH_SR_EOP;
+    FLASH->cr &= ~FLASH_CR_PER;
 
     flash_lock();
     return ok;
@@ -266,6 +296,11 @@ uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address,
 uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
                          const uint8_t *buffer, uint16_t length)
 {
+    /* ERASE ignores buffer and length entirely — handle it before the
+     * null/length guard so callers are not forced to pass dummy data. */
+    if (mem_zone == MDT_MEM_ZONE_ERASE)
+        return flash_erase_page(address);
+
     if (!buffer || length == 0)
         return 0;
 
@@ -306,6 +341,11 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
                 return flash_write_word(address, word);
             }
         }
+
+        case MDT_MEM_ZONE_ERASE:
+            /* Unreachable — handled above before the null/length guard.
+             * Kept here so the compiler does not warn on an unhandled enum value. */
+            return flash_erase_page(address);
 
         default:
             return 0;

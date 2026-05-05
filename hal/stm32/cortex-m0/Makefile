@@ -47,24 +47,35 @@ CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
 # MCU -> linker script define mapping
 # Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
+# FLASH_PAGE_SIZE: 0x400 (1 KB) for F030x4/x6/x8 and F070x6
+#                  0x800 (2 KB) for F030xC and F070xB
 ifeq ($(MCU),F030F4)
-  MCU_LD_DEFINE := -DMCU_F030F4
+  MCU_LD_DEFINE   := -DMCU_F030F4
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F030F6)
-  MCU_LD_DEFINE := -DMCU_F030F6
+  MCU_LD_DEFINE   := -DMCU_F030F6
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F030C6)
-  MCU_LD_DEFINE := -DMCU_F030C6
+  MCU_LD_DEFINE   := -DMCU_F030C6
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F030F8)
-  MCU_LD_DEFINE := -DMCU_F030F8
+  MCU_LD_DEFINE   := -DMCU_F030F8
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F030C8)
-  MCU_LD_DEFINE := -DMCU_F030C8
+  MCU_LD_DEFINE   := -DMCU_F030C8
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F030CC)
-  MCU_LD_DEFINE := -DMCU_F030CC
+  MCU_LD_DEFINE   := -DMCU_F030CC
+  FLASH_PAGE_SIZE := 0x800UL
 else ifeq ($(MCU),F070F6)
-  MCU_LD_DEFINE := -DMCU_F070F6
+  MCU_LD_DEFINE   := -DMCU_F070F6
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU),F070CB)
-  MCU_LD_DEFINE := -DMCU_F070CB
+  MCU_LD_DEFINE   := -DMCU_F070CB
+  FLASH_PAGE_SIZE := 0x800UL
 else ifeq ($(MCU),F070RB)
-  MCU_LD_DEFINE := -DMCU_F070RB
+  MCU_LD_DEFINE   := -DMCU_F070RB
+  FLASH_PAGE_SIZE := 0x800UL
 else
   $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m0/Makefile)
 endif
@@ -82,6 +93,7 @@ CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32
+CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)
 
 # MDT_USE_UART_IDLE: default 1 on this target (hardware supports IDLE interrupt).
 # Override with: make MDT_USE_UART_IDLE=0 to use poll mode instead.

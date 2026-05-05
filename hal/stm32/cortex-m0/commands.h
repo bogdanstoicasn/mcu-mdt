@@ -3,6 +3,15 @@
 
 #include <stdint.h>
 
+/* FLASH_PAGE_SIZE is injected by the build system via -DFLASH_PAGE_SIZE=...
+ * in cortex-m0/Makefile. Values per RM0360 §3.1:
+ *   0x400UL (1 KB) — F030x4, F030x6, F030x8, F070x6
+ *   0x800UL (2 KB) — F030xC, F070xB
+ * A missing define is a hard build error, not a silent wrong value. */
+#ifndef FLASH_PAGE_SIZE
+#  error "FLASH_PAGE_SIZE not defined — pass -DFLASH_PAGE_SIZE=<size> from the Makefile"
+#endif
+
 /* Flash zone */
 #define FLASH_REGISTER_BASE 0x40022000
 
@@ -23,7 +32,7 @@ typedef struct {
 /* FLASH_SR bits */
 #define FLASH_SR_BSY     (1 << 0)
 #define FLASH_SR_PGERR   (1 << 2)
-#define FLASH_SR_WRPTERR (1 << 4)
+#define FLASH_SR_WRPRTERR (1 << 4)
 #define FLASH_SR_EOP     (1 << 5)
 
 /* FLASH_CR bits */

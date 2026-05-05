@@ -35,9 +35,10 @@ class WatchpointControl(IntEnum):
     MASK     = 3
 
 class MemType(IntEnum):
-    RAM = 0
-    FLASH = 1
+    RAM    = 0
+    FLASH  = 1
     EEPROM = 2
+    ERASE  = 3  # Erase the flash page containing the given address
 
 class FenceType(IntEnum):
     START_BYTE = 0xAA

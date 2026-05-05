@@ -8,7 +8,8 @@
 typedef enum {
     MDT_MEM_ZONE_SRAM   = 0x00,
     MDT_MEM_ZONE_FLASH  = 0x01,
-    MDT_MEM_ZONE_EEPROM = 0x02
+    MDT_MEM_ZONE_EEPROM = 0x02,
+    MDT_MEM_ZONE_ERASE  = 0x03
 } mdt_mem_zone_t;
 
 /* Defaults: do not modify */
