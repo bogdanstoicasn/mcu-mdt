@@ -187,6 +187,7 @@ $(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
 	@echo "port: $(PORT)"                           >> $@
 	@echo "elf: $(ELF_NAME)"                        >> $@
 	@echo "uart_idle: $(MDT_USE_UART_IDLE)"         >> $@
+	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"     >> $@
 
 flash: all
 	@test -f $(EXAMPLE_BIN) || \

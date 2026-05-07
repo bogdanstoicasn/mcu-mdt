@@ -30,21 +30,21 @@ typedef struct {
 #define FLASH ((volatile flash_def_t *) FLASH_REGISTER_BASE)
 
 /* FLASH_SR bits */
-#define FLASH_SR_BSY     (1 << 0)
-#define FLASH_SR_PGERR   (1 << 2)
-#define FLASH_SR_WRPRTERR (1 << 4)
-#define FLASH_SR_EOP     (1 << 5)
+#define FLASH_SR_BSY      (1U << 0)
+#define FLASH_SR_PGERR    (1U << 2)
+#define FLASH_SR_WRPRTERR (1U << 4)
+#define FLASH_SR_EOP      (1U << 5)
 
 /* FLASH_CR bits */
-#define FLASH_CR_PG      (1 << 0)
-#define FLASH_CR_PER     (1 << 1)
-#define FLASH_CR_MER     (1 << 2)
-#define FLASH_CR_STRT    (1 << 6)
-#define FLASH_CR_LOCK    (1 << 7)
+#define FLASH_CR_PG      (1U << 0)
+#define FLASH_CR_PER     (1U << 1)
+#define FLASH_CR_MER     (1U << 2)
+#define FLASH_CR_STRT    (1U << 6)
+#define FLASH_CR_LOCK    (1U << 7)
 
 /* Unlock keys */
-#define FLASH_KEY1  0x45670123
-#define FLASH_KEY2  0xCDEF89AB
+#define FLASH_KEY1  0x45670123UL
+#define FLASH_KEY2  0xCDEF89ABUL
 
 
 #endif /* COMMANDS_H */

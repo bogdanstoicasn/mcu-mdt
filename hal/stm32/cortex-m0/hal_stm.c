@@ -325,7 +325,7 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
                 if (length == 2)
                     hw = (uint16_t)buffer[0] | ((uint16_t)buffer[1] << 8);
                 else
-                    hw = (uint16_t)buffer[0] | 0xFF00; /* keep upper byte erased */
+                    hw = (uint16_t)buffer[0] | 0xFF00U; /* keep upper byte erased */
 
                 flash_unlock();
                 uint8_t ok = flash_write_halfword(address, hw);
@@ -334,7 +334,7 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
             }
             else
             {
-                uint32_t word = 0xFFFFFFFF;
+                uint32_t word = 0xFFFFFFFFUL;
                 for (uint16_t i = 0; i < length && i < 4; i++)
                     word = (word & ~(0xFFUL << (i * 8))) | ((uint32_t)buffer[i] << (i * 8));
 

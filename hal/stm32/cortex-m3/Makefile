@@ -55,24 +55,46 @@ MCU_NORM := $(patsubst F103T%,F103x%,$(MCU_NORM))
 MCU_NORM := $(patsubst F103V%,F103x%,$(MCU_NORM))
 MCU_NORM := $(patsubst F103Z%,F103x%,$(MCU_NORM))
 
+# MCU -> linker script define mapping.
+# Also sets FLASH_PAGE_SIZE (injected as -D into all C files) and
+# FLASH_XL_DENSITY (set only for XL-density parts with dual flash banks).
+#
+# Page sizes per RM0008 Tables 4-8:
+#   1 KB — low density  (F103x4, F103x6)
+#   1 KB — medium density (F103x8, F103xB)
+#   2 KB — high density (F103xC/D/E), XL density (F103xF/G), connectivity (F105/F107)
+# XL density (F103xF, F103xG) also requires FLASH_XL_DENSITY for dual-bank support.
+FLASH_XL_DENSITY :=
+
 ifeq ($(MCU_NORM),F103x4)
-  MCU_LD_DEFINE := -DMCU_F103x4
+  MCU_LD_DEFINE   := -DMCU_F103x4
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU_NORM),F103x6)
-  MCU_LD_DEFINE := -DMCU_F103x6
+  MCU_LD_DEFINE   := -DMCU_F103x6
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU_NORM),F103x8)
-  MCU_LD_DEFINE := -DMCU_F103x8
+  MCU_LD_DEFINE   := -DMCU_F103x8
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU_NORM),F103xB)
-  MCU_LD_DEFINE := -DMCU_F103xB
+  MCU_LD_DEFINE   := -DMCU_F103xB
+  FLASH_PAGE_SIZE := 0x400UL
 else ifeq ($(MCU_NORM),F103xC)
-  MCU_LD_DEFINE := -DMCU_F103xC
+  MCU_LD_DEFINE   := -DMCU_F103xC
+  FLASH_PAGE_SIZE := 0x800UL
 else ifeq ($(MCU_NORM),F103xD)
-  MCU_LD_DEFINE := -DMCU_F103xD
+  MCU_LD_DEFINE   := -DMCU_F103xD
+  FLASH_PAGE_SIZE := 0x800UL
 else ifeq ($(MCU_NORM),F103xE)
-  MCU_LD_DEFINE := -DMCU_F103xE
+  MCU_LD_DEFINE   := -DMCU_F103xE
+  FLASH_PAGE_SIZE := 0x800UL
 else ifeq ($(MCU_NORM),F103xF)
-  MCU_LD_DEFINE := -DMCU_F103xF
+  MCU_LD_DEFINE    := -DMCU_F103xF
+  FLASH_PAGE_SIZE  := 0x800UL
+  FLASH_XL_DENSITY := 1
 else ifeq ($(MCU_NORM),F103xG)
-  MCU_LD_DEFINE := -DMCU_F103xG
+  MCU_LD_DEFINE    := -DMCU_F103xG
+  FLASH_PAGE_SIZE  := 0x800UL
+  FLASH_XL_DENSITY := 1
 else
   $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m3/Makefile)
 endif
@@ -92,6 +114,10 @@ CFLAGS  += -I$(INC_DIR)
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32
+CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)
+ifneq ($(FLASH_XL_DENSITY),)
+CFLAGS  += -DFLASH_XL_DENSITY
+endif
 
 MDT_USE_UART_IDLE ?= 1
 CFLAGS += -DMDT_FEATURE_UART_IDLE=$(MDT_USE_UART_IDLE)
@@ -183,6 +209,7 @@ $(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
 	@echo "port: $(PORT)"                           >> $@
 	@echo "elf: $(ELF_NAME)"                        >> $@
 	@echo "uart_idle: $(MDT_USE_UART_IDLE)"         >> $@
+	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"     >> $@
 
 flash: all
 	@test -f $(EXAMPLE_BIN) || \

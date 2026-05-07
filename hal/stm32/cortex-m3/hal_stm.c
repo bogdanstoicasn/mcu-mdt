@@ -6,7 +6,10 @@
  *   - IDLE interrupt → PendSV (lowest priority) → registered idle callback.
  *     IDLE flag is cleared by reading SR then DR (F1 series errata sequence).
  *   - Memory: SRAM and FLASH share the same linear address space — reads are
- *     plain pointer dereferences. FLASH write is not implemented on this target.
+ *     plain pointer dereferences. FLASH writes use half-word (16-bit)
+ *     programming only (RM0008 §3.3.3); byte or word writes are not supported
+ *     by the flash controller. XL-density parts (F103xF/G) have dual flash
+ *     banks; addresses >= 0x0808 0000 use the bank-2 control registers.
  *   - Registers are memory-mapped and 32-bit wide; hal_read/write_register
  *     uses a 4-byte SRAM access.
  *
@@ -172,9 +175,15 @@ void hal_reset(void)
 }
 
 
-/* Flash helpers — private to this file */
+static inline void flash_ensure_hsi(void)
+{
+    RCC->cr |= (1U << 0);             /* HSION  */
+    while (!(RCC->cr & (1U << 1)));   /* HSIRDY */
+}
+
 static inline void flash_unlock(void)
 {
+    flash_ensure_hsi();
     if (FLASH->cr & FLASH_CR_LOCK)
     {
         FLASH->keyr = FLASH_KEY1;
@@ -197,9 +206,44 @@ static inline void flash_clear_flags(void)
     FLASH->sr = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
 }
 
+/* ── XL-density bank 2 helpers ──────────────────────────────────────────────
+ * F103xF and F103xG have 1 MB of flash split into two independent 512 KB
+ * banks. Bank 2 (0x0808 0000 – 0x080F FFFF) has its own control registers
+ * (FLASH_CR2/SR2/AR2/KEYR2). Both banks share the same bit definitions. */
+#ifdef FLASH_XL_DENSITY
+
+static inline void flash_unlock2(void)
+{
+    flash_ensure_hsi();
+    if (FLASH_CR2 & FLASH_CR_LOCK)
+    {
+        FLASH_KEYR2 = FLASH_KEY1;
+        FLASH_KEYR2 = FLASH_KEY2;
+    }
+}
+
+static inline void flash_lock2(void)
+{
+    FLASH_CR2 |= FLASH_CR_LOCK;
+}
+
+static inline void flash_wait_busy2(void)
+{
+    while (FLASH_SR2 & FLASH_SR_BSY);
+}
+
+static inline void flash_clear_flags2(void)
+{
+    FLASH_SR2 = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
+}
+
+#endif /* FLASH_XL_DENSITY */
+
 static uint8_t flash_is_erased(uint32_t address, uint16_t length)
 {
-    uint16_t len_hw = (length + 1U) & ~1U;   /* round up to even */
+    /* Round up to even — writes always touch a full halfword, so both bytes
+     * of the target halfword must be 0xFF even for a 1-byte write. */
+    uint16_t len_hw = (length + 1U) & ~1U;
     for (uint16_t i = 0; i < len_hw; i += 2)
     {
         if (*((volatile uint16_t *)(uintptr_t)(address + i)) != 0xFFFFU)
@@ -210,37 +254,91 @@ static uint8_t flash_is_erased(uint32_t address, uint16_t length)
 
 static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
 {
+    /* Bank 2 path — XL-density only */
+#ifdef FLASH_XL_DENSITY
+    if (address >= FLASH_BANK2_START)
+    {
+        flash_wait_busy2();
+        flash_clear_flags2();
+        FLASH_CR2 |= FLASH_CR_PG;
+        *((volatile uint16_t *)(uintptr_t)address) = data;
+        flash_wait_busy2();
+        uint8_t ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
+        FLASH_SR2  =  FLASH_SR_EOP;
+        FLASH_CR2 &= ~FLASH_CR_PG;
+        return ok;
+    }
+#endif
+    /* Bank 1 path — all densities */
     flash_wait_busy();
     flash_clear_flags();
-
     FLASH->cr |= FLASH_CR_PG;
-
     *((volatile uint16_t *)(uintptr_t)address) = data;
-
     flash_wait_busy();
-
     uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
-    FLASH->sr  =  FLASH_SR_EOP;    /* clear EOP  (w1c) */
-    FLASH->cr &= ~FLASH_CR_PG;     /* exit programming mode */
+    FLASH->sr  =  FLASH_SR_EOP;
+    FLASH->cr &= ~FLASH_CR_PG;
+    return ok;
+}
 
+static uint8_t flash_write_word(uint32_t address, uint32_t data)
+{
+    if (address & 0x1)   /* halfword alignment only — word alignment not required */
+        return 0;
+
+#ifdef FLASH_XL_DENSITY
+    if (address >= FLASH_BANK2_START)
+    {
+        flash_unlock2();
+        uint8_t ok = flash_write_halfword(address,     (uint16_t)(data & 0xFFFFU));
+        if (ok)
+            ok     = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
+        flash_lock2();
+        return ok;
+    }
+#endif
+    flash_unlock();
+    uint8_t ok = flash_write_halfword(address,     (uint16_t)(data & 0xFFFFU));
+    if (ok)
+        ok     = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
+    flash_lock();
     return ok;
 }
 
 static uint8_t flash_erase_page(uint32_t address)
 {
+    /* Compute page base — the flash controller needs the exact page start
+     * address in FLASH_AR, not an arbitrary address within the page. */
+    uint32_t page_base = address & ~(FLASH_PAGE_SIZE - 1UL);
+
+#ifdef FLASH_XL_DENSITY
+    if (address >= FLASH_BANK2_START)
+    {
+        flash_unlock2();
+        flash_wait_busy2();
+        flash_clear_flags2();
+        FLASH_CR2 |= FLASH_CR_PER;
+        FLASH_AR2  = page_base;
+        FLASH_CR2 |= FLASH_CR_STRT;
+        flash_wait_busy2();
+        uint8_t ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
+        FLASH_SR2  =  FLASH_SR_EOP;
+        FLASH_CR2 &= ~FLASH_CR_PER;
+        flash_lock2();
+        return ok;
+    }
+#endif
+    flash_unlock();
     flash_wait_busy();
     flash_clear_flags();
-
-    FLASH->cr |= FLASH_CR_PER;     /* select page-erase mode */
-    FLASH->ar  = address;          /* point at the page      */
-    FLASH->cr |= FLASH_CR_STRT;    /* start the erase        */
-
+    FLASH->cr |= FLASH_CR_PER;
+    FLASH->ar  = page_base;
+    FLASH->cr |= FLASH_CR_STRT;
     flash_wait_busy();
-
-    uint8_t ok  = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
-    FLASH->sr   =  FLASH_SR_EOP;
-    FLASH->cr  &= ~FLASH_CR_PER;   /* exit page-erase mode   */
-
+    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    FLASH->sr  =  FLASH_SR_EOP;
+    FLASH->cr &= ~FLASH_CR_PER;
+    flash_lock();
     return ok;
 }
 
@@ -269,6 +367,11 @@ uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address,
 uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
                          const uint8_t *buffer, uint16_t length)
 {
+    /* ERASE ignores buffer and length entirely — handle before the null/length
+     * guard so callers are not forced to supply a dummy payload. */
+    if (mem_zone == MDT_MEM_ZONE_ERASE)
+        return flash_erase_page(address);
+
     if (!buffer || length == 0)
         return 0;
 
@@ -279,8 +382,55 @@ uint8_t hal_write_memory(uint8_t mem_zone, uint32_t address,
                 *((volatile uint8_t *)(uintptr_t)(address + i)) = buffer[i];
             return 1;
 
+        case MDT_MEM_ZONE_FLASH:
+        {
+            if (address & 0x1)      /* halfword alignment required */
+                return 0;
+
+            if (!flash_is_erased(address, length))
+                return 0;
+
+            if (length <= 2)
+            {
+                /* Single halfword write */
+                uint16_t hw;
+                if (length == 2)
+                    hw = (uint16_t)buffer[0] | ((uint16_t)buffer[1] << 8);
+                else
+                    hw = (uint16_t)buffer[0] | 0xFF00U; /* upper byte stays erased */
+
+#ifdef FLASH_XL_DENSITY
+                if (address >= FLASH_BANK2_START)
+                {
+                    flash_unlock2();
+                    uint8_t ok = flash_write_halfword(address, hw);
+                    flash_lock2();
+                    return ok;
+                }
+#endif
+                flash_unlock();
+                uint8_t ok = flash_write_halfword(address, hw);
+                flash_lock();
+                return ok;
+            }
+            else
+            {
+                /* Pack up to 4 bytes into a word; upper bytes stay 0xFF if
+                 * length < 4 (they will be written as erased-value padding). */
+                uint32_t word = 0xFFFFFFFFUL;
+                for (uint16_t i = 0; i < length && i < 4; i++)
+                    word = (word & ~(0xFFUL << (i * 8))) | ((uint32_t)buffer[i] << (i * 8));
+                return flash_write_word(address, word);
+            }
+        }
+
+        case MDT_MEM_ZONE_ERASE:
+            /* Unreachable — handled above before the switch.
+             * Kept so the compiler does not warn on an unhandled enum value. */
+            return flash_erase_page(address);
+
         default:
-            return 0; /* TODO: FLASH write not implemented on M3 */
+            return 0;
     }
 }
 
