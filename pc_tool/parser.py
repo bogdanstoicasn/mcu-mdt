@@ -70,27 +70,60 @@ def parse_args():
 # Register name -> address resolution (used by uint32_or_str handler)
 # ---------------------------------------------------------------------------
 
+def _get_reg_group_base(module: dict, rg_name: str, rg: dict) -> int:
+    """Return the absolute base address of a register group.
+
+    For SVD (STM32) the base lives on the module instance (offset field).
+    For ATDF (AVR) it may live on the register group itself.
+    Handles both int and hex-string offsets.
+    """
+    for inst in module.get("instances", []):
+        if inst.get("register_group") == rg_name:
+            offset = inst.get("offset") or 0
+            return int(offset, 0) if isinstance(offset, str) else int(offset)
+    group_offset = rg.get("offset") or 0
+    return int(group_offset, 0) if isinstance(group_offset, str) else int(group_offset)
+
+
 def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
-    """Look up a register by name and return its absolute address."""
+    """Look up a register by name and return its absolute address.
+
+    Accepts two formats:
+
+    1. Qualified:  ``PERIPHERAL_REGISTER``  e.g. ``RCC_CR``, ``USART1_SR``,
+       ``TIM1_CCMR1_Output``.  The name is split on the *first* underscore
+       only — peripheral names on STM32 never contain underscores, so this
+       is unambiguous even when the register name itself does
+       (e.g. ``TIM1_CCMR1_Output`` → periph=TIM1, reg=CCMR1_Output).
+
+    2. Bare:  ``CR``, ``SR`` — searches all modules.  Useful for AVR where
+       peripherals have unique register names, and for quick lookups.  When
+       the same bare name exists in multiple peripherals the first match wins
+       (use the qualified form to be precise).
+    """
     name_upper = name.upper()
+    modules    = mcu_metadata.get("modules", {})
 
-    for module in mcu_metadata.get("modules", {}).values():
+    def _reg_offset(reg: dict) -> int:
+        off = reg.get("offset") or 0
+        return int(off, 0) if isinstance(off, str) else int(off)
+
+    if "_" in name_upper:
+        periph, reg_part = name_upper.split("_", 1)
+        if periph in modules:
+            module = modules[periph]
+            for rg_name, rg in module.get("register_groups", {}).items():
+                base = _get_reg_group_base(module, rg_name, rg)
+                for reg_name, reg in rg.get("registers", {}).items():
+                    if reg_name.upper() == reg_part:
+                        return base + _reg_offset(reg)
+
+    for module in modules.values():
         for rg_name, rg in module.get("register_groups", {}).items():
-            base = 0
-            for inst in module.get("instances", []):
-                if inst.get("register_group") == rg_name:
-                    offset = inst.get("offset") or 0
-                    base = int(offset, 0) if isinstance(offset, str) else offset
-                    break
-            if base == 0:
-                group_offset = rg.get("offset") or 0
-                base = int(group_offset, 0) if isinstance(group_offset, str) else group_offset
-
+            base = _get_reg_group_base(module, rg_name, rg)
             for reg_name, reg in rg.get("registers", {}).items():
                 if reg_name.upper() == name_upper:
-                    reg_offset = reg.get("offset") or 0
-                    reg_offset = int(reg_offset, 0) if isinstance(reg_offset, str) else reg_offset
-                    return base + reg_offset
+                    return base + _reg_offset(reg)
 
     return None
 

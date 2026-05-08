@@ -70,6 +70,52 @@ MCU_METADATA_FLASH = {
     "modules": {},
 }
 
+# AVR-like metadata: mirrors what _ATDFLoader produces from a real ATDF.
+# Key differences from STM32:
+#   - No <instance> elements → no "instances" list → base address is 0
+#   - Register "offset" is the ABSOLUTE address in the AVR I/O address space
+#   - Register "size" is in BYTES (not bits): 1 = 8-bit, 2 = 16-bit
+#   - Register names never contain underscores (verified across all ATmega ATDFs)
+# Values match the real ATmega48 ATDF (USART0 and TWI peripherals).
+MCU_METADATA_AVR = {
+    "memories": {
+        "IRAM": {"type": "ram", "start": 0x0100, "size": 0x0200},
+    },
+    "modules": {
+        "USART": {
+            "caption": "USART",
+            "instances": [],           # ATmega ATDF has no instance offsets here
+            "register_groups": {
+                "USART0": {
+                    "offset": "0x00",  # base is 0; register offsets are absolute
+                    "registers": {
+                        "UDR0":   {"offset": "0xC6", "size": "1", "rw": "read-write"},
+                        "UCSR0A": {"offset": "0xC0", "size": "1", "rw": "read-write"},
+                        "UCSR0B": {"offset": "0xC1", "size": "1", "rw": "read-write"},
+                        "UCSR0C": {"offset": "0xC2", "size": "1", "rw": "read-write"},
+                        "UBRR0":  {"offset": "0xC4", "size": "2", "rw": "read-write"},
+                    },
+                },
+            },
+        },
+        "TWI": {
+            "caption": "Two Wire Serial Interface",
+            "instances": [],
+            "register_groups": {
+                "TWI": {
+                    "offset": "0x00",
+                    "registers": {
+                        "TWBR": {"offset": "0xB8", "size": "1", "rw": "read-write"},
+                        "TWSR": {"offset": "0xB9", "size": "1", "rw": "read-write"},
+                        "TWDR": {"offset": "0xBB", "size": "1", "rw": "read-write"},
+                        "TWCR": {"offset": "0xBC", "size": "1", "rw": "read-write"},
+                    },
+                },
+            },
+        },
+    },
+}
+
 MCU_METADATA_REG = {
     "memories": {},
     "modules": {
