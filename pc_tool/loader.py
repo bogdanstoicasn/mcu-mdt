@@ -600,8 +600,50 @@ class ConfigLoader:
 
         self.mcu_metadata = load_mcu_metadata(mcu, platform)
         self.elf_symbols  = self._load_elf(build_info_path)
+        self._inject_firmware_info()
 
     # ------------------------------------------------------------------
+
+    def _inject_firmware_info(self) -> None:
+        """Merge firmware boundary fields from build_info into mcu_metadata.
+
+        The validator uses these to prevent writes and erases that would
+        overwrite the running firmware image in flash.
+
+        Fields read from build_info.yaml (written by the Makefile):
+          firmware_start_address  — first byte of firmware in flash
+          firmware_end_address    — first byte AFTER firmware (exclusive)
+          firmware_size           — byte count  (= end - start)
+          flash_page_size         — erase granularity in bytes
+
+        PyYAML safe_load parses bare hex literals (0x…) as ints, so no
+        manual conversion is needed.  The method is a no-op for platforms
+        that do not emit these fields (e.g. AVR).
+        """
+        start     = self.yaml_build_data.get("firmware_start_address")
+        end       = self.yaml_build_data.get("firmware_end_address")
+        size      = self.yaml_build_data.get("firmware_size")
+        page_size = self.yaml_build_data.get("flash_page_size")
+
+        if start is None or end is None:
+            return   # platform doesn't provide firmware boundaries
+
+        def _to_int(v: object) -> int | None:
+            if v is None:
+                return None
+            if isinstance(v, int):
+                return v
+            try:
+                return int(str(v), 0)
+            except ValueError:
+                return None
+
+        self.mcu_metadata["firmware"] = {
+            "start":     _to_int(start),
+            "end":       _to_int(end),
+            "size":      _to_int(size),
+            "page_size": _to_int(page_size),
+        }
 
     def _load_elf(self, build_info_path: str) -> dict:
         elf_rel = self.yaml_build_data.get("elf")

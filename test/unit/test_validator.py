@@ -25,6 +25,7 @@ potentially harmful operations and ensuring correct usage of the protocol.
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 from pc_tool.common.dataclasses import Command
+from test.common.mdtfixtures import MCU_METADATA_FLASH
 from pc_tool.common.enums import (
     CommandId, MemType,
     BreakpointControl, WatchpointControl,
@@ -350,3 +351,73 @@ def test_dispatch_breakpoint():
 def test_dispatch_watchpoint():
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.DISABLED)
     assert_eq(validate_commands(cmd, {}), True)
+
+
+# Firmware protection tests
+def _flash_cmd(address, length=4, data=None):
+    return Command(
+        name="WRITE_MEM", id=CommandId.WRITE_MEM,
+        mem=MemType.FLASH, address=address,
+        data=data or b'\x00' * length, length=length,
+    )
+
+def _erase_cmd(address):
+    return Command(
+        name="WRITE_MEM", id=CommandId.WRITE_MEM,
+        mem=MemType.ERASE, address=address,
+        data=b'\x00\x00\x00\x00', length=4,
+    )
+
+# FLASH write protection
+def test_flash_write_inside_firmware_rejected():
+    """Write landing inside firmware image must be rejected."""
+    assert_eq(validate_commands(_flash_cmd(0x08000000), MCU_METADATA_FLASH), False)
+
+def test_flash_write_at_firmware_end_minus_one_rejected():
+    """Last byte of firmware must still be protected."""
+    assert_eq(validate_commands(_flash_cmd(0x08002FFC), MCU_METADATA_FLASH), False)
+
+def test_flash_write_exactly_at_firmware_end_accepted():
+    """First address after firmware end is free — must be accepted."""
+    assert_eq(validate_commands(_flash_cmd(0x08003000), MCU_METADATA_FLASH), True)
+
+def test_flash_write_above_firmware_accepted():
+    """Write well above firmware end must be accepted."""
+    assert_eq(validate_commands(_flash_cmd(0x08008000), MCU_METADATA_FLASH), True)
+
+def test_flash_write_spanning_firmware_boundary_rejected():
+    """Write that starts before firmware_end but extends past it is rejected."""
+    # 0x08002FFE to 0x08003001 — straddles the boundary
+    assert_eq(validate_commands(_flash_cmd(0x08002FFE, length=4), MCU_METADATA_FLASH), False)
+
+def test_flash_write_no_firmware_info_allowed():
+    """Without firmware info in metadata the write is accepted (AVR, old builds)."""
+    meta_no_fw = {
+        "memories": {"IFLASH": {"type": "flash", "start": 0x08000000, "size": 0x10000}},
+        "modules": {},
+    }
+    assert_eq(validate_commands(_flash_cmd(0x08000000, data=b'\xff\xff\xff\xff'), meta_no_fw), True)
+
+# ERASE protection
+def test_erase_page_inside_firmware_rejected():
+    """Erasing a page that overlaps the firmware must be rejected."""
+    # 0x08001000 is inside page 4 (0x08001000–0x080013FF), well within firmware
+    assert_eq(validate_commands(_erase_cmd(0x08001000), MCU_METADATA_FLASH), False)
+
+def test_erase_first_page_rejected():
+    """Erasing page 0 (vector table) must always be rejected."""
+    assert_eq(validate_commands(_erase_cmd(0x08000000), MCU_METADATA_FLASH), False)
+
+def test_erase_last_firmware_page_rejected():
+    """Erasing the last page occupied by firmware must be rejected."""
+    # firmware ends at 0x08003000; last firmware page is 0x08002C00–0x08002FFF
+    assert_eq(validate_commands(_erase_cmd(0x08002C00), MCU_METADATA_FLASH), False)
+
+def test_erase_first_free_page_accepted():
+    """Erasing the first page after firmware_end must be accepted."""
+    # firmware_end = 0x08003000 → first free page starts at 0x08003000
+    assert_eq(validate_commands(_erase_cmd(0x08003000), MCU_METADATA_FLASH), True)
+
+def test_erase_page_well_above_firmware_accepted():
+    """Erasing a page far above firmware must always be accepted."""
+    assert_eq(validate_commands(_erase_cmd(0x08008000), MCU_METADATA_FLASH), True)

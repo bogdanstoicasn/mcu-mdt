@@ -188,14 +188,16 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buf);
 
 | Feature                  | AVR                         | Cortex-M0                   | Cortex-M3                   |
 |--------------------------|-----------------------------|-----------------------------|-----------------------------|
-| Address space            | Harvard (separate flash bus)| Von Neumann (unified)       | Von Neumann (unified)       |
-| Flash read               | `pgm_read_byte()` required  | Plain pointer dereference   | Plain pointer dereference   |
-| Flash write              | Not supported               | Half-word (16-bit) only     | Not implemented             |
-| UART IDLE interrupt      | Not available               | Available, used             | Available, used             |
-| RX processing            | Poll loop (`mcu_mdt_poll`)  | PendSV → `mdt_process_pending` | PendSV → `mdt_process_pending` |
-| Register width           | 8-bit (1-byte access)       | 32-bit (4-byte access)      | 32-bit (4-byte access)      |
-
-### Adding a New Platform
+| Feature                   | AVR                          | Cortex-M0                      | Cortex-M3                      |
+|---------------------------|------------------------------|--------------------------------|--------------------------------|
+| Address space             | Harvard (separate flash bus) | Von Neumann (unified)          | Von Neumann (unified)          |
+| Flash read                | `pgm_read_byte()` required   | Plain pointer dereference      | Plain pointer dereference      |
+| Flash write               | Not supported (architecture) | Half-word (16-bit) only        | Half-word (16-bit) only        |
+| Flash erase               | Not supported (architecture) | 1 KB or 2 KB pages             | 1 KB or 2 KB pages             |
+| XL-density dual-bank      | N/A                          | N/A                            | F103xF/xG (bank 2: 0x08080000)|
+| UART IDLE interrupt       | Not available                | Available, used                | Available, used                |
+| RX processing             | Poll loop (`mcu_mdt_poll`)   | PendSV → `mdt_process_pending` | PendSV → `mdt_process_pending` |
+| Register width            | 8-bit (1-byte access)        | 32-bit (4-byte access)         | 32-bit (4-byte access)         |
 
 1. Create `hal/<platform>/hal_<name>.c` implementing all 11 HAL functions directly.
 2. Add a `Makefile` — copy the nearest existing one and adjust toolchain flags.
@@ -224,6 +226,55 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buf);
 
 - **Events are unsolicited packets from the MCU** — same 18-byte format, EVENT flag set, CMD_ID=0.
   The PC `rx_worker` routes them to a separate event queue so they don't block command responses.
+
+
+## Firmware Protection
+
+The PC validator prevents the user from accidentally erasing or overwriting the
+running firmware image. The protected range is computed at build time and embedded
+in `build_info.yaml`:
+
+```yaml
+firmware_start_address: 0x08000000
+firmware_end_address:   0x080034a0
+firmware_size:          13472
+flash_page_size:        0x400
+```
+
+`firmware_end_address` equals the size of the linked `.bin` file added to the flash
+origin — it is the first byte of free flash after the firmware. The Makefile computes
+this automatically from `wc -c` on the `.bin` file after linking, so the value is
+always accurate for the actual build.
+
+`ConfigLoader` reads these fields and injects them into `mcu_metadata["firmware"]`.
+The validator uses them in two places:
+
+- **FLASH write** — any write whose byte range `[address, address+len)` intersects
+  `[fw_start, fw_end)` is rejected before the packet is sent.
+- **ERASE** — the full page containing `address` is expanded to
+  `[page_base, page_base+page_size)` and checked against the firmware range.
+
+AVR does not support flash write, so no protection fields are emitted and the checks
+are silently skipped.
+
+
+## Register Name Resolution
+
+READ_REG and WRITE_REG accept either a raw hex address or a register name. The PC
+tool resolves names to absolute addresses using the SVD (STM32) or ATDF (AVR)
+database via a two-stage lookup in `pc_tool/parser.py`:
+
+1. **Qualified lookup** — if the name contains `_`, split on the first underscore.
+   The left part is the peripheral name, the right part is the register name
+   (which may itself contain underscores, e.g. `TIM1_CCMR1_Output` →
+   peripheral `TIM1`, register `CCMR1_Output`). If the peripheral exists in the
+   metadata, only that peripheral's registers are searched. This is the recommended
+   form because it is unambiguous.
+
+2. **Bare fallback** — if the qualified lookup finds nothing, or if the name has no
+   underscore, all peripherals are searched in order and the first matching register
+   name is returned. AVR register names never contain underscores (verified across
+   all ATmega ATDFs), so AVR always uses this path.
 
 
 ## Memory Safety

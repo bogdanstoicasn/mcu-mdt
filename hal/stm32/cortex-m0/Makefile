@@ -51,31 +51,31 @@ CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 #                  0x800 (2 KB) for F030xC and F070xB
 ifeq ($(MCU),F030F4)
   MCU_LD_DEFINE   := -DMCU_F030F4
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030F6)
   MCU_LD_DEFINE   := -DMCU_F030F6
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030C6)
   MCU_LD_DEFINE   := -DMCU_F030C6
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030F8)
   MCU_LD_DEFINE   := -DMCU_F030F8
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030C8)
   MCU_LD_DEFINE   := -DMCU_F030C8
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030CC)
   MCU_LD_DEFINE   := -DMCU_F030CC
-  FLASH_PAGE_SIZE := 0x800UL
+  FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU),F070F6)
   MCU_LD_DEFINE   := -DMCU_F070F6
-  FLASH_PAGE_SIZE := 0x400UL
+  FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F070CB)
   MCU_LD_DEFINE   := -DMCU_F070CB
-  FLASH_PAGE_SIZE := 0x800UL
+  FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU),F070RB)
   MCU_LD_DEFINE   := -DMCU_F070RB
-  FLASH_PAGE_SIZE := 0x800UL
+  FLASH_PAGE_SIZE := 0x800
 else
   $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m0/Makefile)
 endif
@@ -93,7 +93,7 @@ CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
 CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
 CFLAGS  += -DPLATFORM_STM32
-CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)
+CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)UL
 
 # MDT_USE_UART_IDLE: default 1 on this target (hardware supports IDLE interrupt).
 # Override with: make MDT_USE_UART_IDLE=0 to use poll mode instead.
@@ -179,15 +179,21 @@ build_example: $(EXAMPLE_OBJ) $(LIB_PATH) $(LINKER_SCRIPT_PP)
 	@$(OBJCOPY) -O ihex   $(EXAMPLE_ELF) $(EXAMPLE_HEX)
 	@$(SIZE) $(EXAMPLE_ELF)
 
-# Build info
-$(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
-	@echo "platform: STM32"                          > $@
-	@echo "core: cortex-m0"                         >> $@
-	@echo "mcu: $(MCU)"                             >> $@
-	@echo "port: $(PORT)"                           >> $@
-	@echo "elf: $(ELF_NAME)"                        >> $@
-	@echo "uart_idle: $(MDT_USE_UART_IDLE)"         >> $@
-	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"     >> $@
+# Build info — depends on the linked binary so firmware addresses are accurate
+$(BUILD_DIR)/build_info.yaml: $(EXAMPLE_BIN)
+	$(eval FW_START := 0x08000000)
+	$(eval FW_SIZE  := $(shell wc -c < $(EXAMPLE_BIN) | tr -d ' '))
+	$(eval FW_END   := $(shell printf "0x%08x" $$(( $(FW_START) + $(FW_SIZE) ))))
+	@echo "platform: STM32"                                    > $@
+	@echo "core: cortex-m0"                                   >> $@
+	@echo "mcu: $(MCU)"                                       >> $@
+	@echo "port: $(PORT)"                                     >> $@
+	@echo "elf: $(ELF_NAME)"                                  >> $@
+	@echo "uart_idle: $(MDT_USE_UART_IDLE)"                   >> $@
+	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"               >> $@
+	@echo "firmware_start_address: $(FW_START)"               >> $@
+	@echo "firmware_end_address: $(FW_END)"                   >> $@
+	@echo "firmware_size: $(FW_SIZE)"                         >> $@
 
 flash: all
 	@test -f $(EXAMPLE_BIN) || \

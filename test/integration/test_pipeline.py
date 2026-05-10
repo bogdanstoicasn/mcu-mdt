@@ -395,21 +395,21 @@ def test_field_fidelity_seq(seq):
 def test_e2e_erase_flash_page():
     """WRITE_MEM ERASE should serialize with mem_id=3 and the correct address."""
     uart = MockUART()
-    result = _full_pipeline("WRITE_MEM ERASE 0x08001000 4 00000000", MCU_METADATA_FLASH, uart)
+    result = _full_pipeline("WRITE_MEM ERASE 0x08004000 4 00000000", MCU_METADATA_FLASH, uart)
     assert_eq(result.cmd_id, CommandId.WRITE_MEM)
     assert_eq(result.mem_id,  MemType.ERASE)
-    assert_eq(result.address, 0x08001000)
+    assert_eq(result.address, 0x08004000)
 
 def test_validator_accepts_erase_inside_flash():
     """Validator passes an address that falls within the flash segment."""
     cmd = Command(
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
-        mem=MemType.ERASE, address=0x08000400, data=b'\x00\x00\x00\x00', length=1,
+        mem=MemType.ERASE, address=0x08004000, data=b'\x00\x00\x00\x00', length=1,
     )
     assert_eq(validate_commands(cmd, MCU_METADATA_FLASH), True)
 
 def test_validator_rejects_erase_outside_flash():
-    """Validator blocks an erase whose address is not in any flash segment."""
+    """Validator blocks an erase whose address is in RAM, not flash."""
     cmd = Command(
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
         mem=MemType.ERASE, address=0x20000000, data=b'\x00\x00\x00\x00', length=1,
@@ -420,9 +420,9 @@ def test_erase_packet_mem_id_is_3():
     """Serialized erase packet must carry mem_id=3 in the MEM_ID field."""
     cmd = Command(
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
-        mem=MemType.ERASE, address=0x08002000, data=b'\x00\x00\x00\x00', length=1,
+        mem=MemType.ERASE, address=0x08004000, data=b'\x00\x00\x00\x00', length=1,
     )
     pkt  = serialize_command_packet(cmd, seq=0, multi=False, last=False)
     back = deserialize_command_packet(pkt)
     assert_eq(back.mem_id,  MemType.ERASE)
-    assert_eq(back.address, 0x08002000)
+    assert_eq(back.address, 0x08004000)

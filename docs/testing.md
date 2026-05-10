@@ -6,7 +6,7 @@ MCU-MDT testing splits across three layers: unit, integration, and hardware. Uni
 integration tests run anywhere with no hardware attached. Hardware tests require a real
 MCU flashed with the MDT firmware.
 
-**214 tests total, 214 passing.**
+**249 tests total, 249 passing.**
 
 
 ## Test Runner — PyMDTest
@@ -25,7 +25,7 @@ python3 -m test.pymdtest hardware     # hardware only (skips if MDT_PORT unset)
 Don't use pytest directly — `@parametrize` is not compatible with it.
 
 
-## Unit Tests (`test/unit/`) — 120 cases
+## Unit Tests (`test/unit/`) — 141 cases
 
 No serial port, no MCU, no external dependencies.
 
@@ -42,22 +42,36 @@ round-trips, the 18-byte size invariant, CRC integrity, multi-packet flags
 (`SEQ_PRESENT`, `LAST_PACKET`), NACK detection, and little-endian address
 encoding/decoding. Parameterized across several command shapes and addresses.
 
-### `test_parser.py` — 23 cases
+### `test_parser.py` — 36 cases
 
 CLI parser layer: converts strings like `WATCHPOINT 0 ENABLED 0x20000100` into
 `Command` objects. Covers all command types, memory type mapping, control value
 mapping, hex data decoding, and invalid input rejection. Parameterized across all
 control values for both breakpoints and watchpoints.
 
-### `test_validator.py` — 57 cases
+Register name resolution — 13 cases covering the two-stage lookup for `READ_REG`
+and `WRITE_REG`: qualified `PERIPHERAL_REGISTER` format (`USART1_SR`, `USART1_DR`,
+`USART1_BRR`) resolves to the correct absolute address; bare name fallback (`SR`)
+works on both platforms; case-insensitive; unknown peripheral returns `None` cleanly;
+AVR bare-name lookups (`UDR0`, `UCSR0A`, `TWBR`, `TWDR`, `UBRR0`) resolve to correct
+I/O addresses with no underscore interference; `WRITE_REG` by qualified name works.
+
+
+### `test_validator.py` — 68 cases
 
 Validation against MCU metadata before a command hits the wire: memory boundary
 checks (RAM, Flash, EEPROM), register access permissions (read-only, write-only,
 read-write), breakpoint and watchpoint slot range validation, and dispatch routing.
 Parameterized across valid and invalid slot IDs.
 
+Firmware protection — 11 new cases: FLASH write inside firmware rejected (start,
+mid, end-minus-one); write at `firmware_end_address` accepted; write spanning the
+boundary rejected; no firmware info in metadata allows write (AVR path); ERASE of
+page overlapping firmware rejected (page 0, mid-firmware, last firmware page); ERASE
+of first free page accepted; ERASE well above firmware accepted.
 
-## Integration Tests (`test/integration/`) — 41 cases
+
+## Integration Tests (`test/integration/`) — 49 cases
 
 End-to-end pipeline through `MockUART` — a perfect in-memory loopback — with no
 real serial port. Exercises the full parse → validate → serialize → transmit →
@@ -104,7 +118,7 @@ round-trip through serialize → deserialize and confirm each field is preserved
 exactly.
 
 
-## Hardware Tests (`test/hardware/`) — 53 cases
+## Hardware Tests (`test/hardware/`) — 59 cases
 
 Require a real MCU with MDT firmware. Every test skips with `[SKIP]` if `MDT_PORT`
 is not set.

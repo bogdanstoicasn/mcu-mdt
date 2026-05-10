@@ -68,6 +68,14 @@ MCU_METADATA_FLASH = {
         "IFLASH": {"type": "flash", "start": 0x08000000, "size": 0x10000},
     },
     "modules": {},
+    # Simulates a firmware that occupies the first 0x3000 bytes of flash.
+    # Pages 0x08000000–0x08002FFF are protected; free space starts at 0x08003000.
+    "firmware": {
+        "start":     0x08000000,
+        "end":       0x08003000,
+        "size":      0x3000,
+        "page_size": 0x400,      # 1 KB pages (F030 low/medium density)
+    },
 }
 
 # AVR-like metadata: mirrors what _ATDFLoader produces from a real ATDF.

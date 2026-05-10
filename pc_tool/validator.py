@@ -114,6 +114,25 @@ def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
     return True
 
 
+def _overlaps_firmware(address: int, size: int, mcu_metadata: dict) -> bool:
+    """Return True if [address, address+size) overlaps the protected firmware range.
+
+    The firmware range comes from the ``"firmware"`` key injected into
+    mcu_metadata by ``ConfigLoader._inject_firmware_info``.  If the key is
+    absent (AVR, or an older build_info.yaml without the fields) the function
+    always returns False so behaviour is unchanged on those platforms.
+    """
+    fw = mcu_metadata.get("firmware")
+    if not fw:
+        return False
+    fw_start = fw.get("start") or 0
+    fw_end   = fw.get("end")   or 0
+    if not fw_start or not fw_end or fw_end <= fw_start:
+        return False
+    # Overlap iff the ranges intersect
+    return not (address + size <= fw_start or address >= fw_end)
+
+
 def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
     try:
         mem_type = MemType(operation.mem)
@@ -122,7 +141,8 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         return False
 
     # ERASE: the MCU ignores data/length — only the address matters.
-    # Validate that the address falls inside a known flash segment.
+    # Validate that the address falls inside a known flash segment,
+    # and that the page to be erased does not overlap the firmware.
     if mem_type == MemType.ERASE:
         addr = operation.address
         seg  = _find_mem_segment(mcu_metadata, mem_type, addr, 1)
@@ -131,10 +151,25 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
                 f"ERASE address 0x{addr:X} does not fall within any flash segment.", code=3
             )
             return False
+
+        # Expand to the full page that will be erased and check firmware overlap
+        fw        = mcu_metadata.get("firmware") or {}
+        page_size = fw.get("page_size") or _int(seg.get("pagesize") or 0) or 1
+        page_base = addr & ~(page_size - 1)
+        if _overlaps_firmware(page_base, page_size, mcu_metadata):
+            fw_start = fw.get("start", 0)
+            fw_end   = fw.get("end",   0)
+            MDTLogger.error(
+                f"ERASE rejected: page 0x{page_base:08X}–0x{page_base + page_size - 1:08X} "
+                f"overlaps firmware (0x{fw_start:08X}–0x{fw_end - 1:08X}). "
+                f"Only erase pages above firmware_end_address.", code=3
+            )
+            return False
+
         start = _int(seg["start"])
         end   = start + _int(seg["size"])
         MDTLogger.info(
-            f"ERASE valid: flash page containing 0x{addr:X} "
+            f"ERASE valid: page 0x{page_base:08X} "
             f"(flash 0x{start:X}..0x{end - 1:X})."
         )
         return True
@@ -162,6 +197,16 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         return False
 
     if mem_type == MemType.FLASH:
+        if _overlaps_firmware(addr, length, mcu_metadata):
+            fw   = mcu_metadata.get("firmware") or {}
+            fw_s = fw.get("start", 0)
+            fw_e = fw.get("end",   0)
+            MDTLogger.error(
+                f"FLASH write rejected: 0x{addr:08X}+{length}B "
+                f"overlaps firmware (0x{fw_s:08X}–0x{fw_e - 1:08X}). "
+                f"Write only above firmware_end_address.", code=3
+            )
+            return False
         MDTLogger.warning(
             "Writing to FLASH is platform-dependent (SPM/bootloader required). "
             "MCU may reject this command."
