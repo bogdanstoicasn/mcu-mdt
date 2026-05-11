@@ -14,11 +14,7 @@ and the steps taken to resolve them.
 **Check in order:**
 
 1. Baud rate mismatch. The firmware baud rate is set at compile time via
-   `MDT_UART_BAUDRATE` in `mcu_mdt_config.h` (default 19200). The PC tool reads
-   `MDT_BAUD` from the environment. If they differ, every byte is corrupted.
-   ```bash
-   MDT_BAUD=19200 python3 mcu_mdt.py build/F030F4/build_info.yaml
-   ```
+   `MDT_UART_BAUDRATE` in `mcu_mdt_config.h` (default 19200).
 
 2. Wrong port. Check which port the MCU is on:
    ```bash
@@ -215,14 +211,6 @@ READ_REG CR            ✅  (bare fallback, first match wins)
 
 ## Known Issues
 
-- **NACK format mismatch** — `is_nack_packet()` on the PC side requires `cmd_id == 0`,
-  but the firmware echoes the original `cmd_id` in the NACK. The hardware tests
-  `test_hw_bad_crc_triggers_nack` and `test_hw_nack_seq_mirrors_request_seq` are
-  affected. One side needs to be updated to agree on the format.
+- NONE
 
-- **`RESET` command not implemented in firmware** — the MCU returns an error flag.
-  A hardware reset via the physical NRST pin or the ST-Link is the current workaround.
-
-- **UART IDLE interrupt mode not covered by hardware tests** — all hardware tests run
-  the poll path. The STM32 interrupt-driven path (`MDT_USE_UART_IDLE=1`) is the
-  default but has no dedicated hardware test suite.
+- If found any, please report to the issue tracker with steps to reproduce.

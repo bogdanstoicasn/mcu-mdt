@@ -19,7 +19,7 @@ expands `@parametrize` cases. Assertions come from `test/common/asserts.py`.
 python3 -m test.pymdtest              # everything
 python3 -m test.pymdtest unit         # unit only
 python3 -m test.pymdtest integration  # integration only
-python3 -m test.pymdtest hardware     # hardware only (skips if MDT_PORT unset)
+python3 -m test.pymdtest hardware     # hardware only (set the MCU)
 ```
 
 Don't use pytest directly — `@parametrize` is not compatible with it.
@@ -31,7 +31,7 @@ No serial port, no MCU, no external dependencies.
 
 ### `test_crc.py` — 3 cases
 
-CRC-CCITT (0x1021) validated against `binascii.crc_hqx`. Covers the `123456789` →
+CRC-CCITT (0x1021) validated against `binascii.crc_hqx`. Covers the `123456789` -
 `0x29B1` standard vector, empty input, and 1000 random inputs at varying lengths. A
 wrong CRC breaks the protocol silently, so this runs first.
 
@@ -74,8 +74,8 @@ of first free page accepted; ERASE well above firmware accepted.
 ## Integration Tests (`test/integration/`) — 49 cases
 
 End-to-end pipeline through `MockUART` — a perfect in-memory loopback — with no
-real serial port. Exercises the full parse → validate → serialize → transmit →
-receive → deserialize path for every command type, plus multi-packet chunking,
+real serial port. Exercises the full parse - validate - serialize - transmit -
+receive - deserialize path for every command type, plus multi-packet chunking,
 event packet structure, and error handling.
 
 ### End-to-end commands — 8 cases
@@ -114,7 +114,7 @@ Exactly one packet written to UART per command.
 ### Field fidelity — 13 cases
 
 Parameterized address/mem/length triples, data patterns, and sequence numbers —
-round-trip through serialize → deserialize and confirm each field is preserved
+round-trip through serialize - deserialize and confirm each field is preserved
 exactly.
 
 
@@ -124,18 +124,10 @@ Require a real MCU with MDT firmware. Every test skips with `[SKIP]` if `MDT_POR
 is not set.
 
 ```bash
-MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest hardware
-MDT_PORT=/dev/ttyUSB0 MDT_BAUD=19200 MDT_PLATFORM=stm32 python3 -m test.pymdtest hardware
+MCU=F030F4 python3 -m test.pymdtest hardware
 ```
 
-Environment variables:
-
-| Variable | Default | Description |
-|---|---|---|
-| `MDT_PORT` | _(unset)_ | Serial port — absent means all hardware tests skip |
-| `MDT_BAUD` | `19200` | Baud rate |
-| `MDT_TIMEOUT` | `2.0` | Per-packet read timeout in seconds |
-| `MDT_PLATFORM` | `avr` | `avr` or `stm32` — selects SRAM/Flash base addresses |
+Environment variables are usually taken from the `build_info.yaml` for the target firmware, but can be overridden to test different configurations.
 
 These are loaded once at module import time into `HW = HWConfig.from_env()`.
 
@@ -215,9 +207,6 @@ interleaved write/read pairs with distinct patterns at the same address, each ve
 **Hardware:**
 - `RESET` command — implemented, no hardware test. Should verify the MCU responds to
   PING within a bounded time after reset.
-- UART IDLE interrupt mode — all hardware tests run the poll path. The
-  interrupt-driven path (`MDT_FEATURE_UART_IDLE=1`) has no dedicated coverage; on
-  STM32 this is the default mode.
 - AVR vs STM32 parity — tests run one platform at a time, no automated cross-target
   comparison.
 - Disconnect recovery — the `EIO` clean-shutdown path in `rx_worker` is implemented
@@ -229,9 +218,6 @@ interleaved write/read pairs with distinct patterns at the same address, each ve
 Short term: `FakeSerialLink` fixture to unit-test `rx_worker` routing without
 hardware; hardware test for `RESET`; `loader.py` unit tests with valid and malformed
 `build_info.yaml`.
-
-Medium term: dedicated STM32 run with `MDT_FEATURE_UART_IDLE=1`; both AVR and STM32
-hardware suites in CI on a USB hub; fuzz the MCU packet parser over UART.
 
 Long term: Renode-based firmware tests using the existing `stm32f030.resc` script;
 property-based round-trip testing for the serializer/deserializer.

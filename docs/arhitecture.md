@@ -187,7 +187,6 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buf);
 ### Platform Differences
 
 | Feature                  | AVR                         | Cortex-M0                   | Cortex-M3                   |
-|--------------------------|-----------------------------|-----------------------------|-----------------------------|
 |---------------------------|------------------------------|--------------------------------|--------------------------------|
 | Address space             | Harvard (separate flash bus) | Von Neumann (unified)          | Von Neumann (unified)          |
 | Flash read                | `pgm_read_byte()` required   | Plain pointer dereference      | Plain pointer dereference      |

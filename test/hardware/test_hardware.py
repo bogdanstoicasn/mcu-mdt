@@ -83,6 +83,7 @@ class HWConfig:
     flash_base: int      # start of flash region
     meta:       dict     # full MCU metadata from SVD/ATDF via load_mcu_metadata
     registers:  dict     # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
+    uart_idle:  bool = False  # True when MDT_FEATURE_UART_IDLE=1 (STM32 interrupt mode)
 
     @property
     def available(self) -> bool:
@@ -154,6 +155,8 @@ class HWConfig:
 
         sram_base, flash_base = _resolve_memory_bases(meta, platform)
 
+        uart_idle = bool(int(data.get("uart_idle", 0)))
+
         return cls(
             port=port,
             baud=baud,
@@ -163,6 +166,7 @@ class HWConfig:
             flash_base=flash_base,
             meta=meta,
             registers=None,
+            uart_idle=uart_idle,
         )
 
 
@@ -241,6 +245,30 @@ def _send_parsed(link: MCUSerialLink, cmd: Command, **kw):
         return deserialize_command_packet(raw)
     except ValueError:
         return None
+
+
+# Event helpers -----------------------------------------------------------
+
+# CMD_ID=0 packet — identical to what _event_poll_worker sends every 500 ms.
+_POLL_PKT = serialize_command_packet(
+    Command(name="POLL", id=0x00, mem=None, address=0, data=None),
+    seq=0, multi=False, last=False,
+)
+
+
+def _read_event(link: MCUSerialLink) -> bytes | None:
+    """Read the next event packet from the MCU, handling both processing modes.
+
+    - **Poll mode** (uart_idle=False, AVR default): mcu_mdt_poll() flushes
+      the event spontaneously once the TX ring buffer is idle. Just read.
+
+    - **UART idle / interrupt mode** (uart_idle=True, STM32 default): the MCU
+      holds the event until a CMD_ID=0 poll packet arrives, exactly as the
+      production _event_poll_worker does every 500 ms. Send the poll first.
+    """
+    if HW.uart_idle:
+        link.send_packet(_POLL_PKT)
+    return link.read_packet(timeout=HW.timeout)
 
 
 def _flush(link: MCUSerialLink, ms=300):
@@ -826,34 +854,32 @@ def test_hw_failed_packet_event_has_event_flag():
     """
     After a bad-CRC packet the firmware emits a FAILED_PACKET event.
     The event packet must have the EVENT flag set and cmd_id == 0.
+
+    In poll mode the event arrives spontaneously after the NACK.
+    In UART idle / interrupt mode it arrives in the response to a
+    CMD_ID=0 poll packet — _read_event() handles both cases.
     """
     if not HW.available: return _skip()
     link = _link()
     try:
-        # Corrupt a packet to trigger FAILED_PACKET event
         bad = bytearray(serialize_command_packet(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[MDTOffset.DATA] ^= 0xFF
         link.send_packet(bytes(bad))
 
-        # First response is the NACK
         nack = link.read_packet(timeout=HW.timeout)
         assert_eq(nack is not None, True)
         assert_eq(is_nack_packet(nack), True)
 
-        # Second packet is the event (may arrive immediately after)
-        event = link.read_packet(timeout=HW.timeout)
-        if event is None:
-            # Older firmware may not emit the event; skip check but don't fail
-            print("  [INFO] No event packet received — firmware may batch events")
-            return
+        event = _read_event(link)
+        assert_eq(event is not None, True)
         assert_eq(bool(event[MDTOffset.FLAGS] & MDTFlags.EVENT_PACKET), True)
         assert_eq(event[MDTOffset.CMD_ID], 0x00)
     finally:
         link.close()
 
 def test_hw_event_packet_framing_is_valid():
-    """Any event packet emitted by the MCU must have correct framing and CRC."""
+    """NACK and the following FAILED_PACKET event must both have valid framing and CRC."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -862,13 +888,11 @@ def test_hw_event_packet_framing_is_valid():
         bad[MDTOffset.DATA] ^= 0xFF
         link.send_packet(bytes(bad))
 
-        pkts = []
-        for _ in range(2):
-            p = link.read_packet(timeout=HW.timeout)
-            if p:
-                pkts.append(p)
+        nack  = link.read_packet(timeout=HW.timeout)
+        event = _read_event(link)
 
-        for p in pkts:
+        for p in (nack, event):
+            assert_eq(p is not None, True)
             assert_eq(len(p), MDT_PACKET_SIZE)
             assert_eq(p[MDTOffset.START], 0xAA)
             assert_eq(p[MDTOffset.END],   0x55)
