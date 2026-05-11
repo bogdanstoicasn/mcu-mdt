@@ -206,7 +206,7 @@ static inline void flash_clear_flags(void)
     FLASH->sr = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
 }
 
-/* ── XL-density bank 2 helpers ──────────────────────────────────────────────
+/* XL-density bank 2 helpers
  * F103xF and F103xG have 1 MB of flash split into two independent 512 KB
  * banks. Bank 2 (0x0808 0000 – 0x080F FFFF) has its own control registers
  * (FLASH_CR2/SR2/AR2/KEYR2). Both banks share the same bit definitions. */

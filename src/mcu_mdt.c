@@ -4,10 +4,10 @@
 #include "mcu_mdt_hal.h"
 #include "mcu_mdt_watchpoint.h"
 
-/* RX buffer */
-
+/** @brief Type definition for MDT fence structure */
 typedef uint32_t mdt_fence_t;
 
+/** @brief Type definition for MDT buffer structure */
 typedef struct {
     mdt_fence_t fence_pre;
 
@@ -18,7 +18,8 @@ typedef struct {
     mdt_fence_t fence_post;
 } mdt_buffer_t;
 
-static mdt_buffer_t rx_packet = {
+/** @brief Static buffer for handling incoming packets */
+static mdt_buffer_t packet_buffer = {
     .fence_pre  = MDT_FENCE_PATTERN,
     .idx        = 0,
     .started    = 0,
@@ -26,6 +27,7 @@ static mdt_buffer_t rx_packet = {
     .fence_post = MDT_FENCE_PATTERN
 };
 
+/** @brief Flag indicating if a reset is pending */
 static uint8_t pending_reset = 0;
 
 void mdt_request_reset(void)
@@ -34,7 +36,6 @@ void mdt_request_reset(void)
 }
 
 /* Buffer helpers */
-
 static inline uint8_t mdt_buffer_check(const mdt_buffer_t *buffer)
 {
     return (buffer->fence_pre  == MDT_FENCE_PATTERN)
@@ -54,19 +55,20 @@ static void mdt_buffer_reset(mdt_buffer_t *buffer)
     while (n--) *p++ = 0;
 }
 
-/* Fence + overflow guard.
- * Returns 1 if the buffer is healthy, 0 if a fault was detected and reset. */
+/** @brief Guard function to check buffer integrity and handle overflow
+ * @return 1 if the buffer is healthy, 0 if a fault was detected and reset
+ */
 static uint8_t mdt_buffer_guard(void)
 {
-    if (!mdt_buffer_check(&rx_packet) || hal_uart_rx_overflow())
+    if (!mdt_buffer_check(&packet_buffer) || hal_uart_rx_overflow())
     {
-        mdt_buffer_reset(&rx_packet);
+        mdt_buffer_reset(&packet_buffer);
 
         mdt_event_set(
             0,                                  /* seq              */
             INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = type    */
-            (uint32_t)(uintptr_t)&rx_packet,    /* address = buffer */
-            sizeof(rx_packet),                  /* length           */
+            (uint32_t)(uintptr_t)&packet_buffer,    /* address = buffer */
+            sizeof(packet_buffer),                  /* length           */
             0                                   /* data             */
         );
 
@@ -79,6 +81,9 @@ static uint8_t mdt_buffer_guard(void)
 
 /* Packet handling */
 
+/** @brief Send a NACK packet in response to an invalid packet.
+ * @param buf Pointer to the invalid packet buffer.
+ */
 static void mdt_send_nack(const uint8_t *buf)
 {
     uint8_t pkt[MDT_PACKET_SIZE];
@@ -107,7 +112,10 @@ static void mdt_send_nack(const uint8_t *buf)
     hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
 }
 
-/* Handle one complete packet: validate - dispatch - ACK/NACK - send. */
+/** @brief Handle one complete packet: validate - dispatch - ACK/NACK - send.
+ * @param buf Pointer to the packet buffer.
+ * @return 1 if the packet was handled successfully, 0 otherwise.
+ */
 static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
 {
     uint8_t *pkt = buf->buf;
@@ -148,44 +156,47 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     return 1;
 }
 
-/* Feed one byte into the packet assembler. */
+/** @brief Feed one byte into the packet processor, called from polling or interrupt context.
+ * @param byte The byte to process.
+ */
 static void mdt_process_byte(uint8_t byte)
 {
-    if (!rx_packet.started)
+    if (!packet_buffer.started)
     {
         if (byte != MDT_START_BYTE)
             return;
-        rx_packet.started              = 1;
-        rx_packet.idx                  = 0;
-        rx_packet.buf[rx_packet.idx++] = byte;
+        packet_buffer.started              = 1;
+        packet_buffer.idx                  = 0;
+        packet_buffer.buf[packet_buffer.idx++] = byte;
         return;
     }
 
-    if (rx_packet.idx >= MDT_PACKET_SIZE)
+    if (packet_buffer.idx >= MDT_PACKET_SIZE)
     {
         mdt_event_set(
             0,
             INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
-            (uint32_t)(uintptr_t)&rx_packet,
+            (uint32_t)(uintptr_t)&packet_buffer,
             MDT_PACKET_SIZE,
-            rx_packet.idx
+            packet_buffer.idx
         );
 
-        mdt_buffer_reset(&rx_packet);
+        mdt_buffer_reset(&packet_buffer);
         return;
     }
 
-    rx_packet.buf[rx_packet.idx++] = byte;
+    packet_buffer.buf[packet_buffer.idx++] = byte;
 
-    if (rx_packet.idx == MDT_PACKET_SIZE)
-        mdt_handle_packet(&rx_packet);
+    if (packet_buffer.idx == MDT_PACKET_SIZE)
+        mdt_handle_packet(&packet_buffer);
 }
 
 /* Interrupt-mode RX drain (STM32 only) */
 
 #if MDT_FEATURE_UART_IDLE
-/* Called from PendSV after the USART IDLE interrupt fires.
- * Drains the RX ring buffer; the poll packet (CMD_ID=0) drives event delivery. */
+/** @brief Process pending UART data when the IDLE interrupt fires.
+ * @return None
+ */
 static void mdt_process_pending(void)
 {
     uint8_t byte;
@@ -209,7 +220,6 @@ void mcu_mdt_init(void)
 #endif
 }
 
-/* Poll mode — call from your main loop (AVR, or STM32 with UART IDLE off). */
 void mcu_mdt_poll(void)
 {
     uint8_t byte;

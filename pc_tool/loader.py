@@ -8,18 +8,14 @@ from typing import Iterator
 
 import yaml
 
-from pc_tool.common.enums import MCUPlatforms
+from pc_tool.common.enums import MCUPlatforms, STM32Type
 from pc_tool.common.elf_symbols import load_elf_symbols
 from pc_tool.common.logger import MDTLogger
 
 # Resolved at import time
 _DB_ROOT: Path = Path(__file__).parent / "mcu_db"
 
-
-# ---------------------------------------------------------------------------
 # Shared data model
-# ---------------------------------------------------------------------------
-
 @dataclass
 class MemorySegment:
     name:     str
@@ -53,10 +49,7 @@ class MCUMetadata:
         }
 
 
-# ---------------------------------------------------------------------------
 # Abstract base: every platform parser implements this interface
-# ---------------------------------------------------------------------------
-
 class _PlatformLoader(ABC):
     """Strategy interface for per-platform MCU metadata parsers."""
 
@@ -65,14 +58,12 @@ class _PlatformLoader(ABC):
         """Return an MCUMetadata for *mcu_name*, sourcing data from *db_root*."""
 
 
-# ---------------------------------------------------------------------------
 # ATDF (AVR) parser
-# ---------------------------------------------------------------------------
-
 class _ATDFLoader(_PlatformLoader):
     """Parse Microchip ATDF files for AVR devices."""
 
     def load(self, mcu_name: str, db_root: str) -> MCUMetadata:
+        """Load the ATDF file for *mcu_name* from *db_root* and parse it into MCUMetadata."""
         mcu_lower = mcu_name.lower()
         atdf_path = self._find_file(mcu_lower, db_root)
         root      = self._parse_xml(atdf_path)
@@ -90,12 +81,9 @@ class _ATDFLoader(_PlatformLoader):
         self._parse_peripherals(root, meta)
         return meta
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _find_file(mcu_name: str, db_root: str) -> str:
+        """Search *db_root* recursively for an ATDF file matching *mcu_name* (case-insensitive)."""
         for dirpath, _, files in os.walk(db_root):
             for fname in files:
                 if fname.lower().endswith(".atdf") and \
@@ -107,6 +95,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_xml(path: str) -> ET.Element:
+        """Parse the ATDF XML file at *path* and return the root element."""
         try:
             return ET.parse(path).getroot()
         except ET.ParseError as exc:
@@ -114,6 +103,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _validate_device(root: ET.Element, mcu_name: str) -> ET.Element:
+        """Find and validate the <device> element in the ATDF XML, ensuring it matches *mcu_name*."""
         device = root.find("devices/device")
         if device is None:
             raise ValueError("ATDF missing <device> element")
@@ -126,6 +116,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_memories(root: ET.Element, meta: MCUMetadata) -> None:
+        """Parse <memory-segment> elements from the ATDF XML and populate meta.memories."""
         for mem in root.findall(".//memory-segment"):
             name = mem.get("name")
             if not name:
@@ -139,6 +130,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_modules(root: ET.Element, meta: MCUMetadata) -> None:
+        """Parse <module> elements from the ATDF XML and populate meta.modules."""
         for module in root.findall(".//modules/module"):
             mod_name = module.get("name")
             if not mod_name:
@@ -175,6 +167,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_registers(rg_elem: ET.Element) -> dict:
+        """Parse <register> elements from a <register-group> and return a dict of register metadata."""
         registers: dict = {}
         for reg in rg_elem.findall(".//register"):
             reg_name = reg.get("name")
@@ -192,6 +185,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_bitfields(reg_elem: ET.Element) -> dict:
+        """Parse <bitfield> elements from a <register> and return a dict of bitfield metadata."""
         bitfields: dict = {}
         for bf in reg_elem.findall(".//bitfield"):
             bf_name = bf.get("name")
@@ -214,6 +208,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_interrupts(root: ET.Element, meta: MCUMetadata) -> None:
+        """Parse <interrupt> elements from the ATDF XML and populate meta.interrupts."""
         for intr in root.findall(".//interrupts/interrupt"):
             name = intr.get("name")
             if name:
@@ -225,6 +220,7 @@ class _ATDFLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_peripherals(root: ET.Element, meta: MCUMetadata) -> None:
+        """Parse <peripheral> elements from the ATDF XML and populate meta.peripherals."""
         for periph in root.findall(".//peripherals/module"):
             pname = periph.get("name")
             if not pname or pname in meta.peripherals:
@@ -238,10 +234,7 @@ class _ATDFLoader(_PlatformLoader):
             }
 
 
-# ---------------------------------------------------------------------------
 # SVD (STM32) parser
-# ---------------------------------------------------------------------------
-
 # Family fallback: 4-char suffix → (core subfolder, shared SVD filename)
 _STM32_FAMILY_MAP: dict[str, tuple[str, str]] = {
     "f030": ("cortex-m0", "STM32F0x0.svd"),
@@ -251,10 +244,6 @@ _STM32_FAMILY_MAP: dict[str, tuple[str, str]] = {
     "f072": ("cortex-m0", "STM32F0x2.svd"),
     "f103": ("cortex-m3", "STM32F103.svd"),
 }
-
-_STM32_FLASH_BASE = 0x0800_0000
-_STM32_RAM_BASE   = 0x2000_0000
-
 
 class _SVDLoader(_PlatformLoader):
     """Parse ARM SVD files for STM32 devices."""
@@ -281,12 +270,9 @@ class _SVDLoader(_PlatformLoader):
         self._parse_peripherals(find, meta)
         return meta
 
-    # ------------------------------------------------------------------
-    # Private helpers
-    # ------------------------------------------------------------------
-
     @staticmethod
     def _find_svd(mcu_lower: str, db_root: str) -> str:
+        """Search *db_root* recursively for an SVD file matching *mcu_lower* (case-insensitive), with family fallback."""
         # 1. Exact match
         for dirpath, _, files in os.walk(db_root):
             for fname in files:
@@ -308,6 +294,7 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_xml(path: str) -> tuple[ET.Element, dict]:
+        """Parse the SVD XML file at *path* and return the root element along with any namespace mappings."""
         try:
             root = ET.parse(path).getroot()
         except ET.ParseError as exc:
@@ -325,6 +312,7 @@ class _SVDLoader(_PlatformLoader):
         mem_data: dict | None,
         meta: MCUMetadata,
     ) -> None:
+        """Parse memory information from the YAML file corresponding to the SVD, if it exists, and populate meta.memories."""
         if not mem_data:
             return
 
@@ -336,14 +324,14 @@ class _SVDLoader(_PlatformLoader):
 
         if flash_size:
             meta.memories["FLASH"] = {
-                "start":    _STM32_FLASH_BASE,
+                "start":    STM32Type.FLASH_BASE,
                 "size":     flash_size,
                 "type":     "flash",
                 "pagesize": str(flash_page) if flash_page else None,
             }
         if ram_size:
             meta.memories["RAM"] = {
-                "start":    _STM32_RAM_BASE,
+                "start":    STM32Type.RAM_BASE,
                 "size":     ram_size,
                 "type":     "ram",
                 "pagesize": None,
@@ -416,6 +404,7 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_registers(base_elem: ET.Element, find: "_SVDXmlHelper") -> dict:
+        """Parse <register> elements from a peripheral and return a dict of register metadata."""
         registers: dict = {}
         for reg in find.children(base_elem, "registers/register"):
             reg_name = find.text_of(reg, "name")
@@ -440,6 +429,7 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_bitfields(reg_elem: ET.Element, find: "_SVDXmlHelper") -> dict:
+        """Parse <field> elements from a <register> and return a dict of bitfield metadata."""
         bitfields: dict = {}
         for bf in find.children(reg_elem, "fields/field"):
             bf_name = find.text_of(bf, "name")
@@ -470,10 +460,7 @@ class _SVDLoader(_PlatformLoader):
         return bitfields
 
 
-# ---------------------------------------------------------------------------
 # SVD XML helper — abstracts namespace-aware findtext / findall
-# ---------------------------------------------------------------------------
-
 class _SVDXmlHelper:
     """Thin wrapper that handles optional XML namespaces transparently."""
 
@@ -505,21 +492,14 @@ class _SVDXmlHelper:
         except TypeError:
             return elem.findall(path)
 
-
-# ---------------------------------------------------------------------------
 # Platform loader registry — add new platforms here, nothing else changes
-# ---------------------------------------------------------------------------
-
 _PLATFORM_LOADERS: dict[str, _PlatformLoader] = {
     MCUPlatforms.AVR: _ATDFLoader(),
     MCUPlatforms.STM: _SVDLoader(),
 }
 
 
-# ---------------------------------------------------------------------------
 # Public helpers
-# ---------------------------------------------------------------------------
-
 def load_configs(file_path: str) -> dict:
     """Load and return the contents of a YAML file as a dict."""
     try:
@@ -570,10 +550,7 @@ def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
     return loader.load(mcu_name, db_root=str(_DB_ROOT)).to_dict()
 
 
-# ---------------------------------------------------------------------------
 # Top-level ConfigLoader — used by main.py
-# ---------------------------------------------------------------------------
-
 class ConfigLoader:
     """
     Load all configuration data needed to drive an MCU-MDT session.
@@ -602,7 +579,6 @@ class ConfigLoader:
         self.elf_symbols  = self._load_elf(build_info_path)
         self._inject_firmware_info()
 
-    # ------------------------------------------------------------------
 
     def _inject_firmware_info(self) -> None:
         """Merge firmware boundary fields from build_info into mcu_metadata.
@@ -646,6 +622,7 @@ class ConfigLoader:
         }
 
     def _load_elf(self, build_info_path: str) -> dict:
+        """Load ELF symbols from the path specified in build_info.yaml, if it exists."""
         elf_rel = self.yaml_build_data.get("elf")
         if not elf_rel:
             MDTLogger.info(
@@ -662,10 +639,7 @@ class ConfigLoader:
         return symbols
 
 
-# ---------------------------------------------------------------------------
 # Internal utilities
-# ---------------------------------------------------------------------------
-
 def _iter_yaml_files(folder: str) -> Iterator[str]:
     """Yield all .yaml / .yml file paths found recursively under *folder*."""
     for dirpath, _, files in os.walk(folder):

@@ -15,6 +15,9 @@
 /* Flash zone */
 #define FLASH_REGISTER_BASE 0x40022000
 
+/**
+ * @brief Structure representing the FLASH peripheral registers.
+ */
 typedef struct {
     volatile uint32_t acr;
     volatile uint32_t keyr;

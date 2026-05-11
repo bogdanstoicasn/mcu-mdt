@@ -3,23 +3,36 @@
 
 #include <stdint.h>
 
-/* Initializes the MCU MDT module */
+/**
+ * @brief Initialize the MDT module. Call this from your main initialization code.
+ * @return None
+ */
 void mcu_mdt_init(void);
 
-/* Polling function must be called in the main loop */
+/**
+ * @brief Poll mode — call from your main loop (AVR, or STM32 with UART IDLE off).
+ * @return None
+ */
 void mcu_mdt_poll(void);
 
-/* Sample all active watchpoints and fire an event if any have changed.
- * Call this periodically from wherever fits your architecture:
- *   - Super-loop (AVR or STM32 poll mode): call from your while(1)
- *   - STM32 interrupt mode: call from SysTick_Handler or any periodic timer ISR
- * Safe to call from an ISR. No-op if no watchpoints are active. */
+/**
+ * @brief Sample all active watchpoints and fire an event if any have changed.
+ * 
+ * Call this from your main loop if using polling mode.
+ * In UART_IDLE mode, this is checked using a periodic packet sent by the host, so you don't need to call this manually.
+ * @return None
+ */
 void mcu_mdt_watchpoint_check(void);
 
-/* Forward declaration for the breakpoint macro */
+/**
+ * @brief Forward declaration for the breakpoint macro
+ */
 void mdt_breakpoint_trigger(uint8_t id);
 
-/* User-facing macro to trigger a software breakpoint */
+/**
+ * @brief User-facing macro to trigger a software breakpoint
+ * @param id The ID of the breakpoint to trigger
+ */
 #define MDT_BREAKPOINT(id) \
     do { \
         mdt_breakpoint_trigger(id); \

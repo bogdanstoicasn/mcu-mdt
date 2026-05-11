@@ -9,6 +9,7 @@ RED    = "\033[91m"
 YELLOW = "\033[93m"
 RESET  = "\033[0m"
 
+# Logger control
 def _silence_logger():
     logging.getLogger("MCU-MDT").setLevel(logging.CRITICAL)
 
@@ -29,6 +30,7 @@ def parametrize(arg_names: str, cases: list):
 # Test Runner
 class PyMDTest:
     def __init__(self, test_dir=None, category=None):
+        """Initialize the test runner."""
         if test_dir is None:
             test_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -42,6 +44,7 @@ class PyMDTest:
             sys.path.insert(0, project_root)
 
     def discover(self):
+        """Discover test modules in the specified directory."""
         test_modules = []
 
         for root_dir, _, files in os.walk(self.test_dir):
@@ -60,6 +63,7 @@ class PyMDTest:
         return test_modules
 
     def run(self):
+        """Run all discovered tests."""
         modules = self.discover()
 
         for module_name in modules:
@@ -73,6 +77,7 @@ class PyMDTest:
         self.report()
 
     def run_module(self, module):
+        """Run all test functions in a given module."""
         for attr in dir(module):
             if attr.startswith("test_"):
                 test_func = getattr(module, attr)
@@ -81,6 +86,7 @@ class PyMDTest:
                     self.run_test(test_func, module.__name__)
 
     def run_test(self, test_func, module_name):
+        """Run a single test function, handling both normal and parametrized tests."""
         base_name = f"{module_name.split('.')[-1]}::{test_func.__name__}"
 
         # PARAMETRIZED TEST
@@ -130,6 +136,7 @@ class PyMDTest:
                 _restore_logger()
 
     def report(self):
+        """Print a summary of test results."""
         total_len  = len(self.results)
         passed_len = sum(1 for _, passed in self.results if passed)
         failed_len = total_len - passed_len

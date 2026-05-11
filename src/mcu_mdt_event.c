@@ -3,7 +3,9 @@
 #include "mcu_mdt_watchpoint.h"
 #include "mcu_mdt_hal.h"
 
-/* Event state — private to this translation unit */
+/**
+ * @brief Event state — private to this translation unit
+ */
 typedef struct {
     uint32_t address;
     uint32_t data;
@@ -14,6 +16,9 @@ typedef struct {
     volatile uint8_t pending;
 } mdt_event_t;
 
+/**
+ * @brief Static event instance for storing pending event data
+ */
 static mdt_event_t pending_event = { 0 };
 
 void mdt_event_set(
@@ -46,7 +51,6 @@ uint8_t mdt_event_pending(void)
     return pending_event.pending;
 }
 
-/* Serialize pending_event into a raw packet and transmit it. */
 void mdt_event_send(void)
 {
     if (!mdt_event_pending())

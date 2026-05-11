@@ -6,6 +6,9 @@
 /* USART1 */
 #define USART1_BASE 0x40013800UL
 
+/**
+ * @brief Structure representing the USART peripheral registers.
+ */
 typedef struct {
     volatile uint32_t cr1;       /* 0x00 */
     volatile uint32_t cr2;       /* 0x04 */
@@ -44,6 +47,9 @@ typedef struct {
 
 #define RCC_BASE 0x40021000UL
 
+/**
+ * @brief Structure representing the RCC peripheral registers.
+ */
 typedef struct {
     volatile uint32_t cr;       /* 0x00 */
     volatile uint32_t cfgr;     /* 0x04 */
@@ -70,6 +76,9 @@ typedef struct {
 
 #define GPIOA_BASE 0x48000000UL
 
+/**
+ * @brief Structure representing the GPIO peripheral registers.
+ */
 typedef struct {
     volatile uint32_t moder;   /* 0x00 */
     volatile uint32_t otyper;  /* 0x04 */

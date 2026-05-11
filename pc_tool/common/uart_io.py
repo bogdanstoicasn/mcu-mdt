@@ -10,6 +10,7 @@ _START_BYTE = FenceType.START_BYTE.to_bytes(1, "little")
 
 
 class MCUSerialLink:
+    """Manages the serial connection to the MCU, including sending/receiving packets and queuing responses/events."""
     def __init__(
         self,
         port: str,
@@ -91,6 +92,7 @@ class MCUSerialLink:
         )
 
     def _synch_with_mcu(self) -> None:
+        """Send the startup ping and wait for it to be echoed back, confirming that the MCU is responsive."""
         self.ser.reset_input_buffer()
         self.ser.reset_output_buffer()
         self.ser.write(self.startup_ping)

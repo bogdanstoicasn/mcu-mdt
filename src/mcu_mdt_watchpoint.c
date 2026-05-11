@@ -3,10 +3,15 @@
 
 static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 
-/* Byte-by-byte 32-bit read
- * Safe at any address on all targets.
- * Avoids undefined behaviour from unaligned pointer casts
- * Prevents hardware alignment faults on Cortex-M0 */
+/**
+ * @brief Safely read a 32-bit value from memory.
+ *
+ * Uses byte-wise access to avoid unaligned access faults and
+ * undefined behaviour on targets that do not support unaligned reads.
+ *
+ * @param address Memory address to read.
+ * @return 32-bit little-endian value.
+ */
 static inline uint32_t mdt_read_u32(uint32_t address)
 {
     const uint8_t *p = (const uint8_t *)(uintptr_t)address;

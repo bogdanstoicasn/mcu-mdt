@@ -7,6 +7,7 @@ from pc_tool.common.logger import MDTLogger
 
 
 def build_dispatch(loader, serial_link, commander, threads):
+    """Build a dispatch dict mapping command names to handler functions."""
     return {
         "EXIT":  lambda cmd: exit_command(serial_link, threads=threads),
         "HELP":  lambda cmd: help_command(loader.yaml_command_data),
@@ -15,6 +16,7 @@ def build_dispatch(loader, serial_link, commander, threads):
     }
 
 def setup(build_info_path: str):
+    """Perform initial setup: load configs, initialize logger, open serial link, start event handlers."""
     loader = ConfigLoader(build_info_path)
 
     MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
@@ -100,6 +102,7 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
 
 
 def run_loop(loader, serial_link, commander, threads):
+    """Main interactive loop: read user input, parse commands, execute them, and print events asynchronously."""
     cli      = CLIHistory()
     commands = loader.yaml_command_data['commands']
     control  = loader.yaml_command_data['control_values']

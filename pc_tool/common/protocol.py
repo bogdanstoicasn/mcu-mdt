@@ -30,6 +30,7 @@ def _crc_from(packet: bytes) -> int:
 
 
 def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool) -> bytes:
+    """Serialize a Command into a bytes packet according to the MDT protocol."""
     data   = command.data if command.data is not None else b'\x00\x00\x00\x00'
     length = min(command.length if command.length is not None else 0, UtilEnum.WORD_SIZE)
 
@@ -61,6 +62,7 @@ def serialize_command_packet(command: Command, seq: int, multi: bool, last: bool
 
 
 def deserialize_command_packet(packet: bytes) -> CommandPacket:
+    """Deserialize a bytes packet from the MCU into a CommandPacket, validating framing and CRC."""
     if len(packet) != MDT_PACKET_SIZE:
         raise ValueError(f"Invalid packet length: {len(packet)}, expected {MDT_PACKET_SIZE}.")
 

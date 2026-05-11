@@ -20,7 +20,11 @@ uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
     return crc;
 }
 
-/* Little-endian decode helpers — used by every command handler */
+/**
+ * @brief Decode a 32-bit unsigned integer from a little-endian byte array.
+ * @param p Pointer to the byte array.
+ * @return The decoded 32-bit unsigned integer.
+ */
 static inline uint32_t mdt_get_u32(const uint8_t *p)
 {
     return  (uint32_t)p[0]        |
@@ -29,6 +33,11 @@ static inline uint32_t mdt_get_u32(const uint8_t *p)
            ((uint32_t)p[3] << 24);
 }
 
+/**
+ * @brief Decode a 16-bit unsigned integer from a little-endian byte array.
+ * @param p Pointer to the byte array.
+ * @return The decoded 16-bit unsigned integer.
+ */
 static inline uint16_t mdt_get_u16(const uint8_t *p)
 {
     return (uint16_t)p[0] | ((uint16_t)p[1] << 8);
@@ -52,9 +61,10 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
     return (crc_rx == crc_calc);
 }
 
-/* Command handlers zone
- * Each handler receives the raw packet and extracts only what it needs.
- * This allows for more complex commands in the future without changing the dispatch logic.
+/** @brief Handler for reserved commands
+ * @param buf Pointer to the packet buffer.
+ * @return 1 if the command was handled successfully, 0 otherwise.
+ * Used for events when MDT_FEATURE_UART_IDLE is enabled, otherwise returns 0 for all reserved commands.
  */
 static uint8_t handle_reserved(uint8_t *buf)
 {

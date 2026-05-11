@@ -14,10 +14,6 @@ _MEM_TYPE_STR = {
 }
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
 def _int(value) -> int:
     """Coerce a string or int metadata value to int."""
     return int(value, 0) if isinstance(value, str) else (value or 0)
@@ -85,11 +81,9 @@ def _find_register(mcu_metadata: dict, addr: int):
     return None
 
 
-# ---------------------------------------------------------------------------
 # Memory validators
-# ---------------------------------------------------------------------------
-
 def validate_read_mem(operation: Command, mcu_metadata: dict) -> bool:
+    """Validate that a READ_MEM command's address and length fall within a known memory segment."""
     try:
         mem_type = MemType(operation.mem)
     except ValueError:
@@ -134,6 +128,7 @@ def _overlaps_firmware(address: int, size: int, mcu_metadata: dict) -> bool:
 
 
 def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
+    """Validate that a WRITE_MEM command's address and length fall within a known memory segment, and that the data length matches."""
     try:
         mem_type = MemType(operation.mem)
     except ValueError:
@@ -218,11 +213,9 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
 # Register validators
-# ---------------------------------------------------------------------------
-
 def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
+    """Validate that a READ_REG command's address falls within a known register."""
     result = _find_register(mcu_metadata, operation.address)
     if result is None:
         MDTLogger.error(f"No register found at address 0x{operation.address:X}.", code=3)
@@ -237,6 +230,7 @@ def validate_read_reg(operation: Command, mcu_metadata: dict) -> bool:
 
 
 def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
+    """Validate that a WRITE_REG command's address falls within a known register, and that the register is writable."""
     result = _find_register(mcu_metadata, operation.address)
     if result is None:
         MDTLogger.error(f"WRITE_REG address 0x{operation.address:X} not found.", code=3)
@@ -258,11 +252,9 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
 # Breakpoint / watchpoint validators
-# ---------------------------------------------------------------------------
-
 def validate_breakpoint(operation: Command) -> bool:
+    """Validate that a BREAKPOINT command's address is a valid slot ID, and that the control value is valid."""
     if not (0 <= operation.address < MDT_MAX_BREAKPOINTS):
         MDTLogger.error(
             f"Invalid breakpoint ID: {operation.address}. "
@@ -282,6 +274,7 @@ def validate_breakpoint(operation: Command) -> bool:
 
 
 def validate_watchpoint(operation: Command) -> bool:
+    """Validate that a WATCHPOINT command's address is a valid slot ID, that the control value is valid, and that the data contains a valid watch address if enabling."""
     if not (0 <= operation.address < MDT_MAX_WATCHPOINTS):
         MDTLogger.error(
             f"Invalid watchpoint ID: {operation.address}. "
@@ -312,10 +305,7 @@ def validate_watchpoint(operation: Command) -> bool:
     return True
 
 
-# ---------------------------------------------------------------------------
 # Dispatch
-# ---------------------------------------------------------------------------
-
 _DISPATCH = {
     CommandId.RESET:      lambda op, meta: True,
     CommandId.READ_MEM:   validate_read_mem,
@@ -328,6 +318,7 @@ _DISPATCH = {
 
 
 def validate_commands(operation: Command, mcu_metadata: dict) -> bool:
+    """Validate a Command against the MCU metadata.  Returns True if valid, False if invalid (with error logged)."""
     handler = _DISPATCH.get(operation.id)
     if handler is None:
         MDTLogger.error(f"Unknown command ID: {operation.id}.", code=3)

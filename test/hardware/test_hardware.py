@@ -201,6 +201,7 @@ HW = HWConfig.from_sources()
 
 # Helpers
 def _skip(msg="MDT_PORT not set — connect a MCU and re-run"):
+    """Print a skip message and return True so the test can do `if not HW.available: return _skip()`."""
     print(f"  [SKIP] {msg}")
     return True
 
@@ -218,6 +219,7 @@ def _link() -> MCUSerialLink:
 
 
 def _cmd(cmd_id, *, mem=None, address=0, length=0, data=None) -> Command:
+    """Helper to build a Command with minimal boilerplate."""
     return Command(
         name=cmd_id.name,
         id=cmd_id,
@@ -245,9 +247,6 @@ def _send_parsed(link: MCUSerialLink, cmd: Command, **kw):
         return deserialize_command_packet(raw)
     except ValueError:
         return None
-
-
-# Event helpers -----------------------------------------------------------
 
 # CMD_ID=0 packet — identical to what _event_poll_worker sends every 500 ms.
 _POLL_PKT = serialize_command_packet(
@@ -293,11 +292,10 @@ def _assert_clean_ack(raw: bytes, cmd_id: int):
     assert_eq(bool(flags & MDTFlags.STATUS_ERROR),  False)
     assert_eq(raw[MDTOffset.CMD_ID], cmd_id)
 
-# End of helpers
-
 
 # Health check
 def test_hw_ping_gets_response():
+    """A PING command must get a response packet (ACK or NACK) rather than timing out."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -307,6 +305,7 @@ def test_hw_ping_gets_response():
         link.close()
 
 def test_hw_ping_response_is_exactly_18_bytes():
+    """The response to a PING must be exactly one MDT packet long (18 bytes)."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -317,6 +316,7 @@ def test_hw_ping_response_is_exactly_18_bytes():
         link.close()
 
 def test_hw_ping_start_end_framing():
+    """The response to a PING must have correct START and END framing bytes."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -328,6 +328,7 @@ def test_hw_ping_start_end_framing():
         link.close()
 
 def test_hw_ping_response_crc_valid():
+    """The response to a PING must have a valid CRC covering CMD_ID, FLAGS, and DATA."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -340,6 +341,7 @@ def test_hw_ping_response_crc_valid():
         link.close()
 
 def test_hw_ping_echoes_cmd_id():
+    """The response to a PING must echo back the PING command ID (0x05) in the CMD_ID field."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -350,6 +352,7 @@ def test_hw_ping_echoes_cmd_id():
         link.close()
 
 def test_hw_ping_ack_flag_set():
+    """The response to a PING must have the ACK_NACK flag set (ACK) rather than clear (NACK)."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -360,6 +363,7 @@ def test_hw_ping_ack_flag_set():
         link.close()
 
 def test_hw_ping_no_error_flag():
+    """The response to a PING must not have the STATUS_ERROR flag set."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -372,6 +376,7 @@ def test_hw_ping_no_error_flag():
 
 # Memory read
 def test_hw_read_sram_returns_ack():
+    """A READ_MEM command targeting SRAM must return a valid ACK packet rather than NACK or timing out."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -383,6 +388,7 @@ def test_hw_read_sram_returns_ack():
         link.close()
 
 def test_hw_read_sram_data_is_four_bytes():
+    """A READ_MEM command targeting SRAM with length=4 must return a packet with exactly 4 bytes of data."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -416,6 +422,7 @@ def test_hw_read_flash_returns_valid_packet():
         link.close()
 
 def test_hw_read_sram_mem_id_echoed():
+    """A READ_MEM command targeting SRAM must return a packet echoing the RAM mem_id rather than FLASH or 0."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -430,6 +437,7 @@ def test_hw_read_sram_mem_id_echoed():
 
 # Memory write / readback
 def test_hw_write_sram_returns_ack():
+    """A WRITE_MEM command targeting SRAM must return a valid ACK packet rather than NACK or timing out."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -442,6 +450,7 @@ def test_hw_write_sram_returns_ack():
         link.close()
 
 def test_hw_write_then_read_back_pattern():
+    """A WRITE_MEM command followed by a READ_MEM command must return the written data."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -457,6 +466,7 @@ def test_hw_write_then_read_back_pattern():
         link.close()
 
 def test_hw_write_all_zeros_read_back():
+    """A WRITE_MEM command with all zeros followed by a READ_MEM command must return the written data."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -472,6 +482,7 @@ def test_hw_write_all_zeros_read_back():
         link.close()
 
 def test_hw_write_all_ones_read_back():
+    """A WRITE_MEM command with all ones followed by a READ_MEM command must return the written data."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -514,6 +525,7 @@ def test_hw_adjacent_writes_do_not_alias():
     (b'\x00\xFF\x00\xFF',),
 ])
 def test_hw_write_read_various_patterns(pattern):
+    """A WRITE_MEM command with various patterns followed by a READ_MEM command must return the written data."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -746,6 +758,7 @@ def test_hw_reset_breakpoint_acked():
     (3, WatchpointControl.DISABLED, 0x00000000),
 ])
 def test_hw_watchpoint_disable_acked(wp_id, control, payload):
+    """Disable a watchpoint on a 4-byte aligned SRAM address."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -777,6 +790,7 @@ def test_hw_watchpoint_enable_acked():
         link.close()
 
 def test_hw_watchpoint_reset_acked():
+    """Reset a watchpoint slot — this is like DISABLED but also clears the address and mask."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -837,6 +851,7 @@ def test_hw_watchpoint_mask_on_inactive_slot_nacked():
         link.close()
 
 def test_hw_watchpoint_invalid_slot_nacked():
+    """Slot ID >= MDT_MAX_WATCHPOINTS (4) must be NACKed by the firmware."""
     if not HW.available: return _skip()
     link = _link()
     try:

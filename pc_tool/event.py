@@ -32,6 +32,7 @@ class EventHandler:
     # Packet parsing
     @staticmethod
     def _is_event(pkt: bytes) -> bool:
+        """Identify if a packet is an event packet based on CMD_ID and FLAGS."""
         return (
             pkt[MDTOffset.CMD_ID] == 0
             and bool(pkt[MDTOffset.FLAGS] & MDTFlags.EVENT_PACKET)
@@ -39,6 +40,7 @@ class EventHandler:
 
     @staticmethod
     def _is_clean_poll_ack(pkt: bytes) -> bool:
+        """Identify if a packet is a clean ACK to the poll command, with no events."""
         flags = pkt[MDTOffset.FLAGS]
         return (
             pkt[MDTOffset.CMD_ID] == 0
@@ -59,6 +61,7 @@ class EventHandler:
 
     @staticmethod
     def _format_event(ev: EventType, slot_id: int, address: int, length: int, data: int) -> str:
+        """Format an event packet into a human-readable string based on its type."""
         if ev == EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT:
             return f"[Event] {ev.name} (slot={slot_id}, hit_count={data})"
         if ev == EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT:
@@ -169,6 +172,7 @@ class EventHandler:
 
 
 def start_async_handlers(serial_link, uart_idle: bool = False) -> list[threading.Thread]:
+    """Module-level shim to start event handlers, preserving existing call sites."""
     return EventHandler(serial_link, uart_idle=uart_idle).start()
 
 

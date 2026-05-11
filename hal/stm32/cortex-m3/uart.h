@@ -3,15 +3,6 @@
 
 #include <stdint.h>
 
-/* STM-private UART driver */
-void uart_init(uint32_t baudrate);
-uint8_t uart_putc(uint8_t data);
-uint8_t uart_getc_nonblocking(uint8_t *data);
-uint8_t uart_ready(void);
-uint8_t uart_tx_empty(void);
-uint8_t uart_rx_overflow(void);
-void uart_set_idle_callback(void (*cb)(void));
-
 /* USART1 */
 #define USART1_BASE 0x40013800UL
 
@@ -42,6 +33,9 @@ typedef struct {
 /* RCC */
 #define RCC_BASE 0x40021000UL
 
+/**
+ * @brief Structure representing the RCC peripheral registers.
+ */
 typedef struct {
     volatile uint32_t cr;       /* 0x00 */
     volatile uint32_t cfgr;     /* 0x04 */
@@ -68,6 +62,9 @@ typedef struct {
 /* GPIOA */
 #define GPIOA_BASE 0x40010800UL
 
+/**
+ * @brief Structure representing the GPIO peripheral registers.
+ */
 typedef struct {
     volatile uint32_t crl;  /* 0x00 */
     volatile uint32_t crh;  /* 0x04 */

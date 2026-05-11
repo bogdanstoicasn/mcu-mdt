@@ -9,10 +9,6 @@ from pc_tool.common.logger import MDTLogger
 from pc_tool.parser import parse_packet
 
 
-# ---------------------------------------------------------------------------
-# Commander — owns serial_link, handles all protocol operations
-# ---------------------------------------------------------------------------
-
 class Commander:
     """Sends commands to the MCU and handles ACK/NACK/retry logic.
 
@@ -25,10 +21,6 @@ class Commander:
 
     def __init__(self, serial_link: MCUSerialLink) -> None:
         self._link = serial_link
-
-    # ------------------------------------------------------------------
-    # Internal helpers
-    # ------------------------------------------------------------------
 
     def _send_with_retry(self, packet: bytes, seq: int) -> bytes | None:
         """Send a packet and retry up to MDT_MAX_RETRIES times.
@@ -59,16 +51,14 @@ class Commander:
 
     @staticmethod
     def _log_ack(ack: bytes) -> None:
+        """Log the received ACK packet and validate it."""
         MDTLogger.info(f"Received ACK: {ack.hex()}")
         parse_packet(ack)
         if validate_command_packet(ack):
             MDTLogger.info("Command packet validation successful.")
 
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
-
     def ping(self, command: Command) -> None:
+        """Send a ping command to the MCU."""
         packet = serialize_command_packet(command, seq=0, multi=False, last=False)
         MDTLogger.info(f"Serialized Ping Command Packet: {packet.hex()}")
 
@@ -126,11 +116,9 @@ class Commander:
             seq = (seq + 1) % 0xFF
 
 
-# ---------------------------------------------------------------------------
-# UI helpers — stateless, no class needed
-# ---------------------------------------------------------------------------
-
+# UI helpers + CLI commands — stateless, no class needed
 def intro_text() -> str:
+    """Generate centered intro text based on terminal width."""
     width = shutil.get_terminal_size().columns
     lines = [
         "MCU-MDT - Microcontroller Memory Debug Tool",
@@ -141,6 +129,7 @@ def intro_text() -> str:
 
 
 def help_command(command_data: dict = None) -> None:
+    """Display available commands and their descriptions, formatted based on terminal width."""
     width = shutil.get_terminal_size().columns
     col1  = 32
 
@@ -178,14 +167,13 @@ def help_command(command_data: dict = None) -> None:
 
 
 def clear_command() -> None:
+    """Clear the terminal screen."""
     os.system('cls' if os.name == 'nt' else 'clear')
 
 
-# ---------------------------------------------------------------------------
 # Lifecycle helpers — used by main.py
-# ---------------------------------------------------------------------------
-
 def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
+    """Initialize the serial link and perform a startup ping to verify connectivity."""
     startup_ping = serialize_command_packet(
         Command(name="PING", id=ping_command_id, mem=None, address=0, data=None),
         seq=0, multi=False, last=False,
@@ -194,6 +182,7 @@ def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int =
 
 
 def exit_command(serial_link: MCUSerialLink, threads: list) -> None:
+    """Cleanly shut down the serial link and any background threads."""
     MDTLogger.info("Exiting...")
     serial_link.running = False
     serial_link.close()
@@ -202,13 +191,12 @@ def exit_command(serial_link: MCUSerialLink, threads: list) -> None:
     MDTLogger.info("Debugger closed.")
 
 
-# ---------------------------------------------------------------------------
 # Module-level shims — preserve existing call sites in main.py and tests
-# ---------------------------------------------------------------------------
-
 def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None) -> None:
+    """Send a ping command to the MCU."""
     Commander(serial_link).ping(command)
 
 
 def execute_command(command: Command, serial_link: MCUSerialLink = None) -> None:
+    """Execute a command on the MCU."""
     Commander(serial_link).execute(command)

@@ -55,13 +55,6 @@ CONTROL_VALUES = {
     "DISABLED": 0, "ENABLED": 1, "RESET": 2, "NEXT": 3, "MASK": 3,
 }
 
-MCU_METADATA_RAM = {
-    "memories": {
-        "IRAM": {"type": "ram", "start": 0x20000000, "size": 0x5000},
-    },
-    "modules": {},
-}
-
 MCU_METADATA_FLASH = {
     "memories": {
         "IRAM":   {"type": "ram",   "start": 0x20000000, "size": 0x5000},
@@ -124,24 +117,73 @@ MCU_METADATA_AVR = {
     },
 }
 
-MCU_METADATA_REG = {
-    "memories": {},
-    "modules": {
-        "USART1": {
-            "instances": [{"register_group": "USART1", "offset": 0x40013800}],
-            "register_groups": {
-                "USART1": {
-                    "offset": 0x40013800,
-                    "registers": {
-                        "SR":  {"offset": 0x00, "size": 32, "rw": "read-write"},
-                        "DR":  {"offset": 0x04, "size": 32, "rw": "read-write"},
-                        "BRR": {"offset": 0x08, "size": 32, "rw": "read-write"},
-                    },
+def _meta_ram(start=0x20000000, size=0x5000):
+    return {
+        "memories": {
+            "IRAM": {"type": "ram", "start": start, "size": size}
+        },
+        "modules": {}
+    }
+
+def _meta_flash(start=0x08000000, size=0x20000):
+    return {
+        "memories": {
+            "FLASH": {"type": "flash", "start": start, "size": size}
+        },
+        "modules": {}
+    }
+
+def _meta_eeprom(start=0x810000, size=0x400):
+    return {
+        "memories": {
+            "EEPROM": {"type": "eeprom", "start": start, "size": size}
+        },
+        "modules": {}
+    }
+
+def _meta_all():
+    return {
+        "memories": {
+            "IRAM":   {"type": "ram",    "start": 0x20000000, "size": 0x5000},
+            "FLASH":  {"type": "flash",  "start": 0x08000000, "size": 0x20000},
+            "EEPROM": {"type": "eeprom", "start": 0x810000,   "size": 0x400},
+        },
+        "modules": {}
+    }
+
+def _reg_meta(base=0x40013800, reg_offset=0x00, reg_size_bits=32, rw="read-write"):
+    return {
+        "memories": {},
+        "modules": {
+            "USART1": {
+                "instances": [
+                    {"register_group": "USART1", "offset": base}
+                ],
+                "register_groups": {
+                    "USART1": {
+                        "offset": base,
+                        "registers": {
+                            "SR": {
+                                "offset": reg_offset,
+                                "size": reg_size_bits,
+                                "rw": rw,
+                            },
+                            "DR": {
+                                "offset": reg_offset + 0x04,
+                                "size": reg_size_bits,
+                                "rw": rw,
+                            },
+                            "BRR": {
+                                "offset": reg_offset + 0x08,
+                                "size": reg_size_bits,
+                                "rw": rw,
+                            },
+                        }
+                    }
                 }
-            },
+            }
         }
-    },
-}
+    }
 
 
 # Mock infrastructure

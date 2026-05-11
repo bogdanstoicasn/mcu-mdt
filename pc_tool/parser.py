@@ -66,10 +66,8 @@ def parse_args():
     return parser.parse_args()
 
 
-# ---------------------------------------------------------------------------
-# Register name -> address resolution (used by uint32_or_str handler)
-# ---------------------------------------------------------------------------
 
+# Register name -> address resolution (used by uint32_or_str handler)
 def _get_reg_group_base(module: dict, rg_name: str, rg: dict) -> int:
     """Return the absolute base address of a register group.
 
@@ -128,9 +126,8 @@ def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
     return None
 
 
-# ---------------------------------------------------------------------------
 # Parameter type handlers
-# ---------------------------------------------------------------------------
+
 # Each handler receives a _ParseContext and returns the parsed value, or
 # raises ValueError with a human-readable message on failure.
 # To add a new type: write one function and register it in _TYPE_HANDLERS.
@@ -275,10 +272,7 @@ def _resolve_handler(ptype: str, pname: str) -> Callable[[_ParseContext], object
     return lambda ctx: ctx.pvalue
 
 
-# ---------------------------------------------------------------------------
 # Public: parse one CLI line into a Command
-# ---------------------------------------------------------------------------
-
 def parse_line(
     line: str,
     command_dict: dict,

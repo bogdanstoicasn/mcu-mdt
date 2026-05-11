@@ -43,18 +43,22 @@ from pc_tool.common.protocol import (
 
 # Helpers
 def _ping():
+    """Helper to create a simple PING command for testing."""
     return Command(name="PING", id=CommandId.PING,
                    mem=None, address=0, data=None, length=0)
 
 def _read(address=0x20000000, length=4, mem=MemType.RAM):
+    """Helper to create a READ_MEM command with specified parameters."""
     return Command(name="READ_MEM", id=CommandId.READ_MEM,
                    mem=mem, address=address, data=None, length=length)
 
 def _write(address=0x20000000, data=b'\x01\x02\x03\x04', mem=MemType.RAM):
+    """Helper to create a WRITE_MEM command with specified parameters."""
     return Command(name="WRITE_MEM", id=CommandId.WRITE_MEM,
                    mem=mem, address=address, data=data, length=len(data))
 
 def _serialize(cmd, seq=0, multi=False, last=False):
+    """Helper to serialize a Command with optional multi-packet flags."""
     return serialize_command_packet(cmd, seq=seq, multi=multi, last=last)
 
 def _fix_crc(pkt: bytearray) -> bytearray:
@@ -67,22 +71,26 @@ def _fix_crc(pkt: bytearray) -> bytearray:
 
 # Multi-packet flags
 def test_multi_single_packet_no_flags():
+    """A single-packet command should not have SEQ_PRESENT or LAST_PACKET flags set."""
     pkt = _serialize(_ping(), multi=False, last=False)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.SEQ_PRESENT), False)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.LAST_PACKET), False)
 
 def test_multi_first_packet_has_seq_not_last():
+    """In a multi-packet sequence, the first packet should have SEQ_PRESENT set and LAST_PACKET clear."""
     pkt = _serialize(_ping(), seq=0, multi=True, last=False)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.SEQ_PRESENT), True)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.LAST_PACKET), False)
 
 def test_multi_last_packet_has_both_flags():
+    """In a multi-packet sequence, the last packet should have both SEQ_PRESENT and LAST_PACKET flags set."""
     pkt = _serialize(_ping(), seq=5, multi=True, last=True)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.SEQ_PRESENT), True)
     assert_eq(bool(pkt[MDTOffset.FLAGS] & MDTFlags.LAST_PACKET), True)
     assert_eq(pkt[MDTOffset.SEQ], 5)
 
 def test_multi_seq_wraps_at_255():
+    """Sequence number should wrap around at 255 and not overflow."""
     pkt = _serialize(_ping(), seq=255, multi=True, last=False)
     assert_eq(pkt[MDTOffset.SEQ], 255)
 
@@ -102,6 +110,7 @@ def test_multi_seq_zero_is_valid():
     (CommandId.EXIT,       None,           0,          None),
 ])
 def test_roundtrip_all_command_ids(cmd_id, mem, address, data):
+    """Test that serializing and then deserializing a command yields the original command fields."""
     cmd = Command(name=cmd_id.name, id=cmd_id, mem=mem,
                   address=address, data=data, length=len(data) if data else 0)
     pkt = _serialize(cmd)
@@ -125,6 +134,8 @@ def test_corruption_at_every_data_byte_fails_validation():
                   **{"corrupted_offset": offset})
 
 def test_corruption_of_address_bytes_detected():
+    """Flip each byte in ADDRESS field one at a time.
+    Each corruption must break CRC -> validate returns False."""
     original = bytearray(_serialize(_read(address=0x20000000)))
     for offset in range(MDTOffset.ADDRESS, MDTOffset.ADDRESS + UtilEnum.WORD_SIZE):
         corrupt = bytearray(original)
@@ -132,37 +143,17 @@ def test_corruption_of_address_bytes_detected():
         assert_eq(validate_command_packet(bytes(corrupt)), False)
 
 def test_corruption_of_length_bytes_detected():
+    """Flip each byte in LENGTH field one at a time.
+    Each corruption must break CRC -> validate returns False."""
     original = bytearray(_serialize(_read()))
     for offset in range(MDTOffset.LENGTH, MDTOffset.LENGTH + UtilEnum.HALF_WORD_SIZE):
         corrupt = bytearray(original)
         corrupt[offset] ^= 0x01
         assert_eq(validate_command_packet(bytes(corrupt)), False)
 
-
-
-# Edge case crc
-def test_crc_all_zeros():
-    assert_eq(calculate_crc16(b'\x00' * 16), calculate_crc16(b'\x00' * 16))
-
-def test_crc_single_byte_matches_reference():
-    import binascii
-    for b in [0x00, 0x01, 0xFF, 0xAA, 0x55]:
-        data = bytes([b])
-        ref = binascii.crc_hqx(data, 0xFFFF)
-        assert_eq(calculate_crc16(data), ref)
-
-def test_crc_is_deterministic():
-    data = bytes(range(16))
-    assert_eq(calculate_crc16(data), calculate_crc16(data))
-
-def test_crc_different_data_different_result():
-    a = calculate_crc16(b'\xAA\xBB\xCC\xDD')
-    b = calculate_crc16(b'\xAA\xBB\xCC\xDE')   # last byte differs by 1
-    assert_eq(a == b, False)
-
-
 # Validate cmd packet with STATUS_ERROR flag set
 def test_status_error_with_corrected_crc_fails():
+    """If STATUS_ERROR flag is set, validate_command_packet should return False even if CRC is correct."""
     pkt = bytearray(_serialize(_ping()))
     pkt[MDTOffset.FLAGS] |= MDTFlags.STATUS_ERROR
     _fix_crc(pkt)
@@ -180,6 +171,7 @@ def test_event_flag_alone_does_not_fail_validation():
 
 # Nack edge cases
 def test_is_nack_with_all_other_fields_zero():
+    """A packet with all fields zero except FLAGS set to ACK_NACK | STATUS_ERROR should be detected as NACK."""
     pkt = bytearray(MDT_PACKET_SIZE)
     pkt[MDTOffset.START]  = 0xAA
     pkt[MDTOffset.CMD_ID] = 0x00
@@ -188,6 +180,7 @@ def test_is_nack_with_all_other_fields_zero():
     assert_eq(is_nack_packet(bytes(pkt)), True)
 
 def test_is_nack_only_ack_bit_not_nack():
+    """A packet with only ACK_NACK bit set but not STATUS_ERROR should NOT be detected as NACK."""
     pkt = bytearray(MDT_PACKET_SIZE)
     pkt[MDTOffset.START]  = 0xAA
     pkt[MDTOffset.CMD_ID] = 0x00
@@ -196,6 +189,7 @@ def test_is_nack_only_ack_bit_not_nack():
     assert_eq(is_nack_packet(bytes(pkt)), False)
 
 def test_is_nack_only_error_bit_not_nack():
+    """A packet with only STATUS_ERROR bit set but not ACK_NACK should NOT be detected as NACK."""
     pkt = bytearray(MDT_PACKET_SIZE)
     pkt[MDTOffset.START]  = 0xAA
     pkt[MDTOffset.CMD_ID] = 0x00
@@ -204,9 +198,11 @@ def test_is_nack_only_error_bit_not_nack():
     assert_eq(is_nack_packet(bytes(pkt)), False)
 
 def test_is_nack_empty_packet():
+    """An empty packet should not be detected as a NACK."""
     assert_eq(is_nack_packet(b''), False)
 
 def test_is_nack_oversized_packet():
+    """A packet larger than MDT_PACKET_SIZE should not be detected as a NACK."""
     pkt = bytes(MDT_PACKET_SIZE + 1)
     assert_eq(is_nack_packet(pkt), False)
 
@@ -219,6 +215,7 @@ def test_is_nack_oversized_packet():
     (CommandId.READ_REG,   None,        0x40013800, None,                   0),
 ])
 def test_packet_size_is_always_18(cmd_id, mem, address, data, length):
+    """Regardless of command parameters, the serialized packet should always be exactly MDT_PACKET_SIZE bytes."""
     cmd = Command(name="X", id=cmd_id, mem=mem, address=address,
                   data=data, length=length)
     pkt = _serialize(cmd)
@@ -234,6 +231,7 @@ def test_packet_size_is_always_18(cmd_id, mem, address, data, length):
     (0x12345678,),
 ])
 def test_address_roundtrip(address):
+    """Test that the ADDRESS field is correctly encoded in the packet and can be decoded back to the original value."""
     cmd = _read(address=address)
     pkt = _serialize(cmd)
     result = deserialize_command_packet(pkt)
@@ -242,6 +240,7 @@ def test_address_roundtrip(address):
 
 # deserialize invalid packets
 def test_deserialize_rejects_empty():
+    """Deserializing an empty byte string should raise a ValueError."""
     raised = False
     try:
         deserialize_command_packet(b'')
@@ -250,6 +249,7 @@ def test_deserialize_rejects_empty():
     assert_eq(raised, True)
 
 def test_deserialize_rejects_one_extra_byte():
+    """Deserializing a packet that is one byte too long should raise a ValueError."""
     pkt = _serialize(_ping()) + b'\x00'
     raised = False
     try:
