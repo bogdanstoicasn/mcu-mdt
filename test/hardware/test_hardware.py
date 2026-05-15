@@ -127,6 +127,9 @@ class HWConfig:
         data = {}
 
         if mcu:
+            # If we are from test directory, we go 1 directory back to find build/
+            if os.path.basename(os.getcwd()) == "test":
+                os.chdir("..")
             path = os.path.join("build", mcu, "build_info.yaml")
             if not os.path.exists(path):
                 raise FileNotFoundError(
