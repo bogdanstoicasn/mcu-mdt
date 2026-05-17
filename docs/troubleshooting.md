@@ -59,14 +59,14 @@ line capacitance causes bit errors. On short USB-UART cables this is rare.
 
 Also check: if `mcu_mdt_poll()` is not called frequently enough between packets, the
 RX ring buffer can overflow and corrupt the byte stream. The MCU sends a
-`BUFFER_OVERFLOW` event in this case — watch for it on the PC.
+`BUFFER_OVERFLOW` event in this case, watch for it on the PC.
 
 
 ### MCU unresponsive after a RESET command
 
 The RESET command triggers `AIRCR` on STM32 or a watchdog-based reset on AVR. The MCU
 reinitializes completely. Wait ~100 ms before sending the next packet. The PC tool's
-connection does not re-open automatically — exit and restart `mcu_mdt.py` after a reset.
+connection does not re-open automatically, exit and restart `mcu_mdt.py` after a reset.
 
 
 ## Flash Operations
@@ -74,24 +74,24 @@ connection does not re-open automatically — exit and restart `mcu_mdt.py` afte
 
 ### FLASH write returns error even after ERASE
 
-**Cause 1 — Halfword alignment.** On STM32, flash writes must be halfword-aligned
+**Cause 1. Halfword alignment.** On STM32, flash writes must be halfword-aligned
 (address must be divisible by 2). The PC validator rejects unaligned writes, but if
 you bypass the validator the MCU returns an error.
 
-**Cause 2 — Address inside firmware.** The PC validator rejects any write or erase
+**Cause 2. Address inside firmware.** The PC validator rejects any write or erase
 that would touch the firmware image. Check `firmware_end_address` in `build_info.yaml`
 and ensure your target address is above it:
 ```yaml
 firmware_end_address: 0x080034a0   # must write above this
 ```
 
-**Cause 3 — HSI not running.** RM0360 and RM0008 require the HSI oscillator to be
+**Cause 3. HSI not running.** RM0360 and RM0008 require the HSI oscillator to be
 active during flash operations. The HAL enables it automatically in `flash_unlock()`,
 but if your application explicitly disables HSI after startup it may be off by the time
 a flash command arrives. The flash operation then hangs on the BSY poll or completes
 with PGERR. Re-enable HSI or restructure the clock configuration.
 
-**Cause 4 — Page not erased.** Writing to a non-erased flash cell sets PGERR and the
+**Cause 4. Page not erased.** Writing to a non-erased flash cell sets PGERR and the
 MCU returns an error response. Always run `WRITE_MEM ERASE` on the page first.
 
 
@@ -103,13 +103,13 @@ The PC validator computes the full page that would be erased from the given addr
 
 Free flash starts at `firmware_end_address`. The first erasable page is the one whose
 base address is at or above `firmware_end_address`. Page size is 1 KB or 2 KB depending
-on the MCU density — see `flash_page_size` in `build_info.yaml`.
+on the MCU density, see `flash_page_size` in `build_info.yaml`.
 
 ```
 # Example: firmware_end = 0x08003000, page_size = 0x400
 # First safe erase: 0x08003000
-WRITE_MEM ERASE 0x08003000 4 00000000   ✅
-WRITE_MEM ERASE 0x08002C00 4 00000000   ❌ overlaps firmware
+WRITE_MEM ERASE 0x08003000 4 00000000   # accepted
+WRITE_MEM ERASE 0x08002C00 4 00000000   # rejected: overlaps firmware
 ```
 
 
@@ -129,7 +129,7 @@ rebuild, or keep MDT's UART initialization after the clock switch.
 1. `MDT_BREAKPOINT(id)` must be placed in the user code path that executes.
 2. The breakpoint slot must be enabled: `BREAKPOINT 0 ENABLED`.
 3. In poll mode, `mcu_mdt_poll()` must be called frequently in the main loop.
-   Breakpoints are checked inside `mcu_mdt_poll()` — a loop that never reaches
+   Breakpoints are checked inside `mcu_mdt_poll()`, a loop that never reaches
    `mcu_mdt_poll()` (e.g. blocked in a delay) will never fire the event.
 4. In interrupt mode (STM32 default), the PendSV handler processes incoming
    packets. If PendSV is starved by higher-priority interrupts the breakpoint
@@ -138,9 +138,26 @@ rebuild, or keep MDT's UART initialization after the clock switch.
 
 ### MCU stays stuck at breakpoint
 
-Send `BREAKPOINT <id> NEXT` from the PC to resume execution. If the PC tool has
-exited or the UART link is broken, `BREAKPOINT <id> DISABLED` also resumes.
-On AVR in poll mode, a hardware reset also clears the breakpoint state.
+When `MDT_BREAKPOINT(id)` fires on the MCU, the spin loop holds execution
+until the PC sends a release command. This is by design (see the
+"Design rationale: no hardware timeout" section in
+`docs/architecture.md`). The MCU does not time itself out.
+
+To release a held breakpoint:
+
+1. `BREAKPOINT <id> NEXT`. Resume execution past the breakpoint. The slot
+   stays enabled, so the next hit will pause again.
+2. `BREAKPOINT <id> DISABLED`. Resume execution and disarm the slot.
+3. **Power-cycle the MCU.** Clears all breakpoint state via `.bss`
+   zero-initialization. Use this if the PC tool has crashed, the cable is
+   unplugged, or any other path where you cannot send a UART command.
+   This is the only recovery from a hung breakpoint when the link is
+   broken.
+
+Always disable breakpoints before exiting the PC tool. Once the PC tool
+exits, you can no longer reach the MCU to release a breakpoint over UART,
+so power-cycle is the only recovery. The PC tool warns you of this at
+`BREAKPOINT <id> ENABLED` time.
 
 
 ## Watchpoints
@@ -150,9 +167,9 @@ On AVR in poll mode, a hardware reset also clears the breakpoint state.
 
 The watchpoint takes an initial snapshot when ENABLED. If the watched address
 changes between the ENABLE command being processed and the next
-`mcu_mdt_watchpoint_check()` call, a hit fires immediately. This is correct behavior
-— the address changed. Use `WATCHPOINT <id> RESET` followed by `WATCHPOINT <id> ENABLED`
-to re-arm and take a fresh snapshot.
+`mcu_mdt_watchpoint_check()` call, a hit fires immediately. This is correct
+behavior: the address changed. Use `WATCHPOINT <id> RESET` followed by
+`WATCHPOINT <id> ENABLED` to re-arm and take a fresh snapshot.
 
 
 ### Watchpoint never fires despite value changing
@@ -160,7 +177,7 @@ to re-arm and take a fresh snapshot.
 1. Check the mask: if `WATCHPOINT <id> MASK` was used with a mask that does not cover
    the changing bits, the change is invisible. Default mask is `0xFFFFFFFF`.
 2. `mcu_mdt_watchpoint_check()` must be called periodically. On STM32 in interrupt mode
-   it is not called automatically — call it from a SysTick handler or timer ISR.
+   it is not called automatically, call it from a SysTick handler or timer ISR.
 
 
 ## Build System
@@ -178,7 +195,7 @@ in the `ifeq` chain in `hal/stm32/cortex-m0/Makefile` or `hal/stm32/cortex-m3/Ma
 
 On Cortex-M, startup code is marked `__attribute__((naked))` deliberately. Without
 `naked`, the compiler generates a function prologue that tries to set up a stack frame
-before the stack pointer is initialized — which causes an immediate fault.
+before the stack pointer is initialized, which causes an immediate fault.
 The startup file must not be modified to remove `naked` or `noreturn`.
 
 
@@ -202,10 +219,10 @@ Use the exact name from the SVD or ATDF file. For STM32, peripheral names are up
 (`RCC`, `GPIOA`, `USART1`). Register names follow the same case as the SVD
 (`CR`, `IDR`, `SR`). Examples:
 ```
-READ_REG RCC_CR        ✅
-READ_REG rcc_cr        ✅  (case-insensitive)
-READ_REG RCC.CR        ❌  (dot separator not supported, use underscore)
-READ_REG CR            ✅  (bare fallback, first match wins)
+READ_REG RCC_CR        # accepted
+READ_REG rcc_cr        # accepted (case-insensitive)
+READ_REG RCC.CR        # rejected (dot separator not supported, use underscore)
+READ_REG CR            # accepted (bare fallback, first match wins)
 ```
 
 

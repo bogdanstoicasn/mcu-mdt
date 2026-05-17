@@ -42,7 +42,8 @@ cd mcu-mdt
 
 2. **Build the firmware**
 
-Platform-specific build instructions are in `docs/<platform>/info.md`.
+Build instructions and all build flags (`PLATFORM`, `MCU`, `PORT`, `F_CPU`,
+`MDT_USE_UART_IDLE`) are documented in `docs/how-to-build.md`.
 
 ```bash
 # AVR
@@ -108,13 +109,14 @@ the PC side handles all complex validation and tooling.
 
 | Document | Description |
 |---|---|
-| `docs/architecture.md` | System design, HAL contract, protocol rationale, memory safety |
+| `docs/architecture.md` | System design, HAL contract, protocol rationale, memory safety, breakpoint design rationale, PC-side logger/Terminal split |
+| `docs/how-to-build.md` | Toolchain, build flags (`PLATFORM`, `MCU`, `PORT`, `F_CPU`, `MDT_USE_UART_IDLE`), flashing, library integration |
 | `docs/protocol.md` | Packet format, field descriptions, CRC algorithm, event packets |
 | `docs/commands.md` | All commands with parameters, behavior, and platform availability |
-| `docs/avr/info.md` | AVR build, flash, ATDF support, supported MCU list |
-| `docs/stm32/info.md` | STM32 build, flash, interrupt vs poll mode, XL-density, flash write |
+| `docs/avr/info.md` | AVR platform reference — HAL details, supported MCU list, ATDF extension |
+| `docs/stm32/info.md` | STM32 platform reference — supported cores, interrupt vs poll mode, XL-density, flash semantics |
 | `docs/testing.md` | Test suite structure, how to run, what is and isn't covered |
-| `docs/troubleshooting.md` | Common problems and development notes |
+| `docs/troubleshooting.md` | Common problems and recovery steps |
 
 
 ## License

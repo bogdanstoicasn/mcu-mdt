@@ -21,31 +21,31 @@ Every packet is exactly **18 bytes**. All fields are always present.
 
 ## Field Descriptions
 
-- **START / END** — framing bytes, used for synchronization and as a second integrity check on
+- **START / END**: framing bytes, used for synchronization and as a second integrity check on
   top of CRC. If the receiver loses sync it discards bytes until 0xAA is seen again.
 
-- **CMD_ID** — identifies the command. See commands reference for full list.
+- **CMD_ID**: identifies the command. See commands reference for full list.
 
-- **FLAGS** — bitmask controlling packet behavior. See Flags section below.
+- **FLAGS**: bitmask controlling packet behavior. See Flags section below.
 
-- **SEQ** — sequence number for transfers larger than 4 bytes. Increments per packet,
+- **SEQ**: sequence number for transfers larger than 4 bytes. Increments per packet,
   wraps at 0xFF. Unused (0) for single-packet commands.
 
-- **MEM_ID** — memory zone (RAM/FLASH/EEPROM) for memory commands, breakpoint control
+- **MEM_ID**: memory zone (RAM/FLASH/EEPROM) for memory commands, breakpoint control
   value (ENABLE/DISABLE/RESET/NEXT) for breakpoint commands, or watchpoint control value
   (ENABLE/DISABLE/RESET/MASK) for watchpoint commands.
 
-- **ADDRESS** — 4-byte little-endian target address. For breakpoint and watchpoint commands
+- **ADDRESS**: 4-byte little-endian target address. For breakpoint and watchpoint commands
   this field carries the slot ID instead.
 
-- **LENGTH** — number of bytes involved in the transfer. Zero for commands with no data
+- **LENGTH**: number of bytes involved in the transfer. Zero for commands with no data
   (PING, RESET).
 
-- **DATA** — up to 4 bytes of payload per packet. On read commands the MCU writes the result
+- **DATA**: up to 4 bytes of payload per packet. On read commands the MCU writes the result
   here. On watchpoint ENABLE, this carries the address to watch (little-endian). On watchpoint
   MASK, this carries the 32-bit mask value.
 
-- **CRC** — CRC16 calculated over bytes 1 through 14 (CMD_ID to DATA inclusive, excluding
+- **CRC**: CRC16 calculated over bytes 1 through 14 (CMD_ID to DATA inclusive, excluding
   START and END). Little-endian. Always present, always verified by the MCU.
 
 
@@ -55,10 +55,10 @@ Every packet is exactly **18 bytes**. All fields are always present.
 |-----|-----------------|-------------------------------------------------------|
 | 0   | MEM_ID_PRESENT  | MEM_ID field is valid for this command                |
 | 1   | LENGTH_PRESENT  | LENGTH field is valid for this command                |
-| 2   | ACK_NACK        | Set by MCU in response — packet is a reply            |
+| 2   | ACK_NACK        | Set by MCU in response, packet is a reply            |
 | 3   | SEQ_PRESENT     | SEQ field is valid, part of a multi-packet transfer   |
 | 4   | LAST_PACKET     | This is the last packet in a multi-packet sequence    |
-| 5   | STATUS_ERROR    | Set by MCU in response — command failed               |
+| 5   | STATUS_ERROR    | Set by MCU in response, command failed               |
 | 6   | EVENT           | Unsolicited event from MCU, no response expected      |
 
 
@@ -91,7 +91,7 @@ When the MCU receives a packet that fails CRC or framing validation it sends a N
 - A valid CRC is computed and included.
 
 > **Note:** The PC-side `is_nack_packet()` currently also requires `cmd_id == 0`, which conflicts
-> with the firmware echoing the original `cmd_id`. This mismatch is a known issue — see
+> with the firmware echoing the original `cmd_id`. This mismatch is a known issue, see
 > architecture doc Known Issues section.
 
 
@@ -121,7 +121,7 @@ The MCU can send unsolicited event packets to the PC at any time:
 
 | Event Type      | Value | MEM_ID | SEQ         | ADDRESS           | DATA              |
 |-----------------|-------|--------|-------------|-------------------|-------------------|
-| NONE            | 0     | —      | —           | —                 | —                 |
+| NONE            | 0     | -      | -           | -                 | -                 |
 | BUFFER_OVERFLOW | 1     | 1      | 0           | buffer address    | overflow index    |
 | FAILED_PACKET   | 2     | 2      | 0           | buffer address    | 0                 |
 | BREAKPOINT_HIT  | 3     | 3      | breakpoint id | 0               | hit count         |

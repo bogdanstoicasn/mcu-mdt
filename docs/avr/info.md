@@ -1,150 +1,75 @@
 # AVR Platform
 
+This document covers AVR-specific reference material: toolchain, HAL
+details, and the supported MCU list. For build instructions, flashing,
+and the user-project integration pattern see `docs/how-to-build.md`.
+
+
 ## Overview
 
-The AVR HAL supports a wide range of ATmega microcontrollers using USART0.
-Support is determined by the ATDF files in `pc_tool/mcu_db/avr/` and the UART vector
-portability layer in `hal_avr.c`.
+The AVR HAL supports a wide range of ATmega microcontrollers using
+USART0. Support is determined by the ATDF files in
+`pc_tool/mcu_db/avr/` and the UART vector portability layer in
+`hal_avr.c`. AVR hardware has no UART IDLE interrupt, so AVR builds
+always run in poll mode regardless of the `MDT_USE_UART_IDLE` flag.
 
 
-## Libraries Required
+## Libraries required
 
-- AVR Libc (https://github.com/avrdudes/avr-libc/)
-- AVR-GCC toolchain (https://gcc.gnu.org/wiki/avr-gcc)
-
-
-## Building
-
-```bash
-make PLATFORM=avr MCU=<mcu> PORT=<port>
-```
-
-Example:
-```bash
-make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0
-```
-
-Optional — override CPU frequency (default is 16 MHz):
-```bash
-make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0 F_CPU=8000000UL
-```
-
-Build output is placed in `build/<MCU>/`:
-```
-build/atmega328p/
-├── libmcu_mdt_avr.a       # static library to link against
-├── mcu_mdt.h              # public header
-├── mcu_mdt_config.h       # configuration header
-├── mcu_mdt_example.elf    # example binary
-├── mcu_mdt_example.hex    # ready to flash
-├── Makefile.example       # user Makefile for custom projects
-├── main.c                 # example main
-└── build_info.yaml        # platform/mcu/port metadata
-```
+* AVR Libc: https://github.com/avrdudes/avr-libc/
+* AVR-GCC toolchain: https://gcc.gnu.org/wiki/avr-gcc
 
 
-## Flashing
-
-```bash
-make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0 flash
-```
-
-Uses `avrdude` with the Arduino bootloader protocol at 115200 baud. If your board uses a
-different programmer or baud rate, edit the `flash` target in `hal/avr/Makefile`.
-
-Common port values:
-
-| OS      | Port                  |
-|---------|-----------------------|
-| Linux   | `/dev/ttyACM0`        |
-| Linux   | `/dev/ttyUSB0`        |
-| macOS   | `/dev/cu.usbmodem*`   |
-| Windows | `COM3`, `COM4`, ...   |
-
-
-## Using the Library in Your Own Project
-
-After building, go to `build/<MCU>/` and rename `Makefile.example` to `Makefile`.
-Drop your `.c` files alongside `main.c` and run:
-```bash
-make MCU=atmega328p PORT=/dev/ttyACM0
-```
-
-All `.c` files in the directory are picked up automatically. The library, headers, and
-example are all self-contained in the build directory — no need to touch the MDT source tree.
-
-Minimal `main.c`:
-```c
-#include "mcu_mdt.h"
-
-int main(void) {
-    mcu_mdt_init();
-
-    while (1) {
-        mcu_mdt_poll(); // drains UART RX, flushes events, checks watchpoints
-
-        // your application code here
-        MDT_BREAKPOINT(0); // optional breakpoint
-    }
-}
-```
-
-Watchpoints on AVR — call `mcu_mdt_watchpoint_check()` from `mcu_mdt_poll()` (done automatically)
-or from a timer ISR if you need higher-frequency sampling:
-```c
-ISR(TIMER0_COMPA_vect) {
-    mcu_mdt_watchpoint_check();
-}
-```
-
-
-## Cleaning
-
-```bash
-make PLATFORM=avr MCU=atmega328p clean   # removes build/atmega328p/
-make wipe                                 # removes entire build/ directory
-```
-
-
-## HAL Structure
+## HAL structure
 
 The AVR HAL is a single file:
 
 ```
-hal/avr/hal_avr.c    — UART ISRs, ring buffer, SRAM/FLASH/EEPROM access
+hal/avr/hal_avr.c    UART ISRs, ring buffer, SRAM/FLASH/EEPROM access
 ```
 
-All 11 HAL functions (`hal_uart_*`, `hal_read_memory`, `hal_write_memory`,
-`hal_read_register`, `hal_write_register`) are implemented directly in `hal_avr.c`
-with no intermediate wrapper layers.
+All HAL functions (`hal_uart_*`, `hal_read_memory`, `hal_write_memory`,
+`hal_read_register`, `hal_write_register`, `hal_reset`) are implemented
+directly in `hal_avr.c` with no intermediate wrapper layers.
 
-Key AVR-specific details:
-- USART0 is used exclusively by the MDT UART driver.
-- Flash is on a separate Harvard bus — reads use `pgm_read_byte()`, not plain pointer dereference.
-- EEPROM reads use `eeprom_read_byte()`, writes use `eeprom_write_block()`.
-- Registers are memory-mapped into SRAM space — register access is a 1-byte SRAM read/write.
-- There is no UART IDLE interrupt on AVR. `hal_uart_set_idle_callback()` is a no-op stub;
-  all RX processing happens in `mcu_mdt_poll()`.
-- UART vectors are resolved at compile time via portability defines:
-  `USART_RX_vect` / `USART_UDRE_vect` for single-UART parts (ATmega328P, ATmega168),
-  `USART0_RX_vect` / `USART0_UDRE_vect` for multi-UART parts (ATmega2560, ATmega1280).
+Things to know about the AVR HAL:
+
+* **USART0 is used exclusively** by the MDT UART driver. Do not touch it
+  from application code.
+* **Flash is on a separate Harvard bus.** Reads go through
+  `pgm_read_byte()`, not plain pointer dereference. Flash writes are not
+  supported on AVR.
+* **EEPROM** reads use `eeprom_read_byte()` and writes use
+  `eeprom_write_block()`.
+* **Registers are memory-mapped** into SRAM space, so register access is
+  just a 1-byte SRAM read or write.
+* **No UART IDLE interrupt.** `hal_uart_set_idle_callback()` is a no-op
+  stub; all RX processing happens inside `mcu_mdt_poll()`.
+* **UART vectors are resolved at compile time.** For single-UART parts
+  (ATmega328P, ATmega168) the vectors are `USART_RX_vect` and
+  `USART_UDRE_vect`. For multi-UART parts (ATmega2560, ATmega1280) they
+  are `USART0_RX_vect` and `USART0_UDRE_vect`. A portability block at
+  the top of `hal_avr.c` picks the right names.
 
 
-## Adding ATDF Support for a New MCU
+## Adding ATDF support for a new MCU
 
-If your MCU is not in the supported list below, you can add support by:
+If your MCU is not in the supported list below you can add it:
 
-1. Downloading the ATDF file for your MCU from [Microchip Packs](https://packs.download.microchip.com/).
-2. Placing it in `pc_tool/mcu_db/avr/atmega/`.
+1. Download the ATDF file from
+   [Microchip Packs](https://packs.download.microchip.com/).
+2. Drop it in `pc_tool/mcu_db/avr/atmega/`.
 3. The PC tool picks it up automatically on next run.
-4. If your MCU uses a different UART vector name, add it to the portability block in `hal_avr.c`.
+4. If your MCU uses a different UART vector name, add it to the
+   portability block in `hal_avr.c`.
 
 
 ## Supported MCUs
 
-Support is based on USART0 availability and ATDF files. MCUs in the list below work out of the
-box. MCUs not in the list but with a compatible USART0 setup may work with a minor tweak to the
-vector portability block in `hal_avr.c`.
+Support is based on USART0 availability and ATDF files. MCUs in the
+list below work out of the box. MCUs not listed but with a compatible
+USART0 setup may work with a minor tweak to the vector portability
+block in `hal_avr.c`.
 
 | MCU | MCU | MCU | MCU |
 |-----|-----|-----|-----|
@@ -171,10 +96,29 @@ vector portability block in `hal_avr.c`.
 | AT90CAN32 | AT90CAN64 | AT90CAN128 | |
 
 
-## Notes
+## Watchpoints on AVR
 
-1. Do not use USART0 in your application code — it is owned by the MDT UART driver.
-2. Blocking calls (`_delay_ms`, busy-wait loops) will freeze breakpoint and watchpoint handling
-   for their duration. Keep blocking sections short or restructure to cooperative polling.
-3. The baud rate is set at compile time via `MDT_UART_BAUDRATE` in `mcu_mdt_config.h`
-   (default 19200). Match this on the PC side with `MDT_BAUD=19200`.
+`mcu_mdt_poll()` calls `mcu_mdt_watchpoint_check()` once per pass, so on
+AVR the sampling rate equals main-loop frequency. If you need higher
+sampling rate, call `mcu_mdt_watchpoint_check()` from a timer ISR:
+
+```c
+ISR(TIMER0_COMPA_vect) {
+    mcu_mdt_watchpoint_check();
+}
+```
+
+
+## Application notes
+
+1. **Do not use USART0** in your application code. It is owned by the
+   MDT UART driver.
+2. **Avoid blocking calls.** `_delay_ms`, busy-wait loops, and similar
+   will freeze breakpoint and watchpoint handling for their duration.
+   Keep blocking sections short or restructure to cooperative polling.
+3. **Baud rate is set at compile time** via `MDT_UART_BAUDRATE` in
+   `mcu_mdt_config.h` (default 19200). The PC side must match with
+   `MDT_BAUD=19200`.
+4. **No flash write support.** The MCU returns an error for FLASH writes
+   and ERASE commands. EEPROM is the only writable persistent memory on
+   AVR.

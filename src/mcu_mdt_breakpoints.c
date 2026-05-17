@@ -48,9 +48,13 @@ void mdt_breakpoint_trigger(uint8_t id)
         }
     }
 #endif
-    /* NOTE: If the PC disconnects while a breakpoint is active the MCU
-         * will spin here indefinitely. A hardware-independent timeout is not
-         * implemented in v1.0. To recover, reset the MCU. */
+    /* DESIGN: This loop is intentionally unbounded. Adding a hardware
+    *         timeout would claim a peripheral (SysTick / TIMER0) from
+    *         the user, contradicting the zero-cost design value of
+    *         the tool. A silent timeout would also be unsafe — the user
+    *         could read stale state believing the MCU is still paused.
+    *         Instead the PC tool warns at BREAKPOINT ENABLED time.
+    *         To recover from PC disconnect while paused: power-cycle. */
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_enable(uint8_t id)

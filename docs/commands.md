@@ -75,14 +75,14 @@ or erases a flash page (zone `ERASE`).
 
 **Behavior by zone:**
 
-- **RAM** — direct SRAM write, always allowed. Out-of-range addresses are rejected by
+- **RAM**: direct SRAM write, always allowed. Out-of-range addresses are rejected by
   the PC validator.
-- **FLASH** — half-word (16-bit) programming on STM32. The target area must be erased
+- **FLASH**: half-word (16-bit) programming on STM32. The target area must be erased
   first using the `ERASE` zone. Flash writes that overlap the running firmware image are
   rejected by the PC validator to prevent self-corruption. Only addresses at or above
   `firmware_end_address` (from `build_info.yaml`) are accepted.
-- **EEPROM** — AVR only. Passed through to `eeprom_write_block()`.
-- **ERASE** — STM32 only. Erases the flash page containing `address`. The page
+- **EEPROM**: AVR only. Passed through to `eeprom_write_block()`.
+- **ERASE**: STM32 only. Erases the flash page containing `address`. The page
   boundary is computed on the MCU (`data` and `len` are ignored by the firmware). The PC
   validator rejects the command if the page overlaps the running firmware image. Always
   erase before writing to flash.
@@ -98,10 +98,10 @@ READ_MEM  FLASH 0x08004000 4            # verify
 
 | Zone   | AVR | STM32 Cortex-M0 | STM32 Cortex-M3 |
 |--------|-----|-----------------|-----------------|
-| RAM    | ✅  | ✅              | ✅              |
-| FLASH  | ❌  | ✅              | ✅              |
-| EEPROM | ✅  | ❌              | ❌              |
-| ERASE  | ❌  | ✅              | ✅              |
+| RAM    | yes | yes             | yes             |
+| FLASH  | no  | yes             | yes             |
+| EEPROM | yes | no              | no              |
+| ERASE  | no  | yes             | yes             |
 
 
 ### READ_REG (ID: 0x03)
@@ -121,7 +121,7 @@ name to an absolute address using the SVD (STM32) or ATDF (AVR) database.
 
 Two formats are accepted:
 
-- **Qualified** — `PERIPHERAL_REGISTER`: recommended form, unambiguous when the same
+- **Qualified**: `PERIPHERAL_REGISTER`: recommended form, unambiguous when the same
   register name exists in multiple peripherals.
 
   ```
@@ -131,7 +131,7 @@ Two formats are accepted:
   READ_REG TIM1_CCMR1    # STM32: TIM1 capture/compare mode register
   ```
 
-- **Bare** — register name only. Searches all peripherals in order; first match
+- **Bare**: register name only. Searches all peripherals in order; first match
   wins. Useful on AVR where register names are globally unique.
 
   ```
@@ -193,11 +193,11 @@ WRITE_REG 0x40013800 000000FF # raw address
 
 **Behavior:**
 
-- **ENABLED** — arms the breakpoint. The MCU will pause the next time `MDT_BREAKPOINT(id)` is
+- **ENABLED**: arms the breakpoint. The MCU will pause the next time `MDT_BREAKPOINT(id)` is
   reached in firmware and send a `BREAKPOINT_HIT` event.
-- **DISABLED** — disarms the breakpoint. Execution passes through without pausing.
-- **RESET** — clears the hit counter and `next` flag. Does not change enabled state.
-- **NEXT** — if the MCU is currently paused at this breakpoint, resumes execution.
+- **DISABLED**: disarms the breakpoint. Execution passes through without pausing.
+- **RESET**: clears the hit counter and `next` flag. Does not change enabled state.
+- **NEXT**: if the MCU is currently paused at this breakpoint, resumes execution.
 
 **Notes:**
 - `MDT_BREAKPOINT(id)` must be placed in user firmware code.
@@ -217,16 +217,16 @@ monitored bits change value.
 |---------|--------|----------------------------------------------------------|
 | id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`)           |
 | control | str    | Control value: DISABLED, ENABLED, RESET, MASK            |
-| data    | uint32 | ENABLED: address to watch. MASK: 32-bit mask. Others: —  |
+| data    | uint32 | ENABLED: address to watch. MASK: 32-bit mask. Others: -  |
 
 **Behavior:**
 
-- **ENABLED** — arms the watchpoint at the address provided in `data`. Takes an initial snapshot
+- **ENABLED**: arms the watchpoint at the address provided in `data`. Takes an initial snapshot
   and fires a `WATCHPOINT_HIT` event whenever any masked bits at that address change. Default mask
   is `0xFFFFFFFF` (all bits).
-- **DISABLED** — disarms the watchpoint. The slot address and snapshot are preserved.
-- **RESET** — disarms and clears the slot (address, snapshot, mask all zeroed).
-- **MASK** — sets the bit mask for an already-active slot. Only the bits set in the mask are
+- **DISABLED**: disarms the watchpoint. The slot address and snapshot are preserved.
+- **RESET**: disarms and clears the slot (address, snapshot, mask all zeroed).
+- **MASK**: sets the bit mask for an already-active slot. Only the bits set in the mask are
   compared on each sample. Slot must be active (ENABLED) for MASK to take effect.
 
 **Notes:**
