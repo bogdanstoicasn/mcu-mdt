@@ -22,7 +22,7 @@ Used with the BREAKPOINT command.
 |----------|-------|--------------------------------------|
 | DISABLED | 0     | Disable the breakpoint               |
 | ENABLED  | 1     | Enable the breakpoint                |
-| RESET    | 2     | Reset hit count and state            |
+| RESET    | 2     | Reset                                |
 | NEXT     | 3     | Resume execution from the breakpoint |
 
 ## Watchpoint Control Values
@@ -196,7 +196,7 @@ WRITE_REG 0x40013800 000000FF # raw address
 - **ENABLED**: arms the breakpoint. The MCU will pause the next time `MDT_BREAKPOINT(id)` is
   reached in firmware and send a `BREAKPOINT_HIT` event.
 - **DISABLED**: disarms the breakpoint. Execution passes through without pausing.
-- **RESET**: clears the hit counter and `next` flag. Does not change enabled state.
+- **RESET**: clears all bkpt data.
 - **NEXT**: if the MCU is currently paused at this breakpoint, resumes execution.
 
 **Notes:**

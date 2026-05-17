@@ -482,10 +482,4 @@ Environment variables for hardware tests:
 
 ## Known Issues
 
-- **4 hardware tests fail** against the current firmware:
-  - `test_hw_bad_crc_triggers_nack` and `test_hw_nack_seq_mirrors_request_seq`, `is_nack_packet()`
-    on the PC side requires `cmd_id == 0`, but the firmware echoes the original `cmd_id` in the
-    NACK. One side needs to be fixed to agree on the NACK format.
-  - `test_hw_failed_packet_event_has_event_flag` and `test_hw_rx_worker_routes_event_to_event_queue`
-   , cascade from the above; the FAILED_PACKET event is only sent on the next `mcu_mdt_poll()`
-    after the NACK, which may arrive after the test's read timeout on AVR poll mode.
+- None
