@@ -66,34 +66,30 @@ If your MCU is not in the supported list below you can add it:
 
 ## Supported MCUs
 
-Support is based on USART0 availability and ATDF files. MCUs in the
-list below work out of the box. MCUs not listed but with a compatible
-USART0 setup may work with a minor tweak to the vector portability
-block in `hal_avr.c`.
+The following MCU's should work with the AVR HAL out of the box.
 
 | MCU | MCU | MCU | MCU |
 |-----|-----|-----|-----|
-| ATmega48 | ATmega48A | ATmega48P | ATmega48PA |
-| ATmega48PB | ATmega88 | ATmega88A | ATmega88P |
-| ATmega88PA | ATmega88PB | ATmega128 | ATmega128A |
-| ATmega128RFA1 | ATmega128RFR2 | ATmega162 | ATmega164A |
-| ATmega164P | ATmega164PA | ATmega165A | ATmega165P |
+| AT90CAN128 | AT90CAN32 | AT90CAN64 | ATmega128 |
+| ATmega1280 | ATmega1281 | ATmega1284 | ATmega1284P |
+| ATmega1284RFR2 | ATmega128A | ATmega128RFA1 | ATmega128RFR2 |
+| ATmega164A | ATmega164P | ATmega164PA | ATmega165A |
 | ATmega165PA | ATmega168 | ATmega168A | ATmega168P |
-| ATmega168PA | ATmega168PB | ATmega169A | ATmega169P |
-| ATmega169PA | ATmega256RFR2 | ATmega324A | ATmega324P |
-| ATmega324PA | ATmega324PB | ATmega325 | ATmega325A |
-| ATmega325P | ATmega325PA | ATmega328 | ATmega328P |
-| ATmega328PB | ATmega329 | ATmega329A | ATmega329P |
-| ATmega329PA | ATmega640 | ATmega644 | ATmega644A |
-| ATmega644P | ATmega644PA | ATmega644RFR2 | ATmega645 |
-| ATmega645A | ATmega645P | ATmega649 | ATmega649A |
-| ATmega649P | ATmega1280 | ATmega1281 | ATmega1284 |
-| ATmega1284P | ATmega1284RFR2 | ATmega2560 | ATmega2561 |
-| ATmega2564RFR2 | ATmega3250 | ATmega3250A | ATmega3250P |
-| ATmega3250PA | ATmega3290 | ATmega3290A | ATmega3290P |
-| ATmega3290PA | ATmega6450 | ATmega6450A | ATmega6450P |
-| ATmega6490 | ATmega6490A | ATmega6490P | ATmegaS128 |
-| AT90CAN32 | AT90CAN64 | AT90CAN128 | |
+| ATmega168PA | ATmega168PB | ATmega169P | ATmega169PA |
+| ATmega2560 | ATmega2561 | ATmega2564RFR2 | ATmega256RFR2 |
+| ATmega324A | ATmega324P | ATmega324PA | ATmega325 |
+| ATmega3250 | ATmega3250A | ATmega3250P | ATmega3250PA |
+| ATmega325A | ATmega325P | ATmega325PA | ATmega328 |
+| ATmega328P | ATmega329 | ATmega3290 | ATmega3290A |
+| ATmega3290P | ATmega3290PA | ATmega329A | ATmega329P |
+| ATmega329PA | ATmega48 | ATmega48A | ATmega48P |
+| ATmega48PA | ATmega48PB | ATmega64 | ATmega640 |
+| ATmega644 | ATmega644A | ATmega644P | ATmega644PA |
+| ATmega644RFR2 | ATmega645 | ATmega6450 | ATmega6450A |
+| ATmega6450P | ATmega645A | ATmega645P | ATmega649 |
+| ATmega6490 | ATmega6490A | ATmega6490P | ATmega649A |
+| ATmega649P | ATmega64A | ATmega64RFR2 | ATmega88 |
+| ATmega88A | ATmega88P | ATmega88PA | ATmega88PB |
 
 
 ## Watchpoints on AVR
