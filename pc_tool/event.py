@@ -1,5 +1,4 @@
 import os
-import sys
 import time
 import threading
 
@@ -7,6 +6,7 @@ from pc_tool.common.enums import MDTFlags, MDTOffset, EventType
 from pc_tool.common.protocol import serialize_command_packet
 from pc_tool.common.dataclasses import Command
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.terminal import Terminal
 
 EVENT_POLL_INTERVAL = 0.5  # seconds
 
@@ -119,8 +119,7 @@ class EventHandler:
                 ev  = EventType(event_type)
                 msg = self._format_event(ev, slot_id, address, length, data)
 
-                sys.stdout.write(f"\r\033[K{msg}\n> ")
-                sys.stdout.flush()
+                Terminal.event(msg)
 
             except Exception as exc:
                 if self._link.running:
@@ -164,9 +163,9 @@ class EventHandler:
             poll_thread = threading.Thread(target=self._event_poll_worker, daemon=True)
             poll_thread.start()
             threads.append(poll_thread)
-            MDTLogger.info("UART idle interrupt mode — event poll thread started.")
+            Terminal.info("UART idle interrupt mode — event poll thread started.")
         else:
-            MDTLogger.info("Poll mode — MCU drains events via mcu_mdt_poll(), no event poll thread needed.")
+            Terminal.info("Poll mode — MCU drains events via mcu_mdt_poll(), no event poll thread needed.")
 
         return threads
 

@@ -1,13 +1,45 @@
+from __future__ import annotations
 import logging
 import os
 from datetime import datetime
 
 
-class _MDTLogger:
-    """Thin wrapper around a named ``logging.Logger`` with file logging support.
+class _TerminalHandler(logging.Handler):
+    """Forward warning/error records to ``Terminal._emit_from_logger``.
 
-    Instantiated once at module level as ``MDTLogger``. All call sites use
-    ``MDTLogger.info()``, ``MDTLogger.error()``, etc.
+    Installed on the MCU-MDT logger so existing call sites of the form
+    ``MDTLogger.error("Unknown command: X", code=3)`` automatically
+    surface to the user — without every parser/validator call site
+    needing to know about Terminal.
+    """
+
+    def __init__(self) -> None:
+        super().__init__(level=logging.WARNING)
+
+    def emit(self, record: logging.LogRecord) -> None:
+        # Lazy import to break a circular dependency
+        # (terminal.py imports MDTLogger at runtime for its log mirror).
+        try:
+            from pc_tool.common.terminal import Terminal
+        except Exception:
+            return
+
+        try:
+            msg = record.getMessage()
+            code = getattr(record, "code", "")
+            if code:
+                msg = f"{msg} {code}"
+            Terminal._emit_from_logger(record.levelno, msg)
+        except Exception:
+            # Logging must never raise.
+            self.handleError(record)
+
+
+class _MDTLogger:
+    """Named ``logging.Logger`` wrapper, file-only by default.
+
+    Instantiated once at module level as ``MDTLogger``.  Call sites do
+    ``MDTLogger.info(...)``, ``MDTLogger.error(...)``, etc.
     """
 
     def __init__(self) -> None:
@@ -15,14 +47,24 @@ class _MDTLogger:
         self._logger.setLevel(logging.DEBUG)
         self._logger.propagate = False
 
+        # Wipe any handlers a prior import/test cycle may have left behind
+        # so re-importing this module is idempotent.
+        for h in list(self._logger.handlers):
+            self._logger.removeHandler(h)
+
         self._formatter = logging.Formatter(
             "[%(asctime)s] [%(levelname)s]%(code)s: %(message)s",
             datefmt="%H:%M:%S",
         )
 
-        handler = logging.StreamHandler()
-        handler.setFormatter(self._formatter)
-        self._logger.addHandler(handler)
+        # Always-on null handler keeps Python's logging machinery happy
+        # before enable_file_logging() is called.
+        self._logger.addHandler(logging.NullHandler())
+
+        # Terminal-routing handler: WARNING+ records flow to Terminal.
+        term_handler = _TerminalHandler()
+        term_handler.setFormatter(self._formatter)
+        self._logger.addHandler(term_handler)
 
         self._log_file: str | None = None
 
@@ -43,17 +85,25 @@ class _MDTLogger:
         self._log_file = path
         return path
 
+    # Back-compat shims.  The old API silenced/restored the stream
+    # handler that used to live on the logger.  That handler is gone,
+    # but main.py still calls these in script mode to mute output —
+    # the right modern target for that is the Terminal's quiet flag.
     def suppress_console(self) -> None:
-        """Silence the stream handler so output goes to file only."""
-        for h in self._logger.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
-                h.setLevel(logging.CRITICAL + 1)
+        """Silence Terminal output (script mode).  No-op on the logger."""
+        try:
+            from pc_tool.common.terminal import Terminal
+            Terminal.set_quiet(True)
+        except Exception:
+            pass
 
     def restore_console(self) -> None:
-        """Restore the stream handler to DEBUG level."""
-        for h in self._logger.handlers:
-            if isinstance(h, logging.StreamHandler) and not isinstance(h, logging.FileHandler):
-                h.setLevel(logging.DEBUG)
+        """Restore Terminal output."""
+        try:
+            from pc_tool.common.terminal import Terminal
+            Terminal.set_quiet(False)
+        except Exception:
+            pass
 
     # File only session marker
     def _emit_to_file(self, msg: str) -> None:

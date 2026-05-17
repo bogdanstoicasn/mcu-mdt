@@ -176,12 +176,6 @@ def validate_write_mem(operation: Command, mcu_metadata: dict) -> bool:
         )
         return False
 
-    try:
-        mem_type = MemType(operation.mem)
-    except ValueError:
-        MDTLogger.error(f"Invalid memory type: {operation.mem}.", code=3)
-        return False
-
     addr, length = operation.address, operation.length
     seg = _find_mem_segment(mcu_metadata, mem_type, addr, length)
 

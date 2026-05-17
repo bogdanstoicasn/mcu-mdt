@@ -265,10 +265,11 @@ def test_validator_blocks_out_of_range_read():
     assert_eq(uart.pending, 0)   # nothing was written to the wire
 
 def test_validator_blocks_invalid_breakpoint_id():
-    # ID 99 is way out of range (max is MDT_MAX_BREAKPOINTS-1 = 3)
+    # ID is way out of range (max is MDT_MAX_BREAKPOINTS-1 = 3)
     cmd = parse_line("BREAKPOINT 99 ENABLED", COMMANDS, CONTROL_VALUES, {})
-    # parse_line treats the address as a hex uint32 — 99 decimal = 0x63 hex
-    # but validate_commands checks it is < MDT_MAX_BREAKPOINTS
+    # parse_line treats the address as a hex uint32, so "99" parses as
+    # 0x99 = 153 — still well outside the valid 0..3 breakpoint slot range,
+    # so validate_breakpoint must reject it.
     from pc_tool.validator import validate_breakpoint
     assert_eq(validate_breakpoint(cmd), False)
 

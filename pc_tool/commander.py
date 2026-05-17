@@ -6,6 +6,7 @@ from pc_tool.common.protocol import serialize_command_packet, validate_command_p
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.common.enums import UtilEnum, MDTOffset
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.terminal import Terminal
 from pc_tool.parser import parse_packet
 
 
@@ -163,12 +164,12 @@ def help_command(command_data: dict = None) -> None:
         lines.append("  No command data available.")
 
     lines.append("─" * min(width, 72))
-    MDTLogger.info("\n" + "\n".join(lines) + "\n")
+    Terminal.help_table(lines)
 
 
 def clear_command() -> None:
     """Clear the terminal screen."""
-    os.system('cls' if os.name == 'nt' else 'clear')
+    Terminal.clear()
 
 
 # Lifecycle helpers — used by main.py
@@ -183,12 +184,11 @@ def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int =
 
 def exit_command(serial_link: MCUSerialLink, threads: list) -> None:
     """Cleanly shut down the serial link and any background threads."""
-    MDTLogger.info("Exiting...")
     serial_link.running = False
     serial_link.close()
     for t in threads:
         t.join(timeout=2.0)
-    MDTLogger.info("Debugger closed.")
+    Terminal.success("Debugger closed.")
 
 
 # Module-level shims — preserve existing call sites in main.py and tests

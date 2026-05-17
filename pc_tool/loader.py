@@ -509,7 +509,7 @@ def load_configs(file_path: str) -> dict:
         MDTLogger.error(f"Config file not found: {file_path}")
         return {}
     except yaml.YAMLError as exc:
-        MDTLogger.error(f"Failed to parse YAML '{file_path}'", code=str(exc))
+        MDTLogger.error(f"Failed to parse YAML '{file_path}': {exc}", code=1)
         return {}
 
 

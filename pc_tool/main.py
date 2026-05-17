@@ -4,6 +4,7 @@ from pc_tool.commander import Commander, help_command, intro_text, clear_command
 from pc_tool.validator import validate_commands
 from pc_tool.event import start_async_handlers
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.terminal import Terminal
 
 
 def build_dispatch(loader, serial_link, commander, threads):
@@ -110,7 +111,7 @@ def run_loop(loader, serial_link, commander, threads):
     symbols  = loader.elf_symbols
     dispatch = build_dispatch(loader, serial_link, commander, threads)
 
-    MDTLogger.info(intro_text())
+    Terminal.intro(intro_text())
 
     while True:
         try:
@@ -120,7 +121,9 @@ def run_loop(loader, serial_link, commander, threads):
 
             command = parse_line(line, commands, control, metadata, symbols)
             if not command:
-                MDTLogger.error("Invalid command or parsing error.", code=2)
+                # parse_line already surfaced the precise reason via the
+                # Terminal handler; nothing more to say to the user here.
+                MDTLogger.debug("Invalid command or parsing error.", code=2)
                 continue
 
             if command.name in dispatch:
@@ -132,13 +135,14 @@ def run_loop(loader, serial_link, commander, threads):
             MDTLogger.info(f"Parsed Command: {command}")
 
             if not validate_commands(command, metadata):
-                MDTLogger.error("Command validation failed.", code=3)
+                # validate_commands already surfaced the specific failure.
+                MDTLogger.debug("Command validation failed.", code=3)
                 continue
 
             commander.execute(command)
 
         except (EOFError, KeyboardInterrupt):
-            MDTLogger.info("Exiting...")
+            Terminal.info("Exiting...")
             break
 
     MDTLogger.session_end()

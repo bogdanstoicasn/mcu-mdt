@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.terminal import Terminal
 from pc_tool.common.dataclasses import Command, CommandPacket
 from pc_tool.common.protocol import deserialize_command_packet
 from pc_tool.common.elf_symbols import resolve_symbol, check_watchpoint_alignment
@@ -156,7 +157,7 @@ def _parse_symbol_or_uint32(ctx: _ParseContext) -> int:
         MDTLogger.error(
             f"Cannot resolve symbol '{ctx.pvalue}': no ELF loaded. "
             f"Add 'elf: path/to/firmware.elf' to build_info.yaml.",
-            code=ctx.line,
+            code=2,
         )
         raise ValueError(f"no ELF for symbol '{ctx.pvalue}'")
 
@@ -176,7 +177,7 @@ def _parse_symbol_or_uint32(ctx: _ParseContext) -> int:
             MDTLogger.error(
                 f"Ambiguous symbol '{ctx.pvalue}': multiple local statics found: {names}. "
                 f"Use the full mangled name.",
-                code=ctx.line,
+                code=2,
             )
             raise ValueError(f"ambiguous symbol '{ctx.pvalue}'")
         else:
@@ -184,7 +185,7 @@ def _parse_symbol_or_uint32(ctx: _ParseContext) -> int:
                 f"Symbol '{ctx.pvalue}' not found in ELF symbol table. "
                 f"Tip: only static/global variables are watchable. "
                 f"Local variables live on the stack and have no fixed address.",
-                code=ctx.line,
+                code=2,
             )
             raise ValueError(f"symbol '{ctx.pvalue}' not found")
 
@@ -202,7 +203,7 @@ def _parse_uint32_or_str(ctx: _ParseContext) -> int:
 
     addr = resolve_register_address(ctx.pvalue, ctx.mcu_metadata)
     if addr is None:
-        MDTLogger.error(f"Unknown register name '{ctx.pvalue}'", code=ctx.line)
+        MDTLogger.error(f"Unknown register name '{ctx.pvalue}'", code=2)
         raise ValueError(f"unknown register '{ctx.pvalue}'")
     return addr
 
@@ -216,7 +217,7 @@ def _parse_uint(ctx: _ParseContext) -> int:
     try:
         return int(ctx.pvalue, base)
     except ValueError:
-        MDTLogger.error(f"Invalid value '{ctx.pvalue}' for {ctx.pname}", code=ctx.line)
+        MDTLogger.error(f"Invalid value '{ctx.pvalue}' for {ctx.pname}", code=2)
         raise
 
 
@@ -228,7 +229,7 @@ def _parse_bytes(ctx: _ParseContext) -> bytes:
     try:
         return bytes.fromhex(hex_str)
     except ValueError:
-        MDTLogger.error(f"Invalid hex data for {ctx.pname}", code=ctx.pvalue)
+        MDTLogger.error(f"Invalid hex data for {ctx.pname}: '{ctx.pvalue}'", code=2)
         raise
 
 
@@ -239,7 +240,7 @@ def _parse_control_str(ctx: _ParseContext) -> int:
         MDTLogger.error(
             f"Invalid control value '{ctx.pvalue}'. "
             f"Expected one of: {', '.join(ctx.control_values_normalized.keys())}",
-            code=ctx.line,
+            code=2,
         )
         raise ValueError(f"unknown control value '{ctx.pvalue}'")
     return ctx.control_values_normalized[key]
@@ -306,7 +307,7 @@ def parse_line(
     if provided_args != expected_args:
         MDTLogger.error(
             f"{name} expects {expected_args} parameter(s), got {provided_args}",
-            code=line,
+            code=2,
         )
         return None
 
@@ -346,12 +347,11 @@ def parse_line(
         )
 
     except (ValueError, IndexError, KeyError) as e:
-        MDTLogger.error(f"Failed to parse line: {line}", code=str(e))
+        MDTLogger.error(f"Failed to parse line: {line} ({e})", code=2)
         return None
 
 
-# Pretty print a received packet (for debugging purposes)
 def parse_packet(packet: bytes) -> None:
     """Print the contents of a received packet in human-readable form."""
     cmd = deserialize_command_packet(packet)
-    MDTLogger.info(f"Received packet: {cmd}")
+    Terminal.packet(cmd, raw=packet)

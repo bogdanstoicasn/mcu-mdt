@@ -266,8 +266,10 @@ def test_watchpoint_enabled_aligned_address():
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
     assert_eq(validate_watchpoint(cmd), True)
 
-def test_watchpoint_enabled_unaligned_address_rejected():
-    """Test that enabling a watchpoint with an unaligned address is rejected."""
+def test_watchpoint_enabled_unaligned_address_accepted_with_warning():
+    """Test that enabling a watchpoint with an unaligned address is accepted
+    with a warning (the validator does not reject — it just warns the user
+    that adjacent bytes will be included in the 4-byte read)."""
     watched = (0x20000101).to_bytes(4, "little")  # not 4-byte aligned
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
     assert_eq(validate_watchpoint(cmd), True)
