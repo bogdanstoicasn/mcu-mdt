@@ -143,14 +143,40 @@ class EventHandler:
             time.sleep(EVENT_POLL_INTERVAL)
 
 
-    def start(self) -> list[threading.Thread]:
-        """Start all background threads and return them.
+    def drain_stale_events(self, max_polls: int = 8,
+                           per_poll_timeout: float = 0.2) -> int:
+        """Drain events left over from a previous PC session.
 
-        Threads are daemon threads — they die with the process automatically.
-        In UART idle mode an extra poll thread is added so the MCU can drain
-        its event queue.  In poll mode the MCU handles that via
-        ``mcu_mdt_poll()`` and no extra thread is needed.
+        Call between open() and start() so the drain has the link to itself
+        (no rx_worker racing on read_packet). UART-idle mode sends CMD_ID=0
+        polls to flush the MCU's queue; poll mode just listens. Dropped
+        events go to the log file. Returns the count.
         """
+        dropped = 0
+        for _ in range(max_polls):
+            if self._uart_idle:
+                self._link.send_packet(_POLL_PACKET)
+
+            pkt = self._link.read_packet(timeout=per_poll_timeout)
+            if pkt is None:
+                break  # quiet on the wire -> queue is empty
+
+            if self._is_event(pkt):
+                MDTLogger.info(f"Dropped stale event at startup: {pkt.hex()}")
+                dropped += 1
+                continue
+
+            # Anything else (clean poll ACK, stray reply) means the MCU
+            # has nothing left to volunteer.  Stop.
+            break
+
+        if dropped:
+            MDTLogger.info(f"Drained {dropped} stale event(s) at startup.")
+        return dropped
+
+
+    def start(self) -> list[threading.Thread]:
+        """Start all background threads and return them."""
         rx_thread = threading.Thread(target=self.rx_worker,       daemon=True)
         ev_thread = threading.Thread(target=self._event_listener, daemon=True)
 
@@ -173,6 +199,14 @@ class EventHandler:
 def start_async_handlers(serial_link, uart_idle: bool = False) -> list[threading.Thread]:
     """Module-level shim to start event handlers, preserving existing call sites."""
     return EventHandler(serial_link, uart_idle=uart_idle).start()
+
+
+def drain_stale_events(serial_link, uart_idle: bool = False,
+                       max_polls: int = 8, per_poll_timeout: float = 0.2) -> int:
+    """Module-level shim to drain stale events at startup."""
+    return EventHandler(serial_link, uart_idle=uart_idle).drain_stale_events(
+        max_polls=max_polls, per_poll_timeout=per_poll_timeout
+    )
 
 
 def rx_worker(serial_link) -> None:

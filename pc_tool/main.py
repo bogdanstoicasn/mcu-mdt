@@ -2,7 +2,7 @@ from pc_tool.loader import ConfigLoader
 from pc_tool.parser import parse_line, parse_args, CLIHistory
 from pc_tool.commander import Commander, help_command, intro_text, clear_command, serial_link_command, exit_command
 from pc_tool.validator import validate_commands
-from pc_tool.event import start_async_handlers
+from pc_tool.event import start_async_handlers, drain_stale_events
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.terminal import Terminal
 
@@ -35,10 +35,12 @@ def setup(build_info_path: str):
         MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
 
-    threads = start_async_handlers(
-        serial_link,
-        uart_idle=bool(loader.yaml_build_data.get('uart_idle', False))
-    )
+    uart_idle = bool(loader.yaml_build_data.get('uart_idle', False))
+
+    # Drain any stale events that may have accumulated before the event handlers are started.
+    drain_stale_events(serial_link, uart_idle=uart_idle)
+
+    threads = start_async_handlers(serial_link, uart_idle=uart_idle)
 
     commander = Commander(serial_link)
 
