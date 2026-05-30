@@ -158,7 +158,7 @@ Each platform has a single `hal_*.c` file that directly implements `mcu_mdt_hal.
 intermediate wrapper layers, the `hal_*` functions are the only entry points.
 
 ```
-inc/mcu_mdt_hal.h          - contract (8 functions)
+inc/mcu_mdt_hal.h          - contract (12 functions)
 hal/avr/hal_avr.c          - AVR implementation (UART ISRs + SRAM/FLASH/EEPROM access)
 hal/stm32/cortex-m0/hal_stm.c  - M0 implementation (UART ISRs + SRAM/FLASH access + flash write)
 hal/stm32/cortex-m3/hal_stm.c  - M3 implementation (UART ISRs + SRAM/FLASH access)
@@ -182,6 +182,8 @@ uint8_t hal_read_memory(uint8_t zone, uint32_t address, uint8_t *buf, uint16_t l
 uint8_t hal_write_memory(uint8_t zone, uint32_t address, const uint8_t *buf, uint16_t len);
 uint8_t hal_read_register(uint32_t address, uint8_t *buf);
 uint8_t hal_write_register(uint32_t address, const uint8_t *buf);
+
+void    hal_reset(void);  /* drains TX, then resets MCU; does not return */
 ```
 
 ### Platform Differences
@@ -197,7 +199,7 @@ uint8_t hal_write_register(uint32_t address, const uint8_t *buf);
 | RX processing             | Poll loop (`mcu_mdt_poll`)   | PendSV → `mdt_process_pending` | PendSV → `mdt_process_pending` |
 | Register width            | 8-bit (1-byte access)        | 32-bit (4-byte access)         | 32-bit (4-byte access)         |
 
-1. Create `hal/<platform>/hal_<name>.c` implementing all 11 HAL functions directly.
+1. Create `hal/<platform>/hal_<name>.c` implementing all 12 HAL functions directly.
 2. Add a `Makefile`, copy the nearest existing one and adjust toolchain flags.
 3. Add startup file and linker script if bare-metal (STM32-style).
 4. `src/` is never touched.

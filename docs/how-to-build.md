@@ -127,7 +127,7 @@ follow the same shape:
 ```
 build/<MCU>/
 ├── libmcu_mdt_<platform>.a   # static library (the actual artifact)
-├── mcu_mdt.h                 # public header (4 functions + the BREAKPOINT macro)
+├── mcu_mdt.h                 # public header (3 functions + the BREAKPOINT macro)
 ├── mcu_mdt_config.h          # configurable knobs (BAUDRATE, BUFFER_SIZE, ...)
 ├── mcu_mdt_example.elf       # example application linked against the library
 ├── mcu_mdt_example.hex       # ready to flash (AVR)

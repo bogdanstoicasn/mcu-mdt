@@ -7,7 +7,7 @@ and the user-project integration pattern see `docs/how-to-build.md`.
 
 ## Overview
 
-The AVR HAL supports a wide range of ATmega microcontrollers using
+The AVR HAL supports a wide range of AVR microcontrollers using
 USART0. Support is determined by the ATDF files in
 `pc_tool/mcu_db/avr/` and the UART vector portability layer in
 `hal_avr.c`. AVR hardware has no UART IDLE interrupt, so AVR builds
