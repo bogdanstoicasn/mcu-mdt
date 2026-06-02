@@ -8,6 +8,8 @@ machine LoadPlatformDescription @platforms/cpus/stm32f103.repl
 # machine LoadPlatformDescriptionFromString "flash: Memory.MappedMemory @ sysbus 0x08000000 { size: 0x10000 }"
 # machine LoadPlatformDescriptionFromString "sram: Memory.MappedMemory @ sysbus 0x20000000 { size: 0x5000 }"
 
+machine LoadPlatformDescriptionFromString "rcc: Python.PythonPeripheral @ sysbus 0x40021000 { size: 0x400; script: \"request.Value = 0xFFFFFFFF\" }"
+
 sysbus LoadELF @build/F103C8/mcu_mdt_example.elf
 
 # Expose USART1 as a raw TCP socket on port 3456

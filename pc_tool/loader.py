@@ -316,7 +316,9 @@ class _SVDLoader(_PlatformLoader):
         if not mem_data:
             return
 
-        variant = mem_data.get("variants", {}).get(mcu_lower, {})
+        variant = _SVDLoader._lookup_variant(
+            mem_data.get("variants", {}) or {}, mcu_lower
+        )
 
         flash_size = variant.get("flash")
         ram_size   = variant.get("ram")
@@ -336,6 +338,39 @@ class _SVDLoader(_PlatformLoader):
                 "type":     "ram",
                 "pagesize": None,
             }
+
+    @staticmethod
+    def _lookup_variant(variants: dict, mcu_lower: str) -> dict:
+        """Find the memory variant entry for *mcu_lower* in a family YAML.
+
+        STM32 family YAMLs use one of two keying conventions:
+
+          * exact part number   — e.g. F0 lists 'stm32f030c8', 'stm32f030f4'
+          * density class        — e.g. F1 lists 'stm32f103x8', where the
+                                    package-code letter is replaced by 'x'
+                                    ('x8' covers C8/R8/T8/V8/...).
+
+        build_info.yaml always records the concrete part number (MCU=F103C8
+        -> 'stm32f103c8'), so an exact lookup succeeds for the first style
+        but misses the density-class style. We therefore try the exact key
+        first, then fall back to the density class by substituting the
+        package-code letter with 'x'. This mirrors the MCU_NORM rewrite the
+        Cortex-M3 Makefile already performs to pick the linker script
+        (F103C8 -> F103x8).
+        """
+        # 1. Exact part-number match (F0-style YAMLs)
+        if mcu_lower in variants:
+            return variants[mcu_lower]
+
+        # 2. Density-class fallback (F1-style YAMLs).
+        #    Layout: 'stm32' (5) + family (4) + package letter (1) + density.
+        #    Replace the package letter at index 9 with 'x'.
+        if mcu_lower.startswith("stm32") and len(mcu_lower) > 10:
+            density_key = mcu_lower[:9] + "x" + mcu_lower[10:]
+            if density_key in variants:
+                return variants[density_key]
+
+        return {}
 
     @staticmethod
     def _parse_peripherals(find: "_SVDXmlHelper", meta: MCUMetadata) -> None:
