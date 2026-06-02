@@ -98,7 +98,8 @@ void hal_uart_init(void)
     GPIOA->afrh &= ~(0xFU << USART1_RX_AFRH_POS);
     GPIOA->afrh |=  (GPIO_AF1 << USART1_RX_AFRH_POS);
 
-    USART1->brr = (uint32_t)(F_CPU / MDT_UART_BAUDRATE);
+    uint32_t baud_div = (F_CPU + (MDT_UART_BAUDRATE/2U)) / MDT_UART_BAUDRATE;
+    USART1->brr = ((baud_div / 16U) << 4) | ((baud_div % 16U) & 0xFU);
 
 #if MDT_FEATURE_UART_IDLE
     USART1->cr1 = USART_CR1_UE | USART_CR1_RE | USART_CR1_TE
@@ -109,7 +110,7 @@ void hal_uart_init(void)
                 | USART_CR1_RXNEIE;
 #endif
 
-    NVIC_ISER[USART1_IRQ / 32] = 1U << (USART1_IRQ % 32);
+    NVIC_ISER[USART1_IRQ / 32] |= 1U << (USART1_IRQ % 32);
 }
 
 uint8_t hal_uart_tx_buf(const uint8_t *buf, uint8_t len)

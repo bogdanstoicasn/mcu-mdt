@@ -6,6 +6,7 @@ int main(void) {
     mcu_mdt_init();
     while (1) {
         // Main loop
+        mcu_mdt_poll();
     }
 
     return 0;
