@@ -341,22 +341,14 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _lookup_variant(variants: dict, mcu_lower: str) -> dict:
-        """Find the memory variant entry for *mcu_lower* in a family YAML.
+        """Find memory variant entry for *mcu_lower* in a family YAML.
 
-        STM32 family YAMLs use one of two keying conventions:
+        STM32 YAMLs use either exact part numbers (e.g. stm32f030c8) or density
+        classes with wildcard package codes (e.g. stm32f103x8 for C8/R8/T8 variants).
 
-          * exact part number   — e.g. F0 lists 'stm32f030c8', 'stm32f030f4'
-          * density class        — e.g. F1 lists 'stm32f103x8', where the
-                                    package-code letter is replaced by 'x'
-                                    ('x8' covers C8/R8/T8/V8/...).
-
-        build_info.yaml always records the concrete part number (MCU=F103C8
-        -> 'stm32f103c8'), so an exact lookup succeeds for the first style
-        but misses the density-class style. We therefore try the exact key
-        first, then fall back to the density class by substituting the
-        package-code letter with 'x'. This mirrors the MCU_NORM rewrite the
-        Cortex-M3 Makefile already performs to pick the linker script
-        (F103C8 -> F103x8).
+        We first try an exact match. If that fails, we fall back to the density
+        class by replacing the package letter with 'x', matching MCU_NORM behavior
+        used for linker script selection.
         """
         # 1. Exact part-number match (F0-style YAMLs)
         if mcu_lower in variants:
