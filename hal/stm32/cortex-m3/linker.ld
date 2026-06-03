@@ -27,7 +27,7 @@
   RAM_SIZE   = 6K;
 #elif defined(MCU_F103x6)
   FLASH_SIZE = 32K;
-  RAM_SIZE   = 6K;
+  RAM_SIZE   = 10K;
 #elif defined(MCU_F103x8)
   FLASH_SIZE = 64K;
   RAM_SIZE   = 20K;
