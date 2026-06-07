@@ -5,6 +5,7 @@
 CC      := avr-gcc
 AR      := avr-ar
 OBJCOPY := avr-objcopy
+SIZE    := avr-size
 
 # Directories
 SRC_DIR      := ../../src
@@ -110,6 +111,7 @@ build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
 	@$(CC) $(CFLAGS) $(LDFLAGS) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_avr -o $(EXAMPLE_ELF)
 	@$(OBJCOPY) -O ihex -R .eeprom $(EXAMPLE_ELF) $(EXAMPLE_HEX)
 	@echo "  HEX $(EXAMPLE_HEX)"
+	@$(SIZE) $(EXAMPLE_ELF)
 
 # Build info
 $(BUILD_DIR)/build_info.yaml: $(BUILD_DIR)
