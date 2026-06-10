@@ -177,7 +177,7 @@ $(LIB_PATH): $(ALL_OBJS)
 	@$(AR) rcs $@ $(ALL_OBJS)
 
 # Copy distribution files
-copy_files: $(BUILD_DIR)
+copy_files: $(BUILD_DIR) $(LINKER_SCRIPT_PP)
 	@echo "  COPY headers & example"
 	@cp $(INC_DIR)/mcu_mdt.h        $(BUILD_DIR)/
 	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
@@ -185,7 +185,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(INC_DIR)/ring_buffer.h    $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
-	@cp $(LINKER_SCRIPT)            $(BUILD_DIR)/linker.ld
+	@cp $(LINKER_SCRIPT_PP)         $(BUILD_DIR)/linker.ld
 	@cp $(STARTUP_FILE)             $(BUILD_DIR)/
 
 # Compile example

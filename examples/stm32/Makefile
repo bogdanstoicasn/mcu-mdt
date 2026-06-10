@@ -10,8 +10,9 @@ MCU   ?= F103C8
 PORT  ?= /dev/ttyACM0
 F_CPU ?= 8000000UL
 
-# Add your own source files here, or leave as wildcard to grab all .c in this dir
-USER_SRCS := $(wildcard *.c)
+# Add your own source files here. The wildcard grabs all .c in this dir EXCEPT
+# the startup file, which is compiled separately (and must not be linked twice).
+USER_SRCS := $(filter-out startup_%.c, $(wildcard *.c))
 
 # Toolchain
 
