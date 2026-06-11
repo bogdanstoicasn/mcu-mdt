@@ -245,3 +245,20 @@ STM32F4xx):
    response. The PC-side `flash_is_erased()` pre-check catches this
    before the program register is even set, providing a cleaner failure
    path.
+   
+## Flash operation timing constraints
+
+A page erase stalls the CPU for up to ~40 ms, because the firmware executes
+from the same flash bank being erased and the controller stalls all flash
+fetches for the duration. During this window the UART RX interrupt cannot
+run and the USART has only a 1-byte hardware buffer. The MDT protocol is
+strictly request/response, so the PC tool never transmits while an ERASE is
+pending — but any custom client must respect the same rule: **do not send
+data while an ERASE or FLASH write is outstanding.**
+
+Writes near memory boundaries: a 3–4-byte FLASH write programs two
+halfwords (`address` and `address + 2`). The firmware does not know the
+part's flash size, so a write whose second halfword would fall past the end
+of flash is only rejected by the PC-side validator, not on-target. On
+XL-density F103 parts a write straddling the bank-1/bank-2 seam
+(0x0807FFFE) is handled correctly on-target (both banks are unlocked).

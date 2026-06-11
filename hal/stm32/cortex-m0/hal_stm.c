@@ -180,8 +180,16 @@ static inline void flash_unlock(void)
      * If the system is running from HSE or PLL-from-HSE with HSI off, every
      * flash operation hangs or fails without this. The wait is ~1 µs worst-
      * case; if HSI is already running (HSIRDY=1) it returns immediately. */
+    /* Bounded wait: HSI starts in a few us; if it somehow never readies,
+     * proceed anyway -- the flash op will then fail EOP and NACK cleanly
+     * instead of hanging the debug link here. */
+    uint32_t hsi_timeout = 100000UL;
     RCC->cr |= (1U << 0);             /* HSION */
-    while (!(RCC->cr & (1U << 1)));   /* wait HSIRDY */
+    while (!(RCC->cr & (1U << 1)))    /* wait HSIRDY */
+    {
+        if (--hsi_timeout == 0)
+            break;
+    }
 
     if (FLASH->cr & FLASH_CR_LOCK)
     {
@@ -195,9 +203,20 @@ static inline void flash_lock(void)
     FLASH->cr |= FLASH_CR_LOCK;
 }
 
-static inline void flash_wait_busy(void)
+/* Bounded busy-wait. A page erase takes time to complete and the
+ * loop bound is sized to exceed that comfortably at any SYSCLK. Returns
+ * 1 on completion, 0 on timeout (wedged controller) */
+#define FLASH_TIMEOUT_LOOPS  2000000UL
+
+static uint8_t flash_wait_busy(void)
 {
-    while (FLASH->sr & FLASH_SR_BSY);
+    uint32_t timeout = FLASH_TIMEOUT_LOOPS;
+    while (FLASH->sr & FLASH_SR_BSY)
+    {
+        if (--timeout == 0)
+            return 0;
+    }
+    return 1;
 }
 
 static inline void flash_clear_flags(void)
@@ -217,7 +236,8 @@ static uint8_t flash_is_erased(uint32_t address, uint16_t length)
 
 static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
 {
-    flash_wait_busy();
+    if (!flash_wait_busy())
+        return 0;
     flash_clear_flags();
 
     FLASH->cr |= FLASH_CR_PG;
@@ -225,18 +245,24 @@ static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
     /* Half-word write, other widths cause hard fault on Cortex-M0 */
     *((volatile uint16_t *)(uintptr_t)address) = data;
 
-    flash_wait_busy();
+    uint8_t ok = flash_wait_busy();
 
-    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    if (ok)
+        ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
     FLASH->sr  = FLASH_SR_EOP;
     FLASH->cr &= ~FLASH_CR_PG;
+
+    /* Read-back verify: EOP says the controller finished, this says the
+     * cell actually holds the data. */
+    if (ok)
+        ok = (*((volatile uint16_t *)(uintptr_t)address) == data) ? 1 : 0;
 
     return ok;
 }
 
 static uint8_t flash_write_word(uint32_t address, uint32_t data)
 {
-    if (address & 0x1)   /* halfword alignment only — word alignment is not required by the flash controller */
+    if (address & 0x1)   /* halfword alignment only: word alignment is not required by the flash controller */
         return 0;
 
     flash_unlock();
@@ -255,18 +281,37 @@ static uint8_t flash_erase_page(uint32_t address)
 
     flash_unlock();
 
-    flash_wait_busy();
+    if (!flash_wait_busy())
+    {
+        flash_lock();
+        return 0;
+    }
     flash_clear_flags();
 
     FLASH->cr |= FLASH_CR_PER;
     FLASH->ar  = page_base;
     FLASH->cr |= FLASH_CR_STRT;
 
-    flash_wait_busy();
+    uint8_t ok = flash_wait_busy();
 
-    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    if (ok)
+        ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+
     FLASH->sr  = FLASH_SR_EOP;
     FLASH->cr &= ~FLASH_CR_PER;
+
+    /* Verify the whole page reads back erased. */
+    if (ok)
+    {
+        for (uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 2)
+        {
+            if (*((volatile uint16_t *)(uintptr_t)(page_base + i)) != 0xFFFFU)
+            {
+                ok = 0;
+                break;
+            }
+        }
+    }
 
     flash_lock();
     return ok;

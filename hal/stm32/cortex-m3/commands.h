@@ -29,7 +29,7 @@ typedef struct {
 /* FLASH_SR — status bits (write-1-to-clear where noted) */
 #define FLASH_SR_BSY      (1U << 0)  /* Busy (hardware clears when done)   */
 #define FLASH_SR_PGERR    (1U << 2)  /* Programming error  (w1c)           */
-#define FLASH_SR_WRPTERR  (1U << 4)  /* Write-protection error (w1c)       */
+#define FLASH_SR_WRPRTERR  (1U << 4)  /* Write-protection error (w1c)       */
 #define FLASH_SR_EOP      (1U << 5)  /* End of operation   (w1c)           */
 
 /* FLASH_CR — control bits */

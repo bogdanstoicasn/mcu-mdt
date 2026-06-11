@@ -178,8 +178,16 @@ void hal_reset(void)
 
 static inline void flash_ensure_hsi(void)
 {
+    /* Bounded wait: HSI starts in a few us; if it somehow never readies,
+     * proceed anyway -- the flash op will then fail EOP and NACK cleanly
+     * instead of hanging the debug link here. */
+    uint32_t timeout = 100000UL;
     RCC->cr |= (1U << 0);             /* HSION  */
-    while (!(RCC->cr & (1U << 1)));   /* HSIRDY */
+    while (!(RCC->cr & (1U << 1)))    /* HSIRDY */
+    {
+        if (--timeout == 0)
+            break;
+    }
 }
 
 static inline void flash_unlock(void)
@@ -197,14 +205,26 @@ static inline void flash_lock(void)
     FLASH->cr |= FLASH_CR_LOCK;
 }
 
-static inline void flash_wait_busy(void)
+/* Bounded busy-wait. A page erase takes <= 40 ms per the datasheet; the
+ * loop bound is sized to exceed that comfortably at any SYSCLK. Returns
+ * 1 on completion, 0 on timeout (wedged controller) so callers can NACK
+ * instead of hanging the debug link forever. */
+#define FLASH_TIMEOUT_LOOPS  2000000UL
+
+static uint8_t flash_wait_busy(void)
 {
-    while (FLASH->sr & FLASH_SR_BSY);
+    uint32_t timeout = FLASH_TIMEOUT_LOOPS;
+    while (FLASH->sr & FLASH_SR_BSY)
+    {
+        if (--timeout == 0)
+            return 0;
+    }
+    return 1;
 }
 
 static inline void flash_clear_flags(void)
 {
-    FLASH->sr = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
+    FLASH->sr = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPRTERR;
 }
 
 /* XL-density bank 2 helpers
@@ -228,17 +248,34 @@ static inline void flash_lock2(void)
     FLASH_CR2 |= FLASH_CR_LOCK;
 }
 
-static inline void flash_wait_busy2(void)
+static uint8_t flash_wait_busy2(void)
 {
-    while (FLASH_SR2 & FLASH_SR_BSY);
+    uint32_t timeout = FLASH_TIMEOUT_LOOPS;
+    while (FLASH_SR2 & FLASH_SR_BSY)
+    {
+        if (--timeout == 0)
+            return 0;
+    }
+    return 1;
 }
 
 static inline void flash_clear_flags2(void)
 {
-    FLASH_SR2 = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPTERR;
+    FLASH_SR2 = FLASH_SR_EOP | FLASH_SR_PGERR | FLASH_SR_WRPRTERR;
 }
 
 #endif /* FLASH_XL_DENSITY */
+
+/* Verify a whole page reads back erased after an erase operation. */
+static uint8_t flash_page_blank(uint32_t page_base)
+{
+    for (uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 2)
+    {
+        if (*((volatile uint16_t *)(uintptr_t)(page_base + i)) != 0xFFFFU)
+            return 0;
+    }
+    return 1;
+}
 
 static uint8_t flash_is_erased(uint32_t address, uint16_t length)
 {
@@ -259,26 +296,34 @@ static uint8_t flash_write_halfword(uint32_t address, uint16_t data)
 #ifdef FLASH_XL_DENSITY
     if (address >= FLASH_BANK2_START)
     {
-        flash_wait_busy2();
+        if (!flash_wait_busy2())
+            return 0;
         flash_clear_flags2();
         FLASH_CR2 |= FLASH_CR_PG;
         *((volatile uint16_t *)(uintptr_t)address) = data;
-        flash_wait_busy2();
-        uint8_t ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
+        uint8_t ok = flash_wait_busy2();
+        if (ok)
+            ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
         FLASH_SR2  =  FLASH_SR_EOP;
         FLASH_CR2 &= ~FLASH_CR_PG;
+        if (ok)  /* read-back verify */
+            ok = (*((volatile uint16_t *)(uintptr_t)address) == data) ? 1 : 0;
         return ok;
     }
 #endif
     /* Bank 1 path — all densities */
-    flash_wait_busy();
+    if (!flash_wait_busy())
+        return 0;
     flash_clear_flags();
     FLASH->cr |= FLASH_CR_PG;
     *((volatile uint16_t *)(uintptr_t)address) = data;
-    flash_wait_busy();
-    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    uint8_t ok = flash_wait_busy();
+    if (ok)
+        ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
     FLASH->sr  =  FLASH_SR_EOP;
     FLASH->cr &= ~FLASH_CR_PG;
+    if (ok)  /* read-back verify — EOP says done, this says the cell holds it */
+        ok = (*((volatile uint16_t *)(uintptr_t)address) == data) ? 1 : 0;
     return ok;
 }
 
@@ -290,10 +335,25 @@ static uint8_t flash_write_word(uint32_t address, uint32_t data)
 #ifdef FLASH_XL_DENSITY
     if (address >= FLASH_BANK2_START)
     {
+        /* Both halfwords in bank 2 */
         flash_unlock2();
         uint8_t ok = flash_write_halfword(address,     (uint16_t)(data & 0xFFFFU));
         if (ok)
             ok     = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
+        flash_lock2();
+        return ok;
+    }
+    if (address + 2 >= FLASH_BANK2_START)
+    {
+        /* Straddles the bank seam (address == FLASH_BANK2_START - 2):
+         * first halfword in bank 1, second in bank 2. flash_write_halfword
+         * picks the bank per call, but both controllers must be unlocked. */
+        flash_unlock();
+        flash_unlock2();
+        uint8_t ok = flash_write_halfword(address,     (uint16_t)(data & 0xFFFFU));
+        if (ok)
+            ok     = flash_write_halfword(address + 2, (uint16_t)(data >> 16));
+        flash_lock();
         flash_lock2();
         return ok;
     }
@@ -316,29 +376,43 @@ static uint8_t flash_erase_page(uint32_t address)
     if (address >= FLASH_BANK2_START)
     {
         flash_unlock2();
-        flash_wait_busy2();
+        if (!flash_wait_busy2())
+        {
+            flash_lock2();
+            return 0;
+        }
         flash_clear_flags2();
         FLASH_CR2 |= FLASH_CR_PER;
         FLASH_AR2  = page_base;
         FLASH_CR2 |= FLASH_CR_STRT;
-        flash_wait_busy2();
-        uint8_t ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
+        uint8_t ok = flash_wait_busy2();
+        if (ok)
+            ok = (FLASH_SR2 & FLASH_SR_EOP) ? 1 : 0;
         FLASH_SR2  =  FLASH_SR_EOP;
         FLASH_CR2 &= ~FLASH_CR_PER;
+        if (ok)
+            ok = flash_page_blank(page_base);
         flash_lock2();
         return ok;
     }
 #endif
     flash_unlock();
-    flash_wait_busy();
+    if (!flash_wait_busy())
+    {
+        flash_lock();
+        return 0;
+    }
     flash_clear_flags();
     FLASH->cr |= FLASH_CR_PER;
     FLASH->ar  = page_base;
     FLASH->cr |= FLASH_CR_STRT;
-    flash_wait_busy();
-    uint8_t ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
+    uint8_t ok = flash_wait_busy();
+    if (ok)
+        ok = (FLASH->sr & FLASH_SR_EOP) ? 1 : 0;
     FLASH->sr  =  FLASH_SR_EOP;
     FLASH->cr &= ~FLASH_CR_PER;
+    if (ok)
+        ok = flash_page_blank(page_base);
     flash_lock();
     return ok;
 }
