@@ -29,6 +29,7 @@ typedef struct {
 #define USART_SR_IDLE   (1U << 4)
 #define USART_SR_RXNE   (1U << 5)
 #define USART_SR_TXE    (1U << 7)
+#define USART_SR_TC     (1U << 6)  /* Transmission complete (shift register empty) */
 
 /* RCC */
 #define RCC_BASE 0x40021000UL

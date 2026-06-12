@@ -38,6 +38,7 @@ typedef struct {
 #define USART_ISR_IDLE    (1U << 4)
 #define USART_ISR_RXNE    (1U << 5)
 #define USART_ISR_TXE     (1U << 7)
+#define USART_ISR_TC      (1U << 6)  /* Transmission complete (shift register empty) */
 
 /* ICR bits */
 #define USART_ICR_ORECF   (1U << 3)

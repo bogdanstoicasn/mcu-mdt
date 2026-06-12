@@ -24,6 +24,7 @@
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 
+#define DRAIN_TIMEOUT_MAX 0xFFFFU /* max value for uint16_t, ~3.3 s at 19200 baud */
 
 /* UART vector portability — single/multi-UART AVR families */
 
@@ -114,12 +115,28 @@ uint8_t hal_uart_rx_overflow(void)
     return 0;
 }
 
+/* After a watchdog reset, WDRF in MCUSR forces the watchdog to stay
+ * enabled with the shortest timeout (~16 ms). Since this firmware never
+ * calls wdt_reset(), the MCU would reset-loop forever after the first
+ * RESET command. */
+void mdt_wdt_init(void) __attribute__((naked, used, section(".init3")));
+void mdt_wdt_init(void)
+{
+    MCUSR = 0;
+    wdt_disable();
+}
+
 void hal_reset(void)
 {
-    /* Drain TX ring buffer so the ACK packet is fully sent before reset */
-    while (!rb_is_empty(&tx_buffer));
- 
-    /* Trigger a watchdog reset — shortest timeout available (15 ms) */
+    /* Drain TX ring buffer so the ACK packet is fully sent before reset.
+     * Bounded: a stuck TX path must not prevent the reset itself. */
+    uint16_t drain_timeout = DRAIN_TIMEOUT_MAX;
+    while (!rb_is_empty(&tx_buffer))
+    {
+        if (--drain_timeout == 0)
+            break;
+    }
+
     wdt_enable(WDTO_15MS);
     while (1);
 }

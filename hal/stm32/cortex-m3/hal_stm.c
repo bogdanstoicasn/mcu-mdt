@@ -168,7 +168,21 @@ void hal_uart_set_idle_callback(void (*cb)(void))
 
 void hal_reset(void)
 {
-    while (!rb_is_empty(&tx_buffer));
+    /* Flush the ACK before reset. The TX buffer may be empty while the last
+     * byte is still shifting out, so wait for TC (transmission complete) too.
+     * Waits are bounded to avoid blocking the reset. */
+    uint32_t timeout = 1000000UL;
+    while (!rb_is_empty(&tx_buffer))
+    {
+        if (--timeout == 0)
+            break;
+    }
+    timeout = 1000000UL;
+    while (!(USART1->sr & USART_SR_TC))
+    {
+        if (--timeout == 0)
+            break;
+    }
  
     *((volatile uint32_t *)0xE000ED0C) = 0x05FA0004;
  
@@ -205,10 +219,8 @@ static inline void flash_lock(void)
     FLASH->cr |= FLASH_CR_LOCK;
 }
 
-/* Bounded busy-wait. A page erase takes <= 40 ms per the datasheet; the
- * loop bound is sized to exceed that comfortably at any SYSCLK. Returns
- * 1 on completion, 0 on timeout (wedged controller) so callers can NACK
- * instead of hanging the debug link forever. */
+/* Bounded BSY wait. Real flash operations stall the CPU, so the timeout
+ * only catches a stuck BSY. Returns 1 on completion, 0 on timeout. */
 #define FLASH_TIMEOUT_LOOPS  2000000UL
 
 static uint8_t flash_wait_busy(void)

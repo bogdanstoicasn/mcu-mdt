@@ -162,13 +162,26 @@ void hal_uart_set_idle_callback(void (*cb)(void))
 
 void hal_reset(void)
 {
-    /* Drain TX ring buffer so the ACK packet is fully sent before reset */
-    while (!rb_is_empty(&tx_buffer));
+    /* Ensure the ACK fully leaves the UART before reset. The TX buffer may be
+     * empty while the last byte is still shifting out. Wait for TC as well.
+     * Both waits are bounded so a stalled UART cannot block the reset. */
+    uint32_t timeout = 1000000UL;
+    while (!rb_is_empty(&tx_buffer))
+    {
+        if (--timeout == 0)
+            break;
+    }
+    timeout = 1000000UL;
+    while (!(USART1->isr & USART_ISR_TC))
+    {
+        if (--timeout == 0)
+            break;
+    }
  
-    /* Request system reset via AIRCR — works on Cortex-M0 and M3/M4 */
+    /* Request system reset via AIRCR: works on Cortex-M0 and M3/M4 */
     *((volatile uint32_t *)0xE000ED0C) = 0x05FA0004;
  
-    while (1); /* unreachable — suppress noreturn warning */
+    while (1); /* unreachable */
 }
 
 
@@ -176,13 +189,8 @@ void hal_reset(void)
 
 static inline void flash_unlock(void)
 {
-    /* RM0360 §3.1: HSI must be on for all flash program/erase operations.
-     * If the system is running from HSE or PLL-from-HSE with HSI off, every
-     * flash operation hangs or fails without this. The wait is ~1 µs worst-
-     * case; if HSI is already running (HSIRDY=1) it returns immediately. */
-    /* Bounded wait: HSI starts in a few us; if it somehow never readies,
-     * proceed anyway -- the flash op will then fail EOP and NACK cleanly
-     * instead of hanging the debug link here. */
+    /* Flash program/erase requires HSI. Wait briefly for HSIRDY;
+     * if HSI never starts, fail the flash operation rather than hanging here. */
     uint32_t hsi_timeout = 100000UL;
     RCC->cr |= (1U << 0);             /* HSION */
     while (!(RCC->cr & (1U << 1)))    /* wait HSIRDY */
