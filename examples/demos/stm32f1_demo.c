@@ -2,17 +2,25 @@
 #include <stdint.h>
 
 /*
- * MCU-MDT demo for STM32F030F4
+ * MCU-MDT demo for STM32F103xx (Cortex-M3), IDLE-interrupt mode.
  *
- * A general-purpose timer (TIM3) increments a counter by 1 every 4 seconds.
- * The counter lives at a fixed, named symbol so it can be watched live from
- * the PC tool without halting the core:
+ * Same idea as the F030 demo (TIM3 increments a counter every 4 s), but the
+ * main loop does NOT call mcu_mdt_poll(). The MDT interface runs from
+ * interrupts: the USART RX/IDLE interrupt receives each packet and pends
+ * PendSV, which processes it (built into the HAL when MDT_FEATURE_UART_IDLE
+ * is on). The PC polls periodically and each poll reply carries back any
+ * pending event, so watchpoint hits reach the PC on their own.
  *
- *     watchpoint 0 enabled demo_counter
+ * The one thing the IDLE path does not do is run the watchpoint check (the
+ * comparison that detects a change and queues the event). With no poll() in
+ * the loop, a periodic interrupt must drive it, so the TIM3 ISR calls
+ * mcu_mdt_watchpoint_check() once a second.
  *
- * Clock assumption: the firmware runs on the reset-default HSI = 8 MHz (the
- * startup file installs no PLL), which matches the build's F_CPU. If you add
- * your own clock setup, recompute TIM3_PSC accordingly.
+ * The TIM3 interrupt is set to the lowest priority, same as PendSV, so the
+ * check cannot preempt event delivery mid packet.
+ *
+ * Clock: reset-default HSI = 8 MHz (no PLL in startup), matching F_CPU.
+ * TIM3 is NVIC IRQ 29 here (IRQ 16 on the F0).
  */
 
 /*
@@ -20,6 +28,7 @@
  *
  * arm-none-eabi-nm build/F030F4/mcu_mdt_example.elf | grep demo_counter
  * (20000020) demo_counter
+ * 
  * ping
  * read_mem ram address 4 (2-3 times, so that demo_counter changes)
  * watchpoint 0 enabled demo_counter
@@ -33,7 +42,7 @@
  * 
  */
 
-/* Static and volatile so we can use the name with the watchpoints */
+/* Volatile + not static so the name resolves for the watchpoint. */
 volatile uint32_t demo_counter = 0;
 
 /* TIM3 (general-purpose 16-bit timer, APB1) */
@@ -64,15 +73,16 @@ typedef struct {
 #define RCC_APB1ENR (*(volatile uint32_t *) 0x4002101CUL)
 #define RCC_APB1ENR_TIM3EN (1U << 1)
 
-/* NVIC: TIM3 is IRQ 16 on the F0. ISER lives at 0xE000E100. */
+/* NVIC: TIM3 is IRQ 29 on the F103. ISER0 (IRQ 0-31) at 0xE000E100.
+ * Per-IRQ priority byte is at NVIC_IPR base 0xE000E400 + IRQn. */
 #define NVIC_ISER0 (*(volatile uint32_t *) 0xE000E100UL)
-#define TIM3_IRQ_NUM 16
+#define NVIC_IPR_BASE (0xE000E400UL)
+#define TIM3_IRQ_NUM 29
+#define IRQ_PRI_LOWEST 0xFFU       /* same lowest priority as PendSV */
 
-/* Tick budget: at 8 MHz, PSC=7999 gives a 1 kHz timer clock (divide by
- * PSC+1 = 8000), ARR=999 makes the timer raise an update event every
- * (ARR+1) = 1000 ticks = exactly 1 s. We then count 4 of those in the ISR.
- * Doing it this way keeps every register value inside the 16-bit range that
- * a 4 s period could not otherwise reach on a 16-bit timer. */
+/* Tick budget: at 8 MHz, PSC=7999 -> 1 kHz timer clock; ARR=999 -> update
+ * event every 1000 ticks = 1 s; count 4 of them in the ISR for 4 s. Keeps
+ * every register value inside the 16-bit range a 4 s period can't reach. */
 #define TIM3_PSC 7999U
 #define TIM3_ARR 999U
 #define SECONDS_PER_STEP 4U
@@ -85,6 +95,10 @@ static void tim3_init(void)
     TIM3->arr = TIM3_ARR;
     TIM3->egr = TIM_EGR_UG;                 /* latch PSC/ARR immediately  */
     TIM3->sr  = 0;                          /* clear the UG-induced flag  */
+
+    /* Lowest priority so the watchpoint check can't preempt PendSV's event
+     * delivery. NVIC_IPR is byte-addressable on Cortex-M3. */
+    *((volatile uint8_t *)(NVIC_IPR_BASE + TIM3_IRQ_NUM)) = IRQ_PRI_LOWEST;
 
     TIM3->dier |= TIM_DIER_UIE;             /* enable update interrupt    */
     NVIC_ISER0  = (1U << TIM3_IRQ_NUM);     /* enable TIM3 IRQ in the NVIC */
@@ -103,21 +117,20 @@ void TIM3_IRQHandler(void)
         if (++seconds >= SECONDS_PER_STEP)
         {
             seconds = 0;
-            demo_counter++;                 /* the value the debugger sees */
+            demo_counter++;
         }
     }
 }
 
 int main(void)
 {
-    mcu_mdt_init();   /* brings up USART1 + the MDT command interface */
-    tim3_init();      /* start the 4-second counter                  */
+    mcu_mdt_init();
+    tim3_init();
 
     while (1)
     {
-        mcu_mdt_poll();
+        __asm volatile ("nop");
     }
 
     return 0;
 }
-
