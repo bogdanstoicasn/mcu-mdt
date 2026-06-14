@@ -143,7 +143,7 @@ def test_parse_read_reg_case_insensitive():
 
 
 def test_parse_read_reg_unknown_qualified_falls_through_to_none():
-    """Unknown peripheral in qualified name should return None → parse fails."""
+    """Unknown peripheral in qualified name should return None - parse fails."""
     cmd = _parse_with_reg_meta("READ_REG RCC_CR")
     assert_eq(cmd, None)
 
@@ -270,7 +270,7 @@ def test_avr_qualified_lookup_falls_through_when_no_module_match():
     """A hypothetical 'USART_UDR0' qualified form works too since USART IS a module.
     This is a bonus — AVR users don't need it but it's a consistent behaviour."""
     addr = resolve_register_address("USART_UDR0", MCU_METADATA_AVR)
-    # 'USART' is in modules, 'UDR0' is in its register group → resolves correctly
+    # 'USART' is in modules, 'UDR0' is in its register group - resolves correctly
     assert_eq(addr, 0xC6)
 
 

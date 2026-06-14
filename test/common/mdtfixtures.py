@@ -73,7 +73,7 @@ MCU_METADATA_FLASH = {
 
 # AVR-like metadata: mirrors what _ATDFLoader produces from a real ATDF.
 # Key differences from STM32:
-#   - No <instance> elements → no "instances" list → base address is 0
+#   - No <instance> elements - no "instances" list - base address is 0
 #   - Register "offset" is the ABSOLUTE address in the AVR I/O address space
 #   - Register "size" is in BYTES (not bits): 1 = 8-bit, 2 = 16-bit
 #   - Register names never contain underscores (verified across all ATmega ATDFs)

@@ -38,7 +38,7 @@ for arg in "$@"; do
 done
 
 info()    { echo "[mcu-mdt] $*"; }
-success() { echo "[mcu-mdt] ✓ $*"; }
+success() { echo "[mcu-mdt] GG $*"; }
 section() { echo ""; echo "── $* ──────────────────────────────────────────"; }
 
 require_ubuntu() {
@@ -53,12 +53,26 @@ require_ubuntu
 section "Updating package index"
 sudo apt-get update -qq
 
+section "Build essentials"
+
+# Basic tools
+BASE_PKGS=(
+    make
+    build-essential    # host gcc/g++, make
+    git
+)
+
+info "Installing: ${BASE_PKGS[*]}"
+sudo apt-get install -y "${BASE_PKGS[@]}"
+success "Build essentials installed"
+
 section "Python runtime dependencies"
 
 PYTHON_PKGS=(
     python3
     python3-serial      # pyserial
     python3-yaml        # pyyaml
+    python3-pyelftools  # pyelftools — ELF symbol resolution (watchpoint/read by name)
 )
 
 info "Installing: ${PYTHON_PKGS[*]}"
@@ -123,6 +137,12 @@ if [ "$INSTALL_STM32" -eq 1 ]; then
         fi
     fi
 
+    # OpenOCD — optional, not part of the Makefile flash flow (which uses
+    # st-flash), but more reliable for connect-under-reset and mass-erase
+    # recovery on a stuck core.
+    info "Installing OpenOCD (recovery / connect-under-reset)..."
+    sudo apt-get install -y openocd
+
     success "STM32/ARM toolchain installed"
 fi
 
@@ -130,10 +150,11 @@ fi
 section "Done"
 echo ""
 echo "  Installed:"
-echo "    ✓ Python runtime (python3, pyserial, pyyaml)"
-[ "$INSTALL_DEV"   -eq 1 ] && echo "    ✓ Dev/test tools (pytest, pytest-cov, ruff)"
-[ "$INSTALL_AVR"   -eq 1 ] && echo "    ✓ AVR toolchain  (avr-gcc, avrdude)"
-[ "$INSTALL_STM32" -eq 1 ] && echo "    ✓ ARM toolchain  (arm-none-eabi-gcc, st-flash)"
+echo "  Build essentials (make, build-essential, git)"
+echo "  Python runtime (python3, pyserial, pyyaml, pyelftools)"
+[ "$INSTALL_DEV"   -eq 1 ] && echo "  Dev/test tools (pytest, pytest-cov, ruff)"
+[ "$INSTALL_AVR"   -eq 1 ] && echo "  AVR toolchain  (avr-gcc, avrdude)"
+[ "$INSTALL_STM32" -eq 1 ] && echo "  ARM toolchain  (arm-none-eabi-gcc, st-flash, openocd)"
 echo ""
 echo "  Run the host tool:"
 echo "    python3 mcu_mdt.py build/<MCU>/build_info.yaml"

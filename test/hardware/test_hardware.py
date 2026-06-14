@@ -621,7 +621,7 @@ def test_hw_mcu_recovers_after_bad_packet():
     if not HW.available: return _skip()
     link = _link()
     try:
-        # Send all-zeros (no valid START byte → MCU ignores it)
+        # Send all-zeros (no valid START byte - MCU ignores it)
         link.send_packet(bytes(MDT_PACKET_SIZE))
         link.read_packet(timeout=HW.timeout)   # may be None; we don't care
         _flush(link)
@@ -724,7 +724,7 @@ def test_hw_breakpoint_invalid_slot_nacked():
         cmd = _cmd(CommandId.BREAKPOINT, mem=0x01, address=99)
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
-        # Firmware returns status=0 for invalid slot → STATUS_ERROR set
+        # Firmware returns status=0 for invalid slot - STATUS_ERROR set
         assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), True)
     finally:
         link.close()

@@ -1,5 +1,4 @@
 services:
-
   # Dev container
   # Interactive container with the full toolchain.
   # Usage:
@@ -20,8 +19,6 @@ services:
     # devices:
     #   - /dev/ttyUSB0:/dev/ttyUSB0
     #   - /dev/ttyACM0:/dev/ttyACM0
-
-
   # Avr firmware build
   # Builds the AVR firmware for the given MCU (default: atmega328p).
   # Override with: docker compose run --rm build-avr -e MCU=atmega2560
@@ -40,7 +37,6 @@ services:
       PORT: ${PORT:-/dev/ttyACM0}
     command: >
       bash -c "make PLATFORM=avr MCU=$${MCU} PORT=$${PORT}"
-
   # STM32 firmware build
   # Builds the STM32 firmware for the given MCU (default: F030F4).
   # Usage:
@@ -59,6 +55,28 @@ services:
       PORT: ${PORT:-/dev/ttyUSB0}
     command: >
       bash -c "make PLATFORM=stm32 MCU=$${MCU} PORT=$${PORT}"
-
+  # MCU-MDT host tool
+  # Runs the PC-side debugger against a built firmware's build_info.yaml.
+  # Needs the USB serial adapter forwarded — adjust the device path to match
+  # your host (e.g. /dev/ttyACM0 for AVR boards).
+  # Usage:
+  #   docker compose run --rm tool
+  #   MCU=F103x6 docker compose run --rm tool
+  tool:
+    build:
+      context: ..
+      dockerfile: scripts/Dockerfile
+    volumes:
+      - ..:/workspace
+      - build-cache:/workspace/build
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    environment:
+      MCU: ${MCU:-F030F4}
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
+    command: >
+      bash -c "python3 mcu_mdt.py build/$${MCU}/build_info.yaml"
 volumes:
   build-cache:

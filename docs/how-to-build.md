@@ -282,3 +282,88 @@ PING
 An ACK response means the firmware boots, the UART is wired correctly,
 the baud rate matches, and the protocol is intact. If `PING` fails, see
 `docs/troubleshooting.md`.
+
+## Containerized build (Docker)
+
+If you would rather not install the toolchains on your host, the `scripts/`
+directory ships a `Dockerfile` and a `docker-compose.yaml` that provide the
+full environment (both toolchains, the flashing tools, and the Python runtime
+with all dependencies). This is also the most reliable way to get a known-good
+build on a machine where the host toolchain versions are uncertain.
+
+The image is based on Ubuntu 24.04 and installs everything the project needs:
+`make` and `build-essential`, the AVR toolchain (`gcc-avr`, `avr-libc`,
+`avrdude`), the ARM toolchain (`gcc-arm-none-eabi`, `binutils-arm-none-eabi`,
+`st-flash`, `openocd`), and the Python packages `pyserial`, `pyyaml`, and
+`pyelftools`.
+
+### Services
+
+The compose file defines four services, all built from the same image.
+
+| Service | Purpose |
+|---|---|
+| `dev` | Interactive shell with the full toolchain. Run any `make` command by hand. |
+| `build-avr` | One-shot AVR build. Defaults to `atmega328p`, override with the `MCU` variable. |
+| `build-stm32` | One-shot STM32 build. Defaults to `F030F4`, override with the `MCU` variable. |
+| `tool` | Runs the PC-side debugger against a built firmware. Needs the serial adapter forwarded. |
+
+### Usage
+
+```bash
+# Interactive shell (run anything inside)
+docker compose run --rm dev
+docker compose run --rm dev make PLATFORM=avr MCU=atmega328p
+
+# One-shot builds
+docker compose run --rm build-avr
+MCU=atmega2560 docker compose run --rm build-avr
+docker compose run --rm build-stm32
+MCU=F103x6 docker compose run --rm build-stm32
+
+# Run the PC tool against a built firmware
+MCU=F103x6 docker compose run --rm tool
+```
+
+The project root is mounted live into the container, so edits on the host take
+effect immediately with no rebuild of the image. Build output lands in the same
+`build/<MCU>/` directory on the host as a native build would, through a shared
+volume.
+
+### Plain Docker without compose
+
+If you prefer not to use compose, build the image and run it directly. Note the
+build context is the project root, with the Dockerfile under `scripts/`.
+
+```bash
+docker build -t mcu-mdt -f scripts/Dockerfile .
+docker run --rm -it -v "$PWD":/workspace mcu-mdt make PLATFORM=stm32 MCU=F103x6
+```
+
+### Forwarding the serial adapter
+
+Building firmware needs no hardware, so the build services do not forward any
+USB device. Flashing or running the PC tool from inside a container does need
+the adapter, which is why the `tool` service forwards `/dev/ttyUSB0` and the
+`dev` service has a commented-out `devices:` block you can enable. Adjust the
+device path to match your board (for example `/dev/ttyACM0` for an AVR board).
+
+One caveat worth knowing: forwarding a USB serial adapter into a container is
+reliable on a bare-metal Linux host but flaky inside a virtual machine, because
+it adds a second passthrough hop on top of the VM's own USB forwarding. If the
+adapter does not appear inside the container, run the flashing step and the PC
+tool directly on the host instead. Building in the container and
+flashing/talking to the board from the host is a perfectly good split.
+
+### Host installer alternative
+
+If you do want the toolchains on the host rather than in a container, the same
+`scripts/` directory has an `install.sh` that installs the equivalent packages
+on Ubuntu 22.04 and 24.04.
+
+```bash
+./scripts/install.sh --avr --stm32 --dev
+```
+
+Each flag is optional and pulls in one toolchain group. The base Python runtime
+is always installed. Run `./scripts/install.sh --help` for the full list.

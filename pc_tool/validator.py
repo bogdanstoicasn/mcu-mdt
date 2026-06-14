@@ -5,7 +5,7 @@ from pc_tool.common.enums import (
 )
 from pc_tool.common.logger import MDTLogger
 
-# Map MemType enum → ATDF/SVD type string used in metadata
+# Map MemType enum - ATDF/SVD type string used in metadata
 _MEM_TYPE_STR = {
     MemType.FLASH:  "flash",
     MemType.RAM:    "ram",

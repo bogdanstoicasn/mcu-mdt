@@ -3,7 +3,7 @@
  *
  * Architecture notes:
  *   - UART: ring-buffer driven, fully interrupt-based (RX, TX, IDLE).
- *   - IDLE interrupt → PendSV (lowest priority) → registered idle callback.
+ *   - IDLE interrupt PendSV (lowest priority) registered idle callback.
  *     IDLE flag is cleared by reading SR then DR (F1 series errata sequence).
  *   - Memory: SRAM and FLASH share the same linear address space — reads are
  *     plain pointer dereferences. FLASH writes use half-word (16-bit)

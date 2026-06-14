@@ -402,7 +402,7 @@ def test_erase_last_firmware_page_rejected():
 
 def test_erase_first_free_page_accepted():
     """Erasing the first page after firmware_end must be accepted."""
-    # firmware_end = 0x08003000 → first free page starts at 0x08003000
+    # firmware_end = 0x08003000 - first free page starts at 0x08003000
     assert_eq(validate_commands(_erase_cmd(0x08003000), MCU_METADATA_FLASH), True)
 
 def test_erase_page_well_above_firmware_accepted():

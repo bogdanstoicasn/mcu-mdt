@@ -93,7 +93,7 @@ def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
        ``TIM1_CCMR1_Output``.  The name is split on the *first* underscore
        only — peripheral names on STM32 never contain underscores, so this
        is unambiguous even when the register name itself does
-       (e.g. ``TIM1_CCMR1_Output`` → periph=TIM1, reg=CCMR1_Output).
+       (e.g. ``TIM1_CCMR1_Output`` - periph=TIM1, reg=CCMR1_Output).
 
     2. Bare:  ``CR``, ``SR`` — searches all modules.  Useful for AVR where
        peripherals have unique register names, and for quick lookups.  When

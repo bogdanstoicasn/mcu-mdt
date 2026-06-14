@@ -235,7 +235,7 @@ class _ATDFLoader(_PlatformLoader):
 
 
 # SVD (STM32) parser
-# Family fallback: 4-char suffix → (core subfolder, shared SVD filename)
+# Family fallback: 4-char suffix - (core subfolder, shared SVD filename)
 _STM32_FAMILY_MAP: dict[str, tuple[str, str]] = {
     "f030": ("cortex-m0", "STM32F0x0.svd"),
     "f031": ("cortex-m0", "STM32F0x1.svd"),
