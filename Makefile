@@ -36,7 +36,7 @@ $(error Unsupported PLATFORM '$(PLATFORM)'. No file '$(PLATFORM_MAKE)')
 endif
 endif
 
-.PHONY: all clean flash wipe clean_logs help
+.PHONY: all clean flash flash-recover erase wipe clean_logs help
 
 BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
 
@@ -49,6 +49,13 @@ all:
 
 flash:
 	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) flash
+
+# STM32-only recovery targets (no-op rule exists only in the STM32 HALs).
+erase:
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) erase
+
+flash-recover:
+	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) flash-recover
 
 clean:
 	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) clean
@@ -69,6 +76,10 @@ help:
 	@echo "  make PLATFORM=<platform> MCU=<mcu> [F_CPU=...]"
 	@echo "  make PLATFORM=<platform> MCU=<mcu> flash [F_CPU=...]"
 	@echo "  make PLATFORM=<platform> MCU=<mcu> clean"
+	@echo ""
+	@echo "STM32 recovery (needs openocd):"
+	@echo "  make PLATFORM=stm32 MCU=<mcu> erase          Mass-erase under reset"
+	@echo "  make PLATFORM=stm32 MCU=<mcu> flash-recover  Erase + flash a stuck/asleep board"
 	@echo ""
 	@echo "Maintenance:"
 	@echo "  make wipe        Remove ALL build artifacts"

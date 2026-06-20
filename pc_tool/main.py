@@ -106,12 +106,14 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
 
 def run_loop(loader, serial_link, commander, threads):
     """Main interactive loop: read user input, parse commands, execute them, and print events asynchronously."""
-    cli      = CLIHistory()
     commands = loader.yaml_command_data['commands']
     control  = loader.yaml_command_data['control_values']
     metadata = loader.mcu_metadata
     symbols  = loader.elf_symbols
     dispatch = build_dispatch(loader, serial_link, commander, threads)
+
+    # TAB-complete YAML command names plus the built-in meta-commands.
+    cli = CLIHistory(completions=list(commands.keys()) + ["HELP", "EXIT", "CLEAR"])
 
     Terminal.intro(intro_text())
 

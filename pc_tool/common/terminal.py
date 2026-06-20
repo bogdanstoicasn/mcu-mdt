@@ -19,6 +19,16 @@ import sys
 import time
 import logging
 
+# Optional: lets ``event()`` recover the user's half-typed line so an
+# async event print can restore it.  Mirrors the fallback in parser.py.
+try:
+    import readline
+except ImportError:
+    try:
+        import pyreadline3 as readline
+    except ImportError:
+        readline = None
+
 
 # Fixed box width for the packet view.  Avoids a syscall
 # (``shutil.get_terminal_size``) on every print.
@@ -124,12 +134,19 @@ class _TerminalPrinter:
         self._write("\n" + "\n".join(lines) + "\n\n")
 
     def event(self, msg: str) -> None:
-        """Async event line.  Clears the current input line and re-prints
-        the prompt so the user's half-typed command isn't garbled.
-        Flushes explicitly because the trailing ``> `` has no newline.
+        """Async event line.  Clears the current input line, prints the
+        event, then re-prints the prompt *and the user's half-typed input*
+        so the command they were typing isn't lost — visually or in
+        readline's buffer.  Flushes explicitly because the trailing
+        ``> `` has no newline.
         """
         if not self._quiet:
-            sys.stdout.write(f"\r\033[K{msg}\n> ")
+            # readline still holds whatever the user has typed at the
+            # prompt; recover it so we can redraw it after the event.
+            # Without this, \033[K wipes it from the screen while readline
+            # keeps it in its buffer, and the two desync on the next key.
+            buf = readline.get_line_buffer() if readline else ""
+            sys.stdout.write(f"\r\033[K{msg}\n> {buf}")
             sys.stdout.flush()
         self._log_mirror(logging.INFO, f"[event] {msg}")
 

@@ -19,7 +19,7 @@ commands:
     description: "Read n bytes from memory (RAM, FLASH, EEPROM, etc.)"
     params:
       - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
-      - { name: "address",       type: "uint32",  hint: "<addr>", format: "hex" }
+      - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
       - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
 
   WRITE_MEM:
@@ -27,7 +27,7 @@ commands:
     description: "Write n bytes to memory (RAM, FLASH, EEPROM, etc.)"
     params:
       - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
-      - { name: "address",       type: "uint32",  hint: "<addr>", format: "hex" }
+      - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
       - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
       - { name: "data",          type: "bytes",   hint: "<hex>", format: "hex" }
 

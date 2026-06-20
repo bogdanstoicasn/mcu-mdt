@@ -137,7 +137,7 @@ EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
 # ── Targets ───────────────────────────────────────────────────────────────────
 
-.PHONY: all clean flash
+.PHONY: all clean flash flash-recover erase
 
 all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
 	@echo "Build complete!"
@@ -222,7 +222,40 @@ flash: all
 	@test -f $(EXAMPLE_BIN) || \
 		{ echo "ERROR: Binary not found, build failed?"; exit 1; }
 	@echo "Flashing $(MCU) via ST-Link..."
-	st-flash write $(EXAMPLE_BIN) 0x08000000
+	@st-flash write $(EXAMPLE_BIN) 0x08000000 || \
+		{ echo ""; \
+		  echo "Flash failed to connect. The core may be asleep (WFI) or locked."; \
+		  echo "Try one of:"; \
+		  echo "  make PLATFORM=stm32 MCU=$(MCU) flash-recover   # erase under reset, then flash"; \
+		  echo "  make PLATFORM=stm32 MCU=$(MCU) erase           # mass-erase only"; \
+		  echo "  or set BOOT0=1, reset the board, and flash again"; \
+		  exit 1; }
+
+# OpenOCD config for this core (used by erase / flash-recover)
+OPENOCD_IFACE ?= interface/stlink.cfg
+OPENOCD_TARGET := target/stm32f1x.cfg
+
+# Mass-erase the whole chip, halting the core from reset first so a sleeping
+# or locked core (e.g. a WFI main loop) can still be reached.
+erase:
+	@command -v openocd >/dev/null || \
+		{ echo "ERROR: openocd not found. Install it (apt install openocd)."; exit 1; }
+	@echo "Mass-erasing $(MCU) via OpenOCD (connect under reset)..."
+	openocd -f $(OPENOCD_IFACE) -f $(OPENOCD_TARGET) \
+		-c "init; reset halt; stm32f1x mass_erase 0; reset; shutdown"
+
+# Recover a board that st-flash can no longer connect to: erase under reset,
+# then program the freshly built image, all through OpenOCD.
+flash-recover: all
+	@command -v openocd >/dev/null || \
+		{ echo "ERROR: openocd not found. Install it (apt install openocd)."; exit 1; }
+	@test -f $(EXAMPLE_BIN) || \
+		{ echo "ERROR: Binary not found, build failed?"; exit 1; }
+	@echo "Recovering $(MCU): erase + flash via OpenOCD (connect under reset)..."
+	openocd -f $(OPENOCD_IFACE) -f $(OPENOCD_TARGET) \
+		-c "init; reset halt; stm32f1x mass_erase 0; \
+		    flash write_image erase $(EXAMPLE_ELF); \
+		    verify_image $(EXAMPLE_ELF); reset run; shutdown"
 
 clean:
 	@echo "Cleaning cortex-m3 build ($(MCU))..."

@@ -88,7 +88,9 @@ class MCUSerialLink:
                 return port
 
         raise serial.SerialException(
-            f"Port '{port}' did not appear within {wait:.0f}s. Is simavr running?"
+            f"Port '{port}' did not appear within {wait:.0f}s. "
+            f"Check the board is connected and the port is correct "
+            f"(e.g. /dev/ttyUSB0 or /dev/ttyACM0)"
         )
 
     def _synch_with_mcu(self) -> None:
