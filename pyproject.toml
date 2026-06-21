@@ -16,15 +16,11 @@ dependencies = ["pyserial", "pyyaml"]
 mcu-mdt = "pc_tool.main:main"
 
 [project.optional-dependencies]
-dev = ["pytest", "pytest-cov", "ruff"]
+
+dev = ["ruff"]
 
 [tool.setuptools.packages.find]
 include = ["pc_tool*"]
-
-[tool.pytest.ini_options]
-testpaths = ["test"]
-addopts = "-v"
-markers = ["hw: hardware tests (require MCU + UART)"]
 
 [tool.ruff]
 line-length = 100
