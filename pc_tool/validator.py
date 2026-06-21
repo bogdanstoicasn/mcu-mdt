@@ -231,7 +231,7 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
         return False
 
     module_name, reg_name, reg, abs_start, abs_end = result
-    rw = reg.get("rw", "read-write").lower()
+    rw = (reg.get("rw") or "read-write").lower()
 
     if "write" not in rw:
         MDTLogger.error(

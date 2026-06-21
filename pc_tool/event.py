@@ -10,6 +10,9 @@ from pc_tool.common.terminal import Terminal
 
 EVENT_POLL_INTERVAL = 0.5  # seconds
 
+_RX_ERROR_BACKOFF          = 0.5   # seconds to wait after a recoverable RX error
+_RX_MAX_CONSECUTIVE_ERRORS = 10    # stop the reader after this many errors in a row
+
 _POLL_COMMAND = Command(name="POLL", id=0x00, mem=None, address=0, data=None)
 _POLL_PACKET  = serialize_command_packet(_POLL_COMMAND, seq=0, multi=False, last=False)
 
@@ -76,6 +79,20 @@ class EventHandler:
         )
 
 
+    def _after_rx_error(self, exc: Exception, consecutive: int) -> int:
+        """Log a recoverable RX error, back off, and stop the reader if errors persist."""
+        consecutive += 1
+        if self._link.running:
+            MDTLogger.error(f"\n[RX Worker] {exc}\n> ", code=5)
+        if consecutive >= _RX_MAX_CONSECUTIVE_ERRORS:
+            MDTLogger.error(
+                f"[RX Worker] {consecutive} consecutive serial errors: stopping reader."
+            )
+            self._link.running = False
+        else:
+            time.sleep(_RX_ERROR_BACKOFF)
+        return consecutive
+
     def rx_worker(self) -> None:
         """Read packets from UART and route them to the appropriate queue.
 
@@ -83,9 +100,11 @@ class EventHandler:
         command responses) goes to the response queue for the caller waiting
         on ``get_response_packet()``.  Clean poll ACKs are discarded silently.
         """
+        consecutive_errors = 0
         while self._link.running:
             try:
                 pkt = self._link.read_packet(timeout=1.0)
+                consecutive_errors = 0          # a returning read means the link is healthy
                 if pkt is None:
                     continue
 
@@ -101,11 +120,9 @@ class EventHandler:
                     MDTLogger.error("\nBoard disconnected. Exiting.")
                     self._link.running = False
                     os._exit(1)
-                if self._link.running:
-                    MDTLogger.error(f"\n[RX Worker] {exc}\n> ", code=5)
+                consecutive_errors = self._after_rx_error(exc, consecutive_errors)
             except Exception as exc:
-                if self._link.running:
-                    MDTLogger.error(f"\n[RX Worker] {exc}\n> ", code=5)
+                consecutive_errors = self._after_rx_error(exc, consecutive_errors)
 
     def _event_listener(self) -> None:
         """Consume event packets from the event queue and print them asynchronously."""
