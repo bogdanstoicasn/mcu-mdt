@@ -151,7 +151,9 @@ def run_loop(loader, serial_link, commander, threads):
 
     MDTLogger.session_end()
 
-def main(args):
+def main(args=None):
+    if args is None:              # console-script entry (mcu-mdt): parse argv here
+        args = parse_args()
     loader, serial_link, commander, threads = setup(args.build_info)
 
     if args.script:

@@ -11,3 +11,4 @@ plan.txt
 build/
 .mdt_history
 logs/
+.venv/
