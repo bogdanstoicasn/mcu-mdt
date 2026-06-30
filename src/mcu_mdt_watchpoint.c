@@ -37,7 +37,6 @@ void mcu_mdt_watchpoint_check(void)
             if ((current & watchpoints_descriptor.slots[slot].mask) !=
                 (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
             {
-                watchpoints_descriptor.slots[slot].snapshot = current;
                 mdt_event_set(
                     (uint8_t)slot,                                  /* seq = watchpoint ID */
                     INTERNAL_MDT_EVENT_WATCHPOINT_HIT,              /* mem_id = event type */
@@ -45,6 +44,7 @@ void mcu_mdt_watchpoint_check(void)
                     4,                                              /* length = uint32 */
                     current                                         /* data = new value */
                 );
+                watchpoints_descriptor.slots[slot].snapshot = current;
             }
         }
 
