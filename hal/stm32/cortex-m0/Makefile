@@ -25,9 +25,9 @@ BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup (live alongside this Makefile)
-LINKER_SCRIPT    := $(CURDIR)/linker.ld
-LINKER_SCRIPT_PP := $(BUILD_DIR)/linker_pp.ld
-STARTUP_FILE     := $(HAL_DIR)/startup_stm32f030xx.c
+LINKER_SCRIPT     := $(CURDIR)/linker.ld
+LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU)
+STARTUP_FILE      := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
 SRC_FILES := $(wildcard $(SRC_DIR)/*.c)
@@ -45,36 +45,24 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
-# MCU -> linker script define mapping
-# Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
-# FLASH_PAGE_SIZE: 0x400 (1 KB) for F030x4/x6/x8 and F070x6
-#                  0x800 (2 KB) for F030xC and F070xB
+# MCU Flash Page Size Mapping
 ifeq ($(MCU),F030F4)
-  MCU_LD_DEFINE   := -DMCU_F030F4
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030F6)
-  MCU_LD_DEFINE   := -DMCU_F030F6
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030C6)
-  MCU_LD_DEFINE   := -DMCU_F030C6
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030F8)
-  MCU_LD_DEFINE   := -DMCU_F030F8
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030C8)
-  MCU_LD_DEFINE   := -DMCU_F030C8
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F030CC)
-  MCU_LD_DEFINE   := -DMCU_F030CC
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU),F070F6)
-  MCU_LD_DEFINE   := -DMCU_F070F6
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU),F070CB)
-  MCU_LD_DEFINE   := -DMCU_F070CB
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU),F070RB)
-  MCU_LD_DEFINE   := -DMCU_F070RB
   FLASH_PAGE_SIZE := 0x800
 else
   $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m0/Makefile)
@@ -103,9 +91,11 @@ CFLAGS  += -DF_CPU=$(F_CPU)
 
 # Linker flags: use preprocessed linker script
 LDFLAGS  := $(CPU_FLAGS)
-LDFLAGS  += -T$(LINKER_SCRIPT_PP)
+LDFLAGS  := -L$(LINKER_MEMORY_DIR)
+LDFLAGS  += -T$(LINKER_SCRIPT)
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -nostdlib
+LDFLAGS  += -Wl,--print-memory-usage
 
 # Example objects
 EXAMPLE_OBJ := $(BUILD_DIR)/main.o
@@ -117,7 +107,7 @@ EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
 .PHONY: all clean flash flash-recover erase
 
-all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
+all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
 	@echo "Build complete!"
 	@echo "  Library : $(LIB_PATH)"
 	@echo "  Hex     : $(EXAMPLE_HEX)"
@@ -126,26 +116,20 @@ all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUI
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# Preprocess linker script: resolves #ifdef MCU_<name> into plain ld syntax
-$(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
-	@echo "  PP  linker.ld -> linker_pp.ld"
-	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
-
 # Dependency files
 -include $(DEPS)
 
 # Compile src/
-$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c | $(LINKER_SCRIPT_PP)
+$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile HAL (cortex-m0/*.c)
-$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c | $(LINKER_SCRIPT_PP)
-	@echo "  CC  $<"
+$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile startup
-$(STARTUP_OBJ): $(STARTUP_FILE) | $(LINKER_SCRIPT_PP)
+$(STARTUP_OBJ): $(STARTUP_FILE)
 	@echo "  CC  startup"
 	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
 
@@ -155,24 +139,25 @@ $(LIB_PATH): $(ALL_OBJS)
 	@$(AR) rcs $@ $(ALL_OBJS)
 
 # Copy distribution files
-copy_files: $(BUILD_DIR) $(LINKER_SCRIPT_PP)
+copy_files: $(BUILD_DIR)
 	@echo "  COPY headers & example"
-	@cp $(INC_DIR)/mcu_mdt.h        $(BUILD_DIR)/
-	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
-	@cp $(INC_DIR)/mcu_mdt_hal.h    $(BUILD_DIR)/
-	@cp $(INC_DIR)/ring_buffer.h    $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
-	@cp $(LINKER_SCRIPT_PP)         $(BUILD_DIR)/linker.ld
-	@cp $(STARTUP_FILE)             $(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt.h        	$(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt_config.h 	$(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt_hal.h    	$(BUILD_DIR)/
+	@cp $(INC_DIR)/ring_buffer.h    	$(BUILD_DIR)/
+	@cp $(EXAMPLES_DIR)/main.c      	$(BUILD_DIR)/
+	@cp $(EXAMPLES_DIR)/Makefile    	$(BUILD_DIR)/Makefile.example
+	@cp $(LINKER_SCRIPT)         	$(BUILD_DIR)/linker.ld
+	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
+	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
 
 # Compile example
-$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c | $(LINKER_SCRIPT_PP)
+$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c
 	@echo "  CC  main.c"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Link example
-build_example: $(EXAMPLE_OBJ) $(LIB_PATH) $(LINKER_SCRIPT_PP)
+build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
 	@echo "  LD  $(ELF_NAME)"
 	@$(CC) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(EXAMPLE_ELF)
 	@$(OBJCOPY) -O binary $(EXAMPLE_ELF) $(EXAMPLE_BIN)

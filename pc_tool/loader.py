@@ -540,22 +540,6 @@ def load_configs(file_path: str) -> dict:
         return {}
 
 
-def load_platforms(folder_path: str) -> dict:
-    """Walk *folder_path* recursively and collect all platform YAML files."""
-    platforms: dict = {}
-
-    for yaml_path in _iter_yaml_files(folder_path):
-        data = load_configs(yaml_path)
-        platform_name = data.get("platform_name")
-        if not platform_name:
-            raise ValueError(
-                f"Missing 'platform_name' key in platform file: {yaml_path}"
-            )
-        platforms[platform_name] = data
-
-    return platforms
-
-
 def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
     """
     Dispatch to the correct platform loader and return metadata as a plain dict
@@ -597,7 +581,6 @@ class ConfigLoader:
     ) -> None:
         self.yaml_build_data    = load_configs(build_info_path)
         self.yaml_command_data  = load_configs(commands_path)
-        self.yaml_platform_data = load_platforms(platforms_path)
 
         mcu      = self.yaml_build_data.get("mcu")
         platform = self.yaml_build_data.get("platform", "")

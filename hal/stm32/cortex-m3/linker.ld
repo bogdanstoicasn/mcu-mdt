@@ -101,7 +101,7 @@ SECTIONS
         . = ALIGN(4);
     } > rom
 
-
+    . = ALIGN(4);
     _etext = .;
 
 
