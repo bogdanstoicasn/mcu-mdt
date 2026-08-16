@@ -234,15 +234,29 @@ class _ATDFLoader(_PlatformLoader):
             }
 
 
-# SVD (STM32) parser
-# Family fallback: 4-char suffix - (core subfolder, shared SVD filename)
-_STM32_FAMILY_MAP: dict[str, tuple[str, str]] = {
-    "f030": ("cortex-m0", "STM32F0x0.svd"),
-    "f031": ("cortex-m0", "STM32F0x1.svd"),
-    "f042": ("cortex-m0", "STM32F0x2.svd"),
-    "f051": ("cortex-m0", "STM32F0x1.svd"),
-    "f072": ("cortex-m0", "STM32F0x2.svd"),
-    "f103": ("cortex-m3", "STM32F103.svd"),
+# TODO: Improve this family parser
+@dataclass(frozen=True)
+class STM32SVD:
+    core: str
+    families: set[str]
+
+_STM32_SVD_MAP = {
+    "STM32F0x0.svd": STM32SVD(
+        core="cortex-m0",
+        families={"f030", "f070"},
+    ),
+    "STM32F0x1.svd": STM32SVD(
+        core="cortex-m0",
+        families={"f031", "f051"},
+    ),
+    "STM32F0x2.svd": STM32SVD(
+        core="cortex-m0",
+        families={"f042", "f072"},
+    ),
+    "STM32F103.svd": STM32SVD(
+        core="cortex-m3",
+        families={"f103"},
+    ),
 }
 
 class _SVDLoader(_PlatformLoader):
@@ -272,21 +286,14 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _find_svd(mcu_lower: str, db_root: str) -> str:
-        """Search *db_root* recursively for an SVD file matching *mcu_lower* (case-insensitive), with family fallback."""
-        # 1. Exact match
-        for dirpath, _, files in os.walk(db_root):
-            for fname in files:
-                if fname.lower().endswith(".svd") and \
-                        os.path.splitext(fname)[0].lower() == mcu_lower:
-                    return os.path.join(dirpath, fname)
+        family = mcu_lower[5:9]
 
-        # 2. Family fallback
-        prefix = mcu_lower[5:9]
-        if prefix in _STM32_FAMILY_MAP:
-            subfolder, svd_fname = _STM32_FAMILY_MAP[prefix]
-            candidate = os.path.join(db_root, "stm32", subfolder, svd_fname)
-            if os.path.isfile(candidate):
-                return candidate
+        for svd_file, svd in _STM32_SVD_MAP.items():
+            if family in svd.families:
+                path = Path(db_root) / "stm32" / svd.core / svd_file
+
+                if path.is_file():
+                    return str(path)
 
         raise FileNotFoundError(
             f"SVD file for MCU '{mcu_lower}' not found in {db_root}"

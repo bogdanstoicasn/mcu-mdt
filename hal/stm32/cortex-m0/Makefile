@@ -45,27 +45,25 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
+# Normalize package variants to their density variant.
+normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
+MCU_NORM := $(call normalize_mcu,$(MCU))
+
 # MCU Flash Page Size Mapping
-ifeq ($(MCU),F030F4)
+ifeq ($(MCU_NORM),F030x4)
   FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F030F6)
+else ifeq ($(MCU_NORM),F030x6)
   FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F030C6)
+else ifeq ($(MCU_NORM),F030x8)
   FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F030F8)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F030C8)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F030CC)
+else ifeq ($(MCU_NORM),F030xC)
   FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU),F070F6)
+else ifeq ($(MCU_NORM),F070x6)
   FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU),F070CB)
-  FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU),F070RB)
+else ifeq ($(MCU_NORM),F070xB)
   FLASH_PAGE_SIZE := 0x800
 else
-  $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m0/Makefile)
+  $(error Unsupported MCU '$(MCU)' (normalized: '$(MCU_NORM)'))
 endif
 
 # CPU frequency (can be overridden from command line)

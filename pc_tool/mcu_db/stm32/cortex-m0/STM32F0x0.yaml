@@ -3,47 +3,32 @@ reference_manual: RM0360
 
 variants:
 
-  stm32f030f4:
+  stm32f030x4:
     flash: 16384
     ram: 4096
     flash_page: 1024
 
-  stm32f030f6:
+  stm32f030x6:
     flash: 32768
     ram: 4096
     flash_page: 1024
 
-  stm32f030k6:
-    flash: 32768
-    ram: 4096
-    flash_page: 1024
-
-  stm32f030c6:
-    flash: 32768
-    ram: 4096
-    flash_page: 1024
-
-  stm32f030c8:
+  stm32f030x8:
     flash: 65536
     ram: 8192
     flash_page: 1024
 
-  stm32f030r8:
-    flash: 65536
-    ram: 8192
-    flash_page: 1024
-
-  stm32f030cc:
+  stm32f030xC:
     flash: 262144
     ram: 32768
     flash_page: 2048
 
-  stm32f070f6:
+  stm32F070x6:
     flash: 32768
     ram: 6144
     flash_page: 1024
 
-  stm32f070cb:
+  stm32f070xb:
     flash: 131072
     ram: 16384
     flash_page: 2048

@@ -48,12 +48,8 @@ CPU_FLAGS := -mcpu=cortex-m3 -mthumb
 # MCU -> linker script define mapping
 # Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
 # We also group by density to avoid redundant linker scripts for each MCU variant
-MCU_NORM := $(MCU)
-MCU_NORM := $(patsubst F103C%,F103x%,$(MCU_NORM))
-MCU_NORM := $(patsubst F103R%,F103x%,$(MCU_NORM))
-MCU_NORM := $(patsubst F103T%,F103x%,$(MCU_NORM))
-MCU_NORM := $(patsubst F103V%,F103x%,$(MCU_NORM))
-MCU_NORM := $(patsubst F103Z%,F103x%,$(MCU_NORM))
+normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
+MCU_NORM := $(call normalize_mcu,$(MCU))
 
 # MCU -> linker script define mapping.
 # Also sets FLASH_PAGE_SIZE (injected as -D into all C files) and
@@ -74,6 +70,7 @@ else ifeq ($(MCU_NORM),F103x8)
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU_NORM),F103xB)
   FLASH_PAGE_SIZE := 0x400
+else ifeq ($(MCU_NORM),F103xC)
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU_NORM),F103xD)
   FLASH_PAGE_SIZE := 0x800
@@ -86,7 +83,7 @@ else ifeq ($(MCU_NORM),F103xG)
   FLASH_PAGE_SIZE  := 0x800
   FLASH_XL_DENSITY := 1
 else
-  $(error Unsupported MCU '$(MCU)' — add mapping in cortex-m3/Makefile)
+  $(error Unsupported MCU '$(MCU)' (normalized: '$(MCU_NORM)'))
 endif
 
 # CPU frequency (can be overridden from command line)

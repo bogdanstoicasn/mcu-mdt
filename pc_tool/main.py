@@ -22,6 +22,8 @@ def setup(build_info_path: str):
 
     MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
     MDTLogger.session_start(loader.yaml_build_data)
+    print(loader.yaml_build_data)
+    exit(0)
 
     serial_link = serial_link_command(
         port=loader.yaml_build_data['port'],
