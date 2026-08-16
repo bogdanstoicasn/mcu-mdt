@@ -26,7 +26,7 @@ HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup (live alongside this Makefile)
 LINKER_SCRIPT    := $(CURDIR)/linker.ld
-LINKER_SCRIPT_PP := $(BUILD_DIR)/linker_pp.ld
+LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU)
 STARTUP_FILE     := $(HAL_DIR)/startup_stm32f103xx.c
 
 # Source files
@@ -67,32 +67,22 @@ MCU_NORM := $(patsubst F103Z%,F103x%,$(MCU_NORM))
 FLASH_XL_DENSITY :=
 
 ifeq ($(MCU_NORM),F103x4)
-  MCU_LD_DEFINE   := -DMCU_F103x4
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU_NORM),F103x6)
-  MCU_LD_DEFINE   := -DMCU_F103x6
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU_NORM),F103x8)
-  MCU_LD_DEFINE   := -DMCU_F103x8
   FLASH_PAGE_SIZE := 0x400
 else ifeq ($(MCU_NORM),F103xB)
-  MCU_LD_DEFINE   := -DMCU_F103xB
   FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F103xC)
-  MCU_LD_DEFINE   := -DMCU_F103xC
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU_NORM),F103xD)
-  MCU_LD_DEFINE   := -DMCU_F103xD
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU_NORM),F103xE)
-  MCU_LD_DEFINE   := -DMCU_F103xE
   FLASH_PAGE_SIZE := 0x800
 else ifeq ($(MCU_NORM),F103xF)
-  MCU_LD_DEFINE    := -DMCU_F103xF
   FLASH_PAGE_SIZE  := 0x800
   FLASH_XL_DENSITY := 1
 else ifeq ($(MCU_NORM),F103xG)
-  MCU_LD_DEFINE    := -DMCU_F103xG
   FLASH_PAGE_SIZE  := 0x800
   FLASH_XL_DENSITY := 1
 else
@@ -125,9 +115,11 @@ CFLAGS  += -DF_CPU=$(F_CPU)
 
 # Linker flags: use preprocessed linker script
 LDFLAGS  := $(CPU_FLAGS)
-LDFLAGS  += -T$(LINKER_SCRIPT_PP)
+LDFLAGS  := -L$(LINKER_MEMORY_DIR)
+LDFLAGS  += -T$(LINKER_SCRIPT)
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -nostdlib
+LDFLAGS  += -Wl,--print-memory-usage
 
 # Example objects
 EXAMPLE_OBJ := $(BUILD_DIR)/main.o
@@ -139,7 +131,7 @@ EXAMPLE_HEX := $(BUILD_DIR)/$(HEX_NAME)
 
 .PHONY: all clean flash flash-recover erase
 
-all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
+all: $(BUILD_DIR) $(LIB_PATH) copy_files build_example $(BUILD_DIR)/build_info.yaml
 	@echo "Build complete!"
 	@echo "  Library : $(LIB_PATH)"
 	@echo "  Hex     : $(EXAMPLE_HEX)"
@@ -148,26 +140,21 @@ all: $(BUILD_DIR) $(LINKER_SCRIPT_PP) $(LIB_PATH) copy_files build_example $(BUI
 $(BUILD_DIR):
 	@mkdir -p $(BUILD_DIR)
 
-# Preprocess linker script: resolves #ifdef MCU_<name> into plain ld syntax
-$(LINKER_SCRIPT_PP): $(LINKER_SCRIPT) | $(BUILD_DIR)
-	@echo "  PP  linker.ld -> linker_pp.ld"
-	@$(CC) -E -P -x c $(MCU_LD_DEFINE) $< -o $@
-
 # Dependency files
 -include $(DEPS)
 
 # Compile src/
-$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c | $(LINKER_SCRIPT_PP)
+$(BUILD_DIR)/src_%.o: $(SRC_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile HAL (cortex-m3/*.c)
-$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c | $(LINKER_SCRIPT_PP)
+$(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
 	@echo "  CC  $<"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Compile startup
-$(STARTUP_OBJ): $(STARTUP_FILE) | $(LINKER_SCRIPT_PP)
+$(STARTUP_OBJ): $(STARTUP_FILE)
 	@echo "  CC  startup"
 	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
 
@@ -177,24 +164,24 @@ $(LIB_PATH): $(ALL_OBJS)
 	@$(AR) rcs $@ $(ALL_OBJS)
 
 # Copy distribution files
-copy_files: $(BUILD_DIR) $(LINKER_SCRIPT_PP)
+copy_files: $(BUILD_DIR)
 	@echo "  COPY headers & example"
-	@cp $(INC_DIR)/mcu_mdt.h        $(BUILD_DIR)/
-	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
-	@cp $(INC_DIR)/mcu_mdt_hal.h    $(BUILD_DIR)/
-	@cp $(INC_DIR)/ring_buffer.h    $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
-	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
-	@cp $(LINKER_SCRIPT_PP)         $(BUILD_DIR)/linker.ld
-	@cp $(STARTUP_FILE)             $(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt.h        	$(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt_config.h 	$(BUILD_DIR)/
+	@cp $(INC_DIR)/mcu_mdt_hal.h    	$(BUILD_DIR)/
+	@cp $(INC_DIR)/ring_buffer.h    	$(BUILD_DIR)/
+	@cp $(EXAMPLES_DIR)/main.c      	$(BUILD_DIR)/
+	@cp $(EXAMPLES_DIR)/Makefile    	$(BUILD_DIR)/Makefile.example
+	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
+	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
 
 # Compile example
-$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c | $(LINKER_SCRIPT_PP)
+$(EXAMPLE_OBJ): $(BUILD_DIR)/main.c
 	@echo "  CC  main.c"
 	@$(CC) $(CFLAGS) -c $< -o $@
 
 # Link example
-build_example: $(EXAMPLE_OBJ) $(LIB_PATH) $(LINKER_SCRIPT_PP)
+build_example: $(EXAMPLE_OBJ) $(LIB_PATH)
 	@echo "  LD  $(ELF_NAME)"
 	@$(CC) $(EXAMPLE_OBJ) -L$(BUILD_DIR) -lmcu_mdt_stm32 $(LDFLAGS) -lgcc -o $(EXAMPLE_ELF)
 	@$(OBJCOPY) -O binary $(EXAMPLE_ELF) $(EXAMPLE_BIN)

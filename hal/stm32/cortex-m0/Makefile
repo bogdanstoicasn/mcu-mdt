@@ -147,7 +147,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(INC_DIR)/ring_buffer.h    	$(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/main.c      	$(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    	$(BUILD_DIR)/Makefile.example
-	@cp $(LINKER_SCRIPT)         	$(BUILD_DIR)/linker.ld
+	@cp $(LINKER_SCRIPT)         		$(BUILD_DIR)/linker.ld
 	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
 	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
 
