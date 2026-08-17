@@ -25,8 +25,11 @@ BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup (live alongside this Makefile)
+normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
+MCU_NORM := $(call normalize_mcu,$(MCU))
+
 LINKER_SCRIPT    := $(CURDIR)/linker.ld
-LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU)
+LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU_NORM)
 STARTUP_FILE     := $(HAL_DIR)/startup_stm32f103xx.c
 
 # Source files
@@ -46,20 +49,7 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 CPU_FLAGS := -mcpu=cortex-m3 -mthumb
 
 # MCU -> linker script define mapping
-# Preprocesses linker.ld with -DMCU_<name> so #ifdef works correctly
-# We also group by density to avoid redundant linker scripts for each MCU variant
-normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
-MCU_NORM := $(call normalize_mcu,$(MCU))
 
-# MCU -> linker script define mapping.
-# Also sets FLASH_PAGE_SIZE (injected as -D into all C files) and
-# FLASH_XL_DENSITY (set only for XL-density parts with dual flash banks).
-#
-# Page sizes per RM0008 Tables 4-8:
-#   1 KB — low density  (F103x4, F103x6)
-#   1 KB — medium density (F103x8, F103xB)
-#   2 KB — high density (F103xC/D/E), XL density (F103xF/G), connectivity (F105/F107)
-# XL density (F103xF, F103xG) also requires FLASH_XL_DENSITY for dual-bank support.
 FLASH_XL_DENSITY :=
 
 ifeq ($(MCU_NORM),F103x4)

@@ -25,8 +25,11 @@ BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
 
 # Linker script & startup (live alongside this Makefile)
+normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
+MCU_NORM := $(call normalize_mcu,$(MCU))
+
 LINKER_SCRIPT     := $(CURDIR)/linker.ld
-LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU)
+LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU_NORM)
 STARTUP_FILE      := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
@@ -44,10 +47,6 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
-
-# Normalize package variants to their density variant.
-normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
-MCU_NORM := $(call normalize_mcu,$(MCU))
 
 # MCU Flash Page Size Mapping
 ifeq ($(MCU_NORM),F030x4)
