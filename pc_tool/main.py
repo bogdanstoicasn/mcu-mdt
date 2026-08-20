@@ -19,6 +19,8 @@ def build_dispatch(loader, serial_link, commander, threads):
 def setup(build_info_path: str):
     """Perform initial setup: load configs, initialize logger, open serial link, start event handlers."""
     loader = ConfigLoader(build_info_path)
+    print(loader.mcu_metadata["firmware"]["page_size"])
+    exit(0)
 
     MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
     MDTLogger.session_start(loader.yaml_build_data)

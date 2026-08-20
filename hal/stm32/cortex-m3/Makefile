@@ -29,7 +29,7 @@ normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
 MCU_NORM := $(call normalize_mcu,$(MCU))
 
 LINKER_SCRIPT    := $(CURDIR)/linker.ld
-LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU_NORM)
+LINKER_MEMORY_DIR := $(CURDIR)/variant/$(MCU_NORM)
 STARTUP_FILE     := $(HAL_DIR)/startup_stm32f103xx.c
 
 # Source files
@@ -48,34 +48,6 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M3)
 CPU_FLAGS := -mcpu=cortex-m3 -mthumb
 
-# MCU -> linker script define mapping
-
-FLASH_XL_DENSITY :=
-
-ifeq ($(MCU_NORM),F103x4)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F103x6)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F103x8)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F103xB)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F103xC)
-  FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU_NORM),F103xD)
-  FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU_NORM),F103xE)
-  FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU_NORM),F103xF)
-  FLASH_PAGE_SIZE  := 0x800
-  FLASH_XL_DENSITY := 1
-else ifeq ($(MCU_NORM),F103xG)
-  FLASH_PAGE_SIZE  := 0x800
-  FLASH_XL_DENSITY := 1
-else
-  $(error Unsupported MCU '$(MCU)' (normalized: '$(MCU_NORM)'))
-endif
-
 # CPU frequency (can be overridden from command line)
 F_CPU ?= 8000000UL
 
@@ -89,12 +61,8 @@ CFLAGS  += -ffreestanding -nostdlib
 CFLAGS  += -MMD -MP
 CFLAGS  += -I$(INC_DIR)
 CFLAGS  += $(INCLUDES)
-CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
+CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR) -I$(LINKER_MEMORY_DIR)
 CFLAGS  += -DPLATFORM_STM32
-CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)UL
-ifneq ($(FLASH_XL_DENSITY),)
-CFLAGS  += -DFLASH_XL_DENSITY
-endif
 
 MDT_USE_UART_IDLE ?= 1
 CFLAGS += -DMDT_FEATURE_UART_IDLE=$(MDT_USE_UART_IDLE)
@@ -160,6 +128,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(EXAMPLES_DIR)/main.c      	$(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    	$(BUILD_DIR)/Makefile.example
 	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
+	@cp $(LINKER_MEMORY_DIR)/mcu.h  	$(BUILD_DIR)/mcu.h
 	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
 
 # Compile example
@@ -187,7 +156,6 @@ $(BUILD_DIR)/build_info.yaml: $(EXAMPLE_BIN)
 	@echo "port: $(PORT)"                                     >> $@
 	@echo "elf: $(ELF_NAME)"                                  >> $@
 	@echo "uart_idle: $(MDT_USE_UART_IDLE)"                   >> $@
-	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"               >> $@
 	@echo "firmware_start_address: $(FW_START)"               >> $@
 	@echo "firmware_end_address: $(FW_END)"                   >> $@
 	@echo "firmware_size: $(FW_SIZE)"                         >> $@

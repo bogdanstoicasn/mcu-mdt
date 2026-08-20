@@ -29,7 +29,7 @@ normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
 MCU_NORM := $(call normalize_mcu,$(MCU))
 
 LINKER_SCRIPT     := $(CURDIR)/linker.ld
-LINKER_MEMORY_DIR := $(CURDIR)/memory/$(MCU_NORM)
+LINKER_MEMORY_DIR := $(CURDIR)/variant/$(MCU_NORM)
 STARTUP_FILE      := $(HAL_DIR)/startup_stm32f030xx.c
 
 # Source files
@@ -48,23 +48,6 @@ DEPS := $(SRC_OBJS:.o=.d) $(HAL_OBJS:.o=.d)
 # CPU flags (Cortex-M0)
 CPU_FLAGS := -mcpu=cortex-m0 -mthumb
 
-# MCU Flash Page Size Mapping
-ifeq ($(MCU_NORM),F030x4)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F030x6)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F030x8)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F030xC)
-  FLASH_PAGE_SIZE := 0x800
-else ifeq ($(MCU_NORM),F070x6)
-  FLASH_PAGE_SIZE := 0x400
-else ifeq ($(MCU_NORM),F070xB)
-  FLASH_PAGE_SIZE := 0x800
-else
-  $(error Unsupported MCU '$(MCU)' (normalized: '$(MCU_NORM)'))
-endif
-
 # CPU frequency (can be overridden from command line)
 F_CPU ?= 8000000UL
 
@@ -76,9 +59,8 @@ CFLAGS  += -fdata-sections
 CFLAGS  += -ffreestanding -nostdlib
 CFLAGS  += -MMD -MP
 CFLAGS  += $(INCLUDES)
-CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR)
+CFLAGS  += -I$(HAL_DIR) -I$(STM_HAL_DIR) -I$(LINKER_MEMORY_DIR)
 CFLAGS  += -DPLATFORM_STM32
-CFLAGS  += -DFLASH_PAGE_SIZE=$(FLASH_PAGE_SIZE)UL
 
 # MDT_USE_UART_IDLE: default 1 on this target (hardware supports IDLE interrupt).
 # Override with: make MDT_USE_UART_IDLE=0 to use poll mode instead.
@@ -146,6 +128,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(EXAMPLES_DIR)/Makefile    	$(BUILD_DIR)/Makefile.example
 	@cp $(LINKER_SCRIPT)         		$(BUILD_DIR)/linker.ld
 	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
+	@cp $(LINKER_MEMORY_DIR)/mcu.h  	$(BUILD_DIR)/mcu.h
 	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
 
 # Compile example
@@ -172,7 +155,6 @@ $(BUILD_DIR)/build_info.yaml: $(EXAMPLE_BIN)
 	@echo "port: $(PORT)"                                     >> $@
 	@echo "elf: $(ELF_NAME)"                                  >> $@
 	@echo "uart_idle: $(MDT_USE_UART_IDLE)"                   >> $@
-	@echo "flash_page_size: $(FLASH_PAGE_SIZE)"               >> $@
 	@echo "firmware_start_address: $(FW_START)"               >> $@
 	@echo "firmware_end_address: $(FW_END)"                   >> $@
 	@echo "firmware_size: $(FW_SIZE)"                         >> $@

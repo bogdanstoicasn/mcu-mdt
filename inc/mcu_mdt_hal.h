@@ -2,6 +2,7 @@
 #define MCU_MDT_HAL_H
 
 #include <stdint.h>
+#include "mcu.h"
 
 /* ===== UART HAL ===== */
 

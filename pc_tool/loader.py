@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+import re
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
@@ -582,7 +583,7 @@ class ConfigLoader:
 
     def __init__(
         self,
-        build_info_path: str,
+        build_info_path: str = "build/",
         commands_path:   str = "pc_tool/configs/commands.yaml",
         platforms_path:  str = "pc_tool/configs/platforms",
     ) -> None:
@@ -594,10 +595,10 @@ class ConfigLoader:
 
         self.mcu_metadata = load_mcu_metadata(mcu, platform)
         self.elf_symbols  = self._load_elf(build_info_path)
-        self._inject_firmware_info()
+        self._inject_firmware_info(build_info_path)
 
 
-    def _inject_firmware_info(self) -> None:
+    def _inject_firmware_info(self, build_info_path: str) -> None:
         """Merge firmware boundary fields from build_info into mcu_metadata.
 
         The validator uses these to prevent writes and erases that would
@@ -616,7 +617,7 @@ class ConfigLoader:
         start     = self.yaml_build_data.get("firmware_start_address")
         end       = self.yaml_build_data.get("firmware_end_address")
         size      = self.yaml_build_data.get("firmware_size")
-        page_size = self.yaml_build_data.get("flash_page_size")
+        page_size = self._load_mcu_header(build_info_path).get("FLASH_PAGE_SIZE")
 
         if start is None or end is None:
             return   # platform doesn't provide firmware boundaries
@@ -654,7 +655,40 @@ class ConfigLoader:
         symbols   = load_elf_symbols(elf_path, platform)
         MDTLogger.info(f"Loaded {len(symbols)} symbol(s) from {elf_path}")
         return symbols
+    
+    def _load_mcu_header(self, build_info_path: str) -> dict:
+            path_to_header = os.path.join(
+                os.path.dirname(os.path.abspath(build_info_path)),
+                "mcu.h",
+            )
 
+            defines: dict[str, int] = {}
+
+            try:
+                with open(path_to_header, "r") as f:
+                    for line in f:
+                        match = re.match(
+                            r"^\s*#define\s+(\w+)\s+([^\s/]+)",
+                            line,
+                        )
+
+                        if not match:
+                            continue
+
+                        name, value = match.groups()
+
+                        # Remove common c suffixes(ul etc)
+                        value = re.sub(r"[uUlL]+$", "", value)
+                        try:
+                            defines[name] = int(value, 0)
+                        except ValueError:
+                            continue
+            except FileNotFoundError:
+                MDTLogger.warning(
+                    f"MCU header not found: {path_to_header}"
+                )
+
+            return defines
 
 # Internal utilities
 def _iter_yaml_files(folder: str) -> Iterator[str]:
