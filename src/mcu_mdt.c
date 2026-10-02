@@ -231,10 +231,11 @@ void mcu_mdt_poll(void)
     /* 2. Fence + overflow guard. */
     if (!mdt_buffer_guard())
         return;
-
+#if !MDT_FEATURE_UART_IDLE
     /* 3. Drain RX ring buffer. */
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
+#endif
 
     /* 4. Check watchpoints — event fires on next iteration at step 1. */
     mcu_mdt_watchpoint_check();
