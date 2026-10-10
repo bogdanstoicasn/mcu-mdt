@@ -115,36 +115,39 @@ def _get_reg_group_base(module: dict, rg_name: str, rg: dict) -> int:
 def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
     """Look up a register by name and return its absolute address.
 
-    Accepts two formats:
-
-    1. Qualified:  ``PERIPHERAL_REGISTER``  e.g. ``RCC_CR``, ``USART1_SR``,
-       ``TIM1_CCMR1_Output``.  The name is split on the *first* underscore
-       only — peripheral names on STM32 never contain underscores, so this
-       is unambiguous even when the register name itself does
-       (e.g. ``TIM1_CCMR1_Output`` - periph=TIM1, reg=CCMR1_Output).
-
-    2. Bare:  ``CR``, ``SR`` — searches all modules.  Useful for AVR where
-       peripherals have unique register names, and for quick lookups.  When
-       the same bare name exists in multiple peripherals the first match wins
-       (use the qualified form to be precise).
+    Accepts qualified names (PERIPHERAL_REGISTER) and bare register names.
+    Qualified names are resolved by matching the longest peripheral-name
+    prefix, supporting peripheral names containing underscores.
     """
     name_upper = name.upper()
-    modules    = mcu_metadata.get("modules", {})
+    modules = mcu_metadata.get("modules", {})
 
     def _reg_offset(reg: dict) -> int:
         off = reg.get("offset") or 0
         return int(off, 0) if isinstance(off, str) else int(off)
 
-    if "_" in name_upper:
-        periph, reg_part = name_upper.split("_", 1)
-        if periph in modules:
-            module = modules[periph]
-            for rg_name, rg in module.get("register_groups", {}).items():
-                base = _get_reg_group_base(module, rg_name, rg)
-                for reg_name, reg in rg.get("registers", {}).items():
-                    if reg_name.upper() == reg_part:
-                        return base + _reg_offset(reg)
+    # Try qualified names, preferring the longest matching peripheral name.
+    for periph in sorted(modules, key=len, reverse=True):
+        periph_upper = periph.upper()
+        prefix = periph_upper + "_"
 
+        if not name_upper.startswith(prefix):
+            continue
+
+        module = modules[periph]
+        reg_part = name_upper[len(prefix):]
+
+        for rg_name, rg in module.get("register_groups", {}).items():
+            base = _get_reg_group_base(module, rg_name, rg)
+
+            for reg_name, reg in rg.get("registers", {}).items():
+                if reg_name.upper() == reg_part:
+                    return base + _reg_offset(reg)
+
+        # The peripheral matched, but its register did not.
+        # Continue searching in case another peripheral prefix matches.
+
+    # Fall back to bare-name lookup.
     for module in modules.values():
         for rg_name, rg in module.get("register_groups", {}).items():
             base = _get_reg_group_base(module, rg_name, rg)

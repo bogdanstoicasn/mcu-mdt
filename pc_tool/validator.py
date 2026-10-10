@@ -119,9 +119,11 @@ def _overlaps_firmware(address: int, size: int, mcu_metadata: dict) -> bool:
     fw = mcu_metadata.get("firmware")
     if not fw:
         return False
-    fw_start = fw.get("start") or 0
-    fw_end   = fw.get("end")   or 0
-    if not fw_start or not fw_end or fw_end <= fw_start:
+
+    fw_start = fw.get("start")
+    fw_end   = fw.get("end")
+
+    if fw_start is None or fw_end is None or fw_start >= fw_end:
         return False
     # Overlap iff the ranges intersect
     return not (address + size <= fw_start or address >= fw_end)

@@ -13,7 +13,7 @@ The goal of this architecture is to provide a **portable, deterministic, and ext
 - **Determinism**: No dynamic memory allocation, bounded buffers, predictable execution.
 - **Minimal MCU Complexity**: MCU firmware performs only binary protocol handling and memory access.
 - **PC-Side Intelligence**: Parsing, validation, YAML handling, and user interaction live entirely on the PC.
-- **Single Entry Point**: MCU exposes a minimal public API (`mcu_mdt_init`, `mcu_mdt_poll`, `mcu_mdt_watchpoint_check`, `MDT_BREAKPOINT`).
+- **Single Entry Point**: MCU exposes a minimal public API (check `mcu_mdt.h` for the exposed functions).
 - **Non-blocking Operation**: UART I/O is byte-oriented and cooperative.
 - **Zero-cost when idle**: when nothing is happening, `mcu_mdt_poll()` does almost nothing.
   Overhead scales with actual debugger activity, not constant.
@@ -161,7 +161,7 @@ intermediate wrapper layers, the `hal_*` functions are the only entry points.
 inc/mcu_mdt_hal.h          - contract (12 functions)
 hal/avr/hal_avr.c          - AVR implementation (UART ISRs + SRAM/FLASH/EEPROM access)
 hal/stm32/cortex-m0/hal_stm.c  - M0 implementation (UART ISRs + SRAM/FLASH access + flash write)
-hal/stm32/cortex-m3/hal_stm.c  - M3 implementation (UART ISRs + SRAM/FLASH access)
+hal/stm32/cortex-m3/hal_stm.c  - M3 implementation (UART ISRs + SRAM/FLASH access + flash write)
 ```
 
 The `uart.h` files in each STM32 target carry all peripheral register struct definitions and bit

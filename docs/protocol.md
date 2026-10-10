@@ -85,14 +85,10 @@ Every packet is exactly **18 bytes**. All fields are always present.
 When the MCU receives a packet that fails CRC or framing validation it sends a NACK response:
 
 - `ACK_NACK` (bit 2) and `STATUS_ERROR` (bit 5) flags are both set.
-- `CMD_ID` echoes the `CMD_ID` from the failed packet.
+- `CMD_ID` is set to 0.
 - `SEQ` echoes the `SEQ` from the failed packet.
 - All other fields are zero.
 - A valid CRC is computed and included.
-
-> **Note:** The PC-side `is_nack_packet()` currently also requires `cmd_id == 0`, which conflicts
-> with the firmware echoing the original `cmd_id`. This mismatch is a known issue, see
-> architecture doc Known Issues section.
 
 
 ## Multi-Packet Transfers

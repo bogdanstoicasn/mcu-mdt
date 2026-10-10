@@ -177,8 +177,6 @@ WRITE_REG 0x40013800 000000FF # raw address
 
 **Behavior:** MCU restarts from its reset vector. All runtime state and breakpoints are cleared.
 
-> **Note:** Not yet implemented in firmware. The MCU will respond with an error flag.
-
 
 ### BREAKPOINT (ID: 0x07)
 
