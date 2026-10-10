@@ -99,6 +99,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(INC_DIR)/mcu_mdt_config.h $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/main.c      $(BUILD_DIR)/
 	@cp $(EXAMPLES_DIR)/Makefile    $(BUILD_DIR)/Makefile.example
+	@touch $(BUILD_DIR)/mcu.h
 
 # Compile example
 $(EXAMPLE_OBJ): $(BUILD_DIR)/main.c

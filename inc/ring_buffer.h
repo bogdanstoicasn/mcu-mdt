@@ -11,8 +11,8 @@
  */
 typedef struct {
     uint8_t buf[MDT_BUFFER_SIZE];
-    volatile uint16_t head;
-    volatile uint16_t tail;
+    volatile uint8_t head;
+    volatile uint8_t tail;
     volatile uint8_t overflow_flag;
 } ring_buffer_t;
 

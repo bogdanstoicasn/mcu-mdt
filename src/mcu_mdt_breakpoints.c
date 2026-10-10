@@ -70,8 +70,8 @@ static inline __attribute__((always_inline)) void mdt_breakpoint_disable(uint8_t
 static inline __attribute__((always_inline)) void mdt_breakpoint_reset(uint8_t id)
 {
     bp_state.slots[id].enabled   = INTERNAL_MDT_BP_DISABLE;
-    bp_state.slots[id].hit_count = INTERNAL_MDT_BP_DISABLE;
-    bp_state.slots[id].next      = INTERNAL_MDT_BP_DISABLE;
+    bp_state.slots[id].hit_count = 0;
+    bp_state.slots[id].next      = 0;
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_next(uint8_t id)

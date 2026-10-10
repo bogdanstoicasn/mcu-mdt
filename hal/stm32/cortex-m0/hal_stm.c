@@ -21,6 +21,7 @@
 #include "ring_buffer.h"
 #include "uart.h"
 #include "commands.h"
+#include "mcu.h"
 
 /* Ring buffers */
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };

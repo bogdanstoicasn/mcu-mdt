@@ -9,8 +9,8 @@
  */
 typedef struct {
     uint8_t hit_count;      /* count how many times this breakpoint was hit */
-    uint8_t enabled  : 1;
-    uint8_t next     : 1;   /* for "next breakpoint" functionality */
+    volatile uint8_t enabled  : 1;
+    volatile uint8_t next     : 1;   /* for "next breakpoint" functionality */
     uint8_t reserved : 6;
 } mdt_breakpoint_t;
 

@@ -73,6 +73,9 @@ See hal/stm32/cortex-m0/Makefile or hal/avr/Makefile."
 _Static_assert((MDT_BUFFER_SIZE & (MDT_BUFFER_SIZE - 1)) == 0,
                "MDT_BUFFER_SIZE must be a power of 2 (e.g. 32, 64, 128)");
 
+_Static_assert(MDT_BUFFER_SIZE <= 255,
+              "MDT_BUFFER_SIZE cannot exceed 255");
+
 _Static_assert(MDT_MAX_WATCHPOINTS <= 8,
               "MDT_MAX_WATCHPOINTS cannot exceed 8 (active_mask is uint8_t)");
 
