@@ -2,6 +2,7 @@
 #define COMMANDS_H
 
 #include <stdint.h>
+#include "mcu.h"
 
 /* FLASH_PAGE_SIZE is injected by the build system via -DFLASH_PAGE_SIZE=...
  * in cortex-m0/Makefile. Values per RM0360:

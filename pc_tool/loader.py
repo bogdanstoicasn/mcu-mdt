@@ -358,6 +358,10 @@ class _SVDLoader(_PlatformLoader):
         class by replacing the package letter with 'x', matching MCU_NORM behavior
         used for linker script selection.
         """
+
+        # YAML keys may be written in any case; mcu_lower is always lowercase.
+        variants = {str(k).lower(): v for k, v in variants.items()}
+
         # 1. Exact part-number match (F0-style YAMLs)
         if mcu_lower in variants:
             return variants[mcu_lower]
@@ -439,27 +443,54 @@ class _SVDLoader(_PlatformLoader):
 
     @staticmethod
     def _parse_registers(base_elem: ET.Element, find: "_SVDXmlHelper") -> dict:
-        """Parse <register> elements from a peripheral and return a dict of register metadata."""
+        """Parse a peripheral's registers into a flat ``name -> metadata`` dict.
+
+        CMSIS-SVD ``<dim>`` arrays and ``<cluster>`` blocks are expanded so
+        every element is an individually addressable register:
+
+          AHBCLKCTRLSET[%s] (dim 4)      -> AHBCLKCTRLSET0 .. AHBCLKCTRLSET3
+          CHANNEL[%s] cluster, reg CTRL  -> CHANNEL2_CTRL   (cluster instance 2)
+
+        Offsets are relative to the peripheral base, as before.
+        """
         registers: dict = {}
-        for reg in find.children(base_elem, "registers/register"):
+        regs_elem = next(iter(find.children(base_elem, "registers")), None)
+        if regs_elem is None:
+            return registers
+
+        def add_register(reg: ET.Element, base_off: int, prefix: str) -> None:
             reg_name = find.text_of(reg, "name")
             if not reg_name:
-                continue
+                return
 
             reg_offset = _parse_int(find.text_of(reg, "addressOffset"))
             reg_size   = _parse_int(find.text_of(reg, "size") or "32", default=32)
             reg_rw     = find.text_of(reg, "access") or "read-write"
             reg_mask   = find.text_of(reg, "resetMask")
 
-            registers[reg_name] = {
-                "caption":   find.text_of(reg, "description"),
-                "offset":    str(reg_offset),
-                "size":      str(reg_size),
-                "mask":      reg_mask,
-                "rw":        reg_rw,
-                "bitfields": _SVDLoader._parse_bitfields(reg, find),
-            }
+            for idx, step in _expand_dim(reg, find):
+                registers[prefix + _dim_name(reg_name, idx)] = {
+                    "caption":   find.text_of(reg, "description"),
+                    "offset":    str(base_off + reg_offset + step),
+                    "size":      str(reg_size),
+                    "mask":      reg_mask,
+                    "rw":        reg_rw,
+                    "bitfields": _SVDLoader._parse_bitfields(reg, find),
+                }
 
+        def walk(container: ET.Element, base_off: int, prefix: str) -> None:
+            for child in find.children(container, "*"):
+                tag = child.tag.rsplit("}", 1)[-1]
+                if tag == "register":
+                    add_register(child, base_off, prefix)
+                elif tag == "cluster":
+                    c_name = find.text_of(child, "name") or ""
+                    c_off  = _parse_int(find.text_of(child, "addressOffset"))
+                    for idx, step in _expand_dim(child, find):
+                        walk(child, base_off + c_off + step,
+                             prefix + _dim_name(c_name, idx) + "_")
+
+        walk(regs_elem, 0, "")
         return registers
 
     @staticmethod
@@ -655,7 +686,7 @@ class ConfigLoader:
         symbols   = load_elf_symbols(elf_path, platform)
         MDTLogger.info(f"Loaded {len(symbols)} symbol(s) from {elf_path}")
         return symbols
-    
+
     def _load_mcu_header(self, build_info_path: str) -> dict:
             path_to_header = os.path.join(
                 os.path.dirname(os.path.abspath(build_info_path)),
@@ -698,6 +729,53 @@ def _iter_yaml_files(folder: str) -> Iterator[str]:
             if fname.endswith((".yaml", ".yml")):
                 yield os.path.join(dirpath, fname)
 
+
+
+def _dim_indices(text: str | None, dim: int) -> list[str]:
+    """Expand an SVD <dimIndex> (``0,1,2`` / ``0-3`` / ``A-D``) to labels.
+
+    Falls back to ``0..dim-1`` when absent, malformed, or inconsistent with *dim*.
+    """
+    labels: list[str] = []
+    if text:
+        text = text.strip()
+        m = re.fullmatch(r"(\d+)\s*-\s*(\d+)", text)
+        a = re.fullmatch(r"([A-Za-z])\s*-\s*([A-Za-z])", text)
+        if "," in text:
+            labels = [s.strip() for s in text.split(",") if s.strip()]
+        elif m:
+            labels = [str(i) for i in range(int(m.group(1)), int(m.group(2)) + 1)]
+        elif a:
+            labels = [chr(c) for c in range(ord(a.group(1)), ord(a.group(2)) + 1)]
+    if len(labels) != dim:
+        if labels:
+            MDTLogger.warning(
+                f"SVD dimIndex '{text}' does not match dim={dim}; using 0..{dim - 1}."
+            )
+        labels = [str(i) for i in range(dim)]
+    return labels
+
+
+def _expand_dim(elem: ET.Element, find: "_SVDXmlHelper") -> list[tuple[str | None, int]]:
+    """Return ``(index_label, byte_offset)`` for every element of a <dim> array.
+
+    An element without <dim> yields a single ``(None, 0)`` entry.
+    """
+    dim_txt = find.text_of(elem, "dim")
+    if dim_txt is None:
+        return [(None, 0)]
+    dim = _parse_int(dim_txt)
+    inc = _parse_int(find.text_of(elem, "dimIncrement"))
+    labels = _dim_indices(find.text_of(elem, "dimIndex"), dim)
+    return [(label, pos * inc) for pos, label in enumerate(labels)]
+
+
+def _dim_name(name: str, idx: str | None) -> str:
+    """Substitute an array index into an SVD name (``X[%s]`` / ``X%s`` -> ``X3``)."""
+    if idx is None:
+        return name
+    name = name.replace("[%s]", "%s")
+    return name.replace("%s", idx) if "%s" in name else name + idx
 
 def _parse_int(text: str | None, default: int = 0) -> int:
     """Convert a hex/decimal string to int, returning *default* on failure."""

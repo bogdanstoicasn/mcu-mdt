@@ -2,6 +2,7 @@
 #define COMMANDS_H
 
 #include <stdint.h>
+#include "mcu.h"
 
 #define FLASH_BASE  0x40022000UL
 

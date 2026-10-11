@@ -18,12 +18,12 @@ variants:
     ram: 8192
     flash_page: 1024
 
-  stm32f030xC:
+  stm32f030xc:
     flash: 262144
     ram: 32768
     flash_page: 2048
 
-  stm32F070x6:
+  stm32f070x6:
     flash: 32768
     ram: 6144
     flash_page: 1024

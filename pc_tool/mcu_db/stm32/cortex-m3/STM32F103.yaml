@@ -11,7 +11,7 @@ variants:
 
   stm32f103x6:
     flash: 32768
-    ram: 6144
+    ram: 10240
     flash_page: 1024
 
   # Medium-density (MD)

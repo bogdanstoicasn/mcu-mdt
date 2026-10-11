@@ -1,4 +1,5 @@
 import os
+import re
 import atexit
 import argparse
 from dataclasses import dataclass
@@ -119,7 +120,8 @@ def resolve_register_address(name: str, mcu_metadata: dict) -> int | None:
     Qualified names are resolved by matching the longest peripheral-name
     prefix, supporting peripheral names containing underscores.
     """
-    name_upper = name.upper()
+    # Array elements are stored as NAME<idx>; accept the NAME[<idx>] spelling too.
+    name_upper = re.sub(r"\[(\w+)\]", r"\1", name).upper()
     modules = mcu_metadata.get("modules", {})
 
     def _reg_offset(reg: dict) -> int:
