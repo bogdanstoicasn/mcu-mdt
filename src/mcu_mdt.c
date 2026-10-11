@@ -222,21 +222,24 @@ void mcu_mdt_init(void)
 
 void mcu_mdt_poll(void)
 {
+#if MDT_FEATURE_UART_IDLE
+    /* Interrupt mode, intentionally no-op. */
+#else
     uint8_t byte;
 
-    /* 1. Flush any pending event once TX is idle. */
+    /* Flush any pending event once TX is idle. */
     if (mdt_event_pending() && hal_uart_tx_empty())
         mdt_event_send();
-
-    /* 2. Fence + overflow guard. */
+    
+    /* Fence check + overflow. */
     if (!mdt_buffer_guard())
         return;
-#if !MDT_FEATURE_UART_IDLE
-    /* 3. Drain RX ring buffer. */
+    
+    /* Drain RX ring buffer. */
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
-#endif
-
-    /* 4. Check watchpoints — event fires on next iteration at step 1. */
+    
+    /* Watchpoint check */
     mcu_mdt_watchpoint_check();
+#endif
 }
