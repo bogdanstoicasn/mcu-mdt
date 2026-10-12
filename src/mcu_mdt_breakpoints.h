@@ -8,7 +8,8 @@
  * @brief Structure representing a single breakpoint.
  */
 typedef struct {
-    uint8_t hit_count;      /* count how many times this breakpoint was hit */
+    volatile uint8_t hit_count;     /* hits so far. Written ONLY by the code that hit the breakpoint */
+    uint8_t hit_reported;           /* hit_count as last reported. Written ONLY by the event reporter */
     volatile uint8_t enabled  : 1;
     volatile uint8_t next     : 1;   /* for "next breakpoint" functionality */
     uint8_t reserved : 6;
@@ -49,5 +50,14 @@ void mdt_breakpoint_trigger(uint8_t id);
  * @return Status of the operation.
  */
 uint8_t mdt_breakpoint_dispatch(uint8_t control, uint32_t id);
+
+/**
+ * @brief If a breakpoint has been hit since the last call, return its id and
+ *        total hit count and mark that hit as taken. Lowest id first.
+ * @param id   Receives the breakpoint id.
+ * @param hits Receives the total number of hits (8-bit, wraps).
+ * @return 1 if a new hit was taken, 0 if there is nothing new.
+ */
+uint8_t mdt_breakpoint_take_hit(uint8_t *id, uint8_t *hits);
 
 #endif /* MCU_MDT_BREAKPOINTS_H */

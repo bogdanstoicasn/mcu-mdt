@@ -34,9 +34,13 @@ typedef enum {
  */
 uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address);
 
-/** @brief Function to check for changes in watchpoints
- * @return None
+/**
+ * @brief Sample the active watchpoints. If one differs from the value last
+ *        taken, return the slot, the old and the new value, and make the new
+ *        value the reference. Lowest slot first. Several changes between two
+ *        calls collapse into one (old = value at the last call, new = latest).
+ * @return 1 if a change was taken, 0 if nothing changed.
  */
-void mcu_mdt_watchpoint_check(void);
+uint8_t mdt_watchpoint_take_change(uint8_t *slot, uint32_t *old_value, uint32_t *new_value);
 
 #endif

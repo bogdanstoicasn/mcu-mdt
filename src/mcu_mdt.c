@@ -64,13 +64,7 @@ static uint8_t mdt_buffer_guard(void)
     {
         mdt_buffer_reset(&packet_buffer);
 
-        mdt_event_set(
-            0,                                  /* seq              */
-            INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, /* mem_id = type    */
-            (uint32_t)(uintptr_t)&packet_buffer,    /* address = buffer */
-            sizeof(packet_buffer),                  /* length           */
-            0                                   /* data             */
-        );
+        mdt_event_error(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW);
 
         return 0;
     }
@@ -124,13 +118,7 @@ static uint8_t mdt_handle_packet(mdt_buffer_t *buf)
     {
         mdt_send_nack(pkt);
 
-        mdt_event_set(
-            0,
-            INTERNAL_MDT_EVENT_FAILED_PACKET,
-            (uint32_t)(uintptr_t)buf,
-            MDT_PACKET_SIZE,
-            0
-        );
+        mdt_event_error(INTERNAL_MDT_EVENT_FAILED_PACKET);
 
         mdt_buffer_reset(buf);
         return 0;
@@ -173,13 +161,7 @@ static void mdt_process_byte(uint8_t byte)
 
     if (packet_buffer.idx >= MDT_PACKET_SIZE)
     {
-        mdt_event_set(
-            0,
-            INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
-            (uint32_t)(uintptr_t)&packet_buffer,
-            MDT_PACKET_SIZE,
-            packet_buffer.idx
-        );
+        mdt_event_error(INTERNAL_MDT_EVENT_BUFFER_OVERFLOW);
 
         mdt_buffer_reset(&packet_buffer);
         return;
@@ -227,19 +209,15 @@ void mcu_mdt_poll(void)
 #else
     uint8_t byte;
 
-    /* Flush any pending event once TX is idle. */
-    if (mdt_event_pending() && hal_uart_tx_empty())
-        mdt_event_send();
-    
-    /* Fence check + overflow. */
+    /* 1. Report one pending event once TX is idle (samples watchpoints). */
+    mdt_event_send();
+
+    /* 2. Fence + overflow guard. */
     if (!mdt_buffer_guard())
         return;
-    
-    /* Drain RX ring buffer. */
+
+    /* 3. Drain RX ring buffer. */
     while (hal_uart_rx(&byte))
         mdt_process_byte(byte);
-    
-    /* Watchpoint check */
-    mcu_mdt_watchpoint_check();
 #endif
 }

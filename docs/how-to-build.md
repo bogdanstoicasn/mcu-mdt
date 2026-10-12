@@ -256,18 +256,14 @@ int main(void)
 
     while (1) {
         /* application code runs freely. UART is handled by ISR + PendSV.
-         * mcu_mdt_poll() is NOT required here. Watchpoints can be sampled
-         * from SysTick if you want continuous monitoring. */
+         * mcu_mdt_poll() is NOT required here. Events are reported when
+         * the PC polls. */
     }
 }
 ```
 
-If you want watchpoints in interrupt mode, sample them from a periodic
-source:
-
-```c
-void SysTick_Handler(void) { mcu_mdt_watchpoint_check(); }
-```
+Watchpoints in interrupt mode need nothing extra: they are sampled
+whenever the PC polls for events (about every 0.5 s).
 
 
 ## Verifying the build

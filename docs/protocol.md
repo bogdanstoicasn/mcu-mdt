@@ -110,17 +110,27 @@ The MCU can send unsolicited event packets to the PC at any time:
 - `CMD_ID` is 0.
 - `SEQ` carries the event source ID (breakpoint slot, watchpoint slot, or 0 for system events).
 - `MEM_ID` carries the event type (see table below).
-- `ADDRESS` carries context data (e.g. old value for watchpoints, buffer address for overflow).
-- `DATA` carries the new value or additional debug info.
+- `ADDRESS` carries context data (the old value for watchpoints, 0 otherwise).
+- `DATA` carries the new value, the total hit count, or an error count (see table below).
 - No response is expected from the PC.
 - The PC `rx_worker` routes event packets to a separate event queue.
+
+### How the MCU reports events
+
+Events are derived from state, not queued on the MCU. Each source remembers what
+it has not yet reported, and each poll (or `mcu_mdt_poll()` pass in poll mode)
+reports one thing, in this order: breakpoints, watchpoints, buffer overflow,
+failed packet. Nothing is dropped; several changes between two reports collapse
+into one event with the latest state. In interrupt mode the PC polls again
+immediately after receiving an event, so a burst drains without waiting for the
+next poll interval.
 
 | Event Type      | Value | MEM_ID | SEQ         | ADDRESS           | DATA              |
 |-----------------|-------|--------|-------------|-------------------|-------------------|
 | NONE            | 0     | -      | -           | -                 | -                 |
-| BUFFER_OVERFLOW | 1     | 1      | 0           | buffer address    | overflow index    |
-| FAILED_PACKET   | 2     | 2      | 0           | buffer address    | 0                 |
-| BREAKPOINT_HIT  | 3     | 3      | breakpoint id | 0               | hit count         |
+| BUFFER_OVERFLOW | 1     | 1      | 0           | 0                 | count since last report |
+| FAILED_PACKET   | 2     | 2      | 0           | 0                 | count since last report |
+| BREAKPOINT_HIT  | 3     | 3      | breakpoint id | 0               | total hits since reset  |
 | WATCHPOINT_HIT  | 4     | 4      | watchpoint id | old value       | new value         |
 
 

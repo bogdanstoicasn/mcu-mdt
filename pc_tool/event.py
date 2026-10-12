@@ -72,7 +72,10 @@ class EventHandler:
                 f"[Event] {ev.name} "
                 f"(slot={slot_id}, old=0x{address:08X}, new=0x{data:08X}, width={length})"
             )
-        # Generic fallback: BUFFER_OVERFLOW, FAILED_PACKET, future types
+        if ev in (EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW,
+                  EventType.INTERNAL_MDT_EVENT_FAILED_PACKET):
+            return f"[Event] {ev.name} (count={data})"
+        # Generic fallback: future types
         return (
             f"[Event] {ev.name} "
             f"(slot={slot_id}, address=0x{address:08X}, length={length}, data=0x{data:08X})"
@@ -110,6 +113,10 @@ class EventHandler:
 
                 if self._is_event(pkt):
                     self._link.push_back_event_packet(pkt)
+                    if self._uart_idle:
+                        # The MCU reports one event per poll: ask again right
+                        # away instead of waiting for the next poll interval.
+                        self._link.send_packet(_POLL_PACKET)
                 elif self._is_clean_poll_ack(pkt):
                     pass  # discard
                 else:
@@ -160,7 +167,7 @@ class EventHandler:
             time.sleep(EVENT_POLL_INTERVAL)
 
 
-    def drain_stale_events(self, max_polls: int = 8,
+    def drain_stale_events(self, max_polls: int = 16,
                            per_poll_timeout: float = 0.2) -> int:
         """Drain events left over from a previous PC session.
 

@@ -101,8 +101,7 @@ parse → validate → serialize → send → receive → verify
 
 ```c
 void mcu_mdt_init(void);             /* initialize UART, register IDLE callback if available */
-void mcu_mdt_poll(void);             /* call from main loop: flush events, drain RX, check watchpoints */
-void mcu_mdt_watchpoint_check(void); /* sample all active watchpoints, fire event on change */
+void mcu_mdt_poll(void);             /* poll mode: report events, drain RX (no-op in interrupt mode) */
 MDT_BREAKPOINT(id);                  /* macro: trigger a software breakpoint */
 ```
 
@@ -124,10 +123,9 @@ MDT_BREAKPOINT(id);                  /* macro: trigger a software breakpoint */
 ```
 main loop
   └── mcu_mdt_poll()
-        ├── 1. flush pending event if TX idle
+        ├── 1. report one pending event if TX idle (samples watchpoints)
         ├── 2. fence + overflow guard
-        ├── 3. drain RX ring buffer → mdt_process_byte()
-        └── 4. mcu_mdt_watchpoint_check()
+        └── 3. drain RX ring buffer → mdt_process_byte()
 ```
 
 **Interrupt mode (STM32 with IDLE interrupt):**
@@ -142,11 +140,7 @@ PendSV_Handler (lowest priority)
         └── drain RX ring buffer → mdt_process_byte()
 
 main loop
-  └── mcu_mdt_poll()
-        ├── 1. flush pending event if TX idle
-        ├── 2. fence + overflow guard
-        ├── 3. drain RX ring buffer (residual bytes between IDLE and poll)
-        └── 4. mcu_mdt_watchpoint_check()
+  └── mcu_mdt_poll()   (no-op in interrupt mode: events go out in the CMD_ID=0 poll reply)
 ```
 
 
@@ -356,10 +350,12 @@ must agree to give up a peripheral before MDT is allowed to claim one.
 
 ## Watchpoint Design
 
-- **How it works**: `mcu_mdt_watchpoint_check()` is called periodically (from `mcu_mdt_poll()`
-  or a timer ISR). For each active slot it reads 4 bytes byte-by-byte from the watched address,
-  applies the mask, and compares against the stored snapshot. On change it fires a
-  `WATCHPOINT_HIT` event and updates the snapshot.
+- **How it works**: whenever events are polled (every `mcu_mdt_poll()` pass in poll mode, every
+  CMD_ID=0 poll from the PC in interrupt mode), `mdt_watchpoint_take_change()` reads, for each
+  active slot, 4 bytes byte-by-byte from the watched address, applies the mask, and compares
+  against the stored snapshot. On a difference it reports one `WATCHPOINT_HIT` (old = snapshot,
+  new = current) and updates the snapshot. Nothing is queued: several changes between two
+  samples collapse into one event.
 
 - **Byte-by-byte read**: `mdt_read_u32()` reads 4 bytes individually to avoid undefined behaviour
   from unaligned pointer casts and hardware alignment faults on Cortex-M0.

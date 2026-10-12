@@ -166,8 +166,8 @@ so power-cycle is the only recovery. The PC tool warns you of this at
 ### Watchpoint fires immediately after being enabled
 
 The watchpoint takes an initial snapshot when ENABLED. If the watched address
-changes between the ENABLE command being processed and the next
-`mcu_mdt_watchpoint_check()` call, a hit fires immediately. This is correct
+changes between the ENABLE command being processed and the next sample
+(the next event poll), a hit fires immediately. This is correct
 behavior: the address changed. Use `WATCHPOINT <id> RESET` followed by
 `WATCHPOINT <id> ENABLED` to re-arm and take a fresh snapshot.
 
@@ -176,8 +176,10 @@ behavior: the address changed. Use `WATCHPOINT <id> RESET` followed by
 
 1. Check the mask: if `WATCHPOINT <id> MASK` was used with a mask that does not cover
    the changing bits, the change is invisible. Default mask is `0xFFFFFFFF`.
-2. `mcu_mdt_watchpoint_check()` must be called periodically. On STM32 in interrupt mode
-   it is not called automatically, call it from a SysTick handler or timer ISR.
+2. The value changed and changed back between two samples. Watchpoints compare the value
+   only when events are polled: every `mcu_mdt_poll()` pass in poll mode, every PC poll
+   (about 0.5 s) in interrupt mode. A short-lived change in between is not reported. In poll
+   mode, call `mcu_mdt_poll()` more often to sample faster.
 
 
 ## Build System

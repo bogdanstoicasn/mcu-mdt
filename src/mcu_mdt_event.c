@@ -1,122 +1,129 @@
 #include "mcu_mdt_event.h"
 #include "mcu_mdt_protocol.h"
-#include "mcu_mdt_watchpoint.h"
 #include "mcu_mdt_hal.h"
+#include "mcu_mdt_breakpoints.h"
+#include "mcu_mdt_watchpoint.h"
 
-/**
- * @brief Event state — private to this translation unit
- */
-typedef struct {
-    uint32_t address;
-    uint32_t data;
-    uint16_t length;
-    uint8_t  seq;
-    uint8_t  mem_id;
+/* Error counters. Written only from the packet-processing context (PendSV in
+ * interrupt mode, the main loop in poll mode), the same context that reports
+ * them, so plain variables are enough. Saturate at 255. */
+static uint8_t overflow_count;
+static uint8_t failed_count;
 
-    volatile uint8_t pending;
-} mdt_event_t;
-
-/**
- * @brief Static event instance for storing pending event data
- */
-static mdt_event_t pending_event = { 0 };
-
-void mdt_event_set(
-    uint8_t  seq,
-    uint8_t  mem_id,
-    uint32_t address,
-    uint16_t length,
-    uint32_t data)
+void mdt_event_error(uint8_t type)
 {
-    if (pending_event.pending)
-        return;
-
-    pending_event.seq     = seq;
-    pending_event.mem_id  = mem_id;
-    pending_event.address = address;
-    pending_event.length  = length;
-    pending_event.data    = data;
-
-    pending_event.pending = 1;
+    uint8_t *count = (type == INTERNAL_MDT_EVENT_BUFFER_OVERFLOW) ? &overflow_count
+                                                                  : &failed_count;
+    if (*count != 0xFF)
+        (*count)++;
 }
 
-static inline void mdt_event_clear(void)
+static uint8_t take_error(uint8_t *count, uint8_t type, mdt_event_t *ev)
 {
-    /* Other fields don't need clearing — they are always set before pending. */
-    pending_event.pending = 0;
+    if (!*count)
+        return 0;
+
+    ev->seq     = 0;
+    ev->type    = type;
+    ev->address = 0;
+    ev->length  = 0;
+    ev->data    = *count;   /* how many since the last report */
+    *count      = 0;
+    return 1;
 }
 
-uint8_t mdt_event_pending(void)
+static uint8_t take_breakpoint(mdt_event_t *ev)
 {
-    return pending_event.pending;
+    uint8_t id, hits;
+
+    if (!mdt_breakpoint_take_hit(&id, &hits))
+        return 0;
+
+    ev->seq     = id;
+    ev->type    = INTERNAL_MDT_EVENT_BREAKPOINT_HIT;
+    ev->address = 0;
+    ev->length  = 0;
+    ev->data    = hits;     /* total hits */
+    return 1;
+}
+
+static uint8_t take_watchpoint(mdt_event_t *ev)
+{
+    uint8_t  slot;
+    uint32_t old_value, new_value;
+
+    if (!mdt_watchpoint_take_change(&slot, &old_value, &new_value))
+        return 0;
+
+    ev->seq     = slot;
+    ev->type    = INTERNAL_MDT_EVENT_WATCHPOINT_HIT;
+    ev->address = old_value;
+    ev->length  = 4;        /* uint32 */
+    ev->data    = new_value;
+    return 1;
+}
+
+uint8_t mdt_event_next(mdt_event_t *ev)
+{
+    return take_breakpoint(ev)
+        || take_watchpoint(ev)
+        || take_error(&overflow_count, INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ev)
+        || take_error(&failed_count,   INTERNAL_MDT_EVENT_FAILED_PACKET,   ev);
+}
+
+/* Serialize the event payload fields into a packet buffer. */
+static void encode(const mdt_event_t *e, uint8_t *buf)
+{
+    buf[MDT_OFFSET_SEQ]    = e->seq;
+    buf[MDT_OFFSET_MEM_ID] = e->type;
+
+    for (uint8_t i = 0; i < 4; i++)
+    {
+        buf[MDT_OFFSET_ADDRESS + i] = (uint8_t)(e->address >> (8u * i));
+        buf[MDT_OFFSET_DATA    + i] = (uint8_t)(e->data    >> (8u * i));
+    }
+
+    buf[MDT_OFFSET_LENGTH]     = (uint8_t)(e->length);
+    buf[MDT_OFFSET_LENGTH + 1] = (uint8_t)(e->length >> 8);
 }
 
 void mdt_event_send(void)
 {
-    if (!mdt_event_pending())
+    /* Never emit a partial packet: only transmit into an empty TX buffer. */
+    if (!hal_uart_tx_empty())
         return;
 
-    uint8_t  pkt[MDT_PACKET_SIZE];
-    uint16_t crc;
+    mdt_event_t e;
+    if (!mdt_event_next(&e))
+        return;
 
+    uint8_t pkt[MDT_PACKET_SIZE];
     pkt[MDT_OFFSET_START]  = MDT_START_BYTE;
     pkt[MDT_OFFSET_CMD_ID] = 0;
     pkt[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_EVENT;
-    pkt[MDT_OFFSET_SEQ]    = pending_event.seq;
-    pkt[MDT_OFFSET_MEM_ID] = pending_event.mem_id;
-
-    pkt[MDT_OFFSET_ADDRESS]     = (uint8_t)(pending_event.address        & 0xFF);
-    pkt[MDT_OFFSET_ADDRESS + 1] = (uint8_t)((pending_event.address >> 8)  & 0xFF);
-    pkt[MDT_OFFSET_ADDRESS + 2] = (uint8_t)((pending_event.address >> 16) & 0xFF);
-    pkt[MDT_OFFSET_ADDRESS + 3] = (uint8_t)((pending_event.address >> 24) & 0xFF);
-
-    pkt[MDT_OFFSET_LENGTH]     = (uint8_t)(pending_event.length       & 0xFF);
-    pkt[MDT_OFFSET_LENGTH + 1] = (uint8_t)((pending_event.length >> 8) & 0xFF);
-
-    pkt[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data        & 0xFF);
-    pkt[MDT_OFFSET_DATA + 1] = (uint8_t)((pending_event.data >> 8)  & 0xFF);
-    pkt[MDT_OFFSET_DATA + 2] = (uint8_t)((pending_event.data >> 16) & 0xFF);
-    pkt[MDT_OFFSET_DATA + 3] = (uint8_t)((pending_event.data >> 24) & 0xFF);
-
+    encode(&e, pkt);
     pkt[MDT_OFFSET_END] = MDT_END_BYTE;
 
-    crc = mdt_crc16(&pkt[MDT_OFFSET_CMD_ID], MDT_CRC_COVER_LEN);
+    uint16_t crc = mdt_crc16(&pkt[MDT_OFFSET_CMD_ID], MDT_CRC_COVER_LEN);
     pkt[MDT_OFFSET_CRC]     = (uint8_t)(crc);
     pkt[MDT_OFFSET_CRC + 1] = (uint8_t)(crc >> 8);
 
     hal_uart_tx_buf(pkt, MDT_PACKET_SIZE);
-
-    mdt_event_clear();
 }
 
 /* CMD_ID=0 poll response — only needed in interrupt mode.
- * Checks watchpoints first, then fills buf[] in-place with the event payload.
- * mdt_handle_packet() stamps FLAG_ACK_NACK and recalculates the CRC after
- * this returns, so we must not do either here. */
+ * mdt_handle_packet() stamps FLAG_ACK_NACK and recomputes the CRC after this
+ * returns, so neither is done here. */
 #if MDT_FEATURE_UART_IDLE
 uint8_t mdt_event_fill_buf(uint8_t *buf)
 {
-    if (!mdt_event_pending())
-        return 1; /* no event — plain ACK, buffer untouched */
+    mdt_event_t e;
 
-    buf[MDT_OFFSET_FLAGS]  = INTERNAL_MDT_FLAG_EVENT;
-    buf[MDT_OFFSET_SEQ]    = pending_event.seq;
-    buf[MDT_OFFSET_MEM_ID] = pending_event.mem_id;
-
-    buf[MDT_OFFSET_ADDRESS]     = (uint8_t)(pending_event.address        & 0xFF);
-    buf[MDT_OFFSET_ADDRESS + 1] = (uint8_t)((pending_event.address >> 8)  & 0xFF);
-    buf[MDT_OFFSET_ADDRESS + 2] = (uint8_t)((pending_event.address >> 16) & 0xFF);
-    buf[MDT_OFFSET_ADDRESS + 3] = (uint8_t)((pending_event.address >> 24) & 0xFF);
-
-    buf[MDT_OFFSET_LENGTH]     = (uint8_t)(pending_event.length       & 0xFF);
-    buf[MDT_OFFSET_LENGTH + 1] = (uint8_t)((pending_event.length >> 8) & 0xFF);
-
-    buf[MDT_OFFSET_DATA]     = (uint8_t)(pending_event.data        & 0xFF);
-    buf[MDT_OFFSET_DATA + 1] = (uint8_t)((pending_event.data >> 8)  & 0xFF);
-    buf[MDT_OFFSET_DATA + 2] = (uint8_t)((pending_event.data >> 16) & 0xFF);
-    buf[MDT_OFFSET_DATA + 3] = (uint8_t)((pending_event.data >> 24) & 0xFF);
-
-    mdt_event_clear();
-    return 1;
+    if (mdt_event_next(&e))
+    {
+        buf[MDT_OFFSET_FLAGS] = INTERNAL_MDT_FLAG_EVENT;
+        encode(&e, buf);
+    }
+    return 1; /* nothing pending: plain ACK, buffer untouched */
 }
 #endif

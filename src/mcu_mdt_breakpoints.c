@@ -1,5 +1,4 @@
 #include "mcu_mdt_breakpoints.h"
-#include "mcu_mdt_event.h"
 #include "mcu_mdt.h"
 
 static mdt_breakpoint_state_t bp_state = {0};
@@ -12,20 +11,13 @@ void mdt_breakpoint_trigger(uint8_t id)
     if (!bp_state.slots[id].enabled)
         return;
 
-    mdt_event_set(
-        id,                                 /* seq = breakpoint ID */
-        INTERNAL_MDT_EVENT_BREAKPOINT_HIT,  /* mem_id = event type */
-        0,                                  /* address */
-        0,                                  /* length */
-        bp_state.slots[id].hit_count        /* data = hit count */
-    );
-
+    /* Record the hit. The event reporter notices hit_count != hit_reported
+     * and tells the host; nothing is queued, so a hit can never be dropped. */
     bp_state.slots[id].hit_count++;
 
 #if MDT_FEATURE_UART_IDLE
-    /* STM32 interrupt mode — PendSV handles all RX automatically.
-     * Spin here: flush the pending event, sample watchpoints, and
-     * wait for the PC to send NEXT or DISABLE. */
+    /* STM32 interrupt mode — PendSV handles all RX and reports events
+     * (the PC polls). Spin here and wait for the PC to send NEXT or DISABLE. */
     while (bp_state.slots[id].enabled)
     {
         if (bp_state.slots[id].next)
@@ -36,7 +28,7 @@ void mdt_breakpoint_trigger(uint8_t id)
     }
 #else
     /* Poll mode (AVR) — must service RX manually in the spin loop.
-     * mcu_mdt_poll() flushes the pending event and drains the RX buffer. */
+     * mcu_mdt_poll() reports pending events and drains the RX buffer. */
     while (bp_state.slots[id].enabled)
     {
         mcu_mdt_poll();
@@ -70,8 +62,9 @@ static inline __attribute__((always_inline)) void mdt_breakpoint_disable(uint8_t
 static inline __attribute__((always_inline)) void mdt_breakpoint_reset(uint8_t id)
 {
     bp_state.slots[id].enabled   = INTERNAL_MDT_BP_DISABLE;
-    bp_state.slots[id].hit_count = 0;
-    bp_state.slots[id].next      = 0;
+    bp_state.slots[id].hit_count    = 0;
+    bp_state.slots[id].hit_reported = 0;
+    bp_state.slots[id].next         = 0;
 }
 
 static inline __attribute__((always_inline)) void mdt_breakpoint_next(uint8_t id)
@@ -98,4 +91,21 @@ uint8_t mdt_breakpoint_dispatch(uint8_t control, uint32_t id)
     bkp_handlers[control]((uint8_t)id);
 
     return 1;
+}
+
+uint8_t mdt_breakpoint_take_hit(uint8_t *id, uint8_t *hits)
+{
+    for (uint8_t i = 0; i < MDT_MAX_BREAKPOINTS; i++)
+    {
+        uint8_t count = bp_state.slots[i].hit_count;   /* read the shared counter once */
+
+        if (count != bp_state.slots[i].hit_reported)
+        {
+            *id   = i;
+            *hits = count;
+            bp_state.slots[i].hit_reported = count;
+            return 1;
+        }
+    }
+    return 0;
 }

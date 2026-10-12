@@ -58,16 +58,15 @@ a few milliseconds.
 
 RXNE and TXE interrupts still run (the ring buffers are always
 ISR-driven), but the IDLE interrupt is not used. The `main()` loop has
-to call `mcu_mdt_poll()` regularly. Each call flushes any pending event,
-drains the RX ring buffer, and checks watchpoints:
+to call `mcu_mdt_poll()` regularly. Each call reports one pending event
+(sampling the watchpoints) and drains the RX ring buffer:
 
 ```
 main loop
   └── mcu_mdt_poll()
-        1. flush pending event if TX idle
+        1. report one pending event if TX idle (samples watchpoints)
         2. fence + overflow guard
         3. drain RX ring buffer -> packet dispatch
-        4. mcu_mdt_watchpoint_check()
 ```
 
 In poll mode the PC tool does not send CMD_ID=0 poll packets.

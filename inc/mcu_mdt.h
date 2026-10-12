@@ -16,15 +16,6 @@ void mcu_mdt_init(void);
 void mcu_mdt_poll(void);
 
 /**
- * @brief Sample all active watchpoints and fire an event if any have changed.
- * 
- * Call this from your main loop if using polling mode.
- * In UART_IDLE mode, this is checked using a periodic packet sent by the host, so you don't need to call this manually.
- * @return None
- */
-void mcu_mdt_watchpoint_check(void);
-
-/**
  * @brief Forward declaration for the breakpoint macro
  */
 void mdt_breakpoint_trigger(uint8_t id);

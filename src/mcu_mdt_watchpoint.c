@@ -1,5 +1,4 @@
 #include "mcu_mdt_watchpoint.h"
-#include "mcu_mdt_event.h"
 
 static mdt_watchpoint_state_t watchpoints_descriptor = {0};
 
@@ -21,36 +20,26 @@ static inline uint32_t mdt_read_u32(uint32_t address)
          | ((uint32_t)p[3] << 24);
 }
 
-void mcu_mdt_watchpoint_check(void)
+uint8_t mdt_watchpoint_take_change(uint8_t *slot, uint32_t *old_value, uint32_t *new_value)
 {
-    if (!watchpoints_descriptor.active_mask)
-        return;
-
-    uint8_t mask = watchpoints_descriptor.active_mask;
-    uint8_t slot = 0;
-
-    while (mask)
+    for (uint8_t i = 0; i < MDT_MAX_WATCHPOINTS; i++)
     {
-        if (mask & 1)
-        {
-            uint32_t current = mdt_read_u32(watchpoints_descriptor.slots[slot].address);
-            if ((current & watchpoints_descriptor.slots[slot].mask) !=
-                (watchpoints_descriptor.slots[slot].snapshot & watchpoints_descriptor.slots[slot].mask))
-            {
-                mdt_event_set(
-                    (uint8_t)slot,                                  /* seq = watchpoint ID */
-                    INTERNAL_MDT_EVENT_WATCHPOINT_HIT,              /* mem_id = event type */
-                    watchpoints_descriptor.slots[slot].snapshot,    /* address = old value */
-                    4,                                              /* length = uint32 */
-                    current                                         /* data = new value */
-                );
-                watchpoints_descriptor.slots[slot].snapshot = current;
-            }
-        }
+        if (!(watchpoints_descriptor.active_mask & (1u << i)))
+            continue;
 
-        mask >>= 1;
-        slot++;
+        mdt_watchpoint_t *wp = &watchpoints_descriptor.slots[i];
+        uint32_t current = mdt_read_u32(wp->address);
+
+        if ((current & wp->mask) != (wp->snapshot & wp->mask))
+        {
+            *slot      = i;
+            *old_value = wp->snapshot;
+            *new_value = current;
+            wp->snapshot = current;
+            return 1;
+        }
     }
+    return 0;
 }
 
 static inline void mdt_watchpoint_enable(uint8_t id, uint32_t address)

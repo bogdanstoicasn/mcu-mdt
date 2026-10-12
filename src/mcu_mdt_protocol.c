@@ -69,7 +69,6 @@ uint8_t mdt_packet_validate(const uint8_t *buf, uint16_t len)
 static uint8_t handle_reserved(uint8_t *buf)
 {
 #if MDT_FEATURE_UART_IDLE
-    mcu_mdt_watchpoint_check();
     return mdt_event_fill_buf(buf);
 #else
     (void)buf;

@@ -11,13 +11,9 @@
  * is on). The PC polls periodically and each poll reply carries back any
  * pending event, so watchpoint hits reach the PC on their own.
  *
- * The one thing the IDLE path does not do is run the watchpoint check (the
- * comparison that detects a change and queues the event). With no poll() in
- * the loop, a periodic interrupt must drive it, so the TIM3 ISR calls
- * mcu_mdt_watchpoint_check() once a second.
- *
- * The TIM3 interrupt is set to the lowest priority, same as PendSV, so the
- * check cannot preempt event delivery mid packet.
+ * Watchpoints need nothing from the main loop or a timer: they are sampled
+ * each time the PC polls, and the poll reply carries the change back. The
+ * TIM3 interrupt below only increments the counter this demo watches.
  *
  * Clock: reset-default HSI = 8 MHz (no PLL in startup), matching F_CPU.
  * TIM3 is NVIC IRQ 29 here (IRQ 16 on the F0).
@@ -96,8 +92,8 @@ static void tim3_init(void)
     TIM3->egr = TIM_EGR_UG;                 /* latch PSC/ARR immediately  */
     TIM3->sr  = 0;                          /* clear the UG-induced flag  */
 
-    /* Lowest priority so the watchpoint check can't preempt PendSV's event
-     * delivery. NVIC_IPR is byte-addressable on Cortex-M3. */
+    /* Lowest priority, same as PendSV, so this demo timer never delays MDT's
+     * UART and PendSV handling. NVIC_IPR is byte-addressable on Cortex-M3. */
     *((volatile uint8_t *)(NVIC_IPR_BASE + TIM3_IRQ_NUM)) = IRQ_PRI_LOWEST;
 
     TIM3->dier |= TIM_DIER_UIE;             /* enable update interrupt    */

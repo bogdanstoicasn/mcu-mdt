@@ -94,15 +94,11 @@ The following MCU's should work with the AVR HAL out of the box.
 
 ## Watchpoints on AVR
 
-`mcu_mdt_poll()` calls `mcu_mdt_watchpoint_check()` once per pass, so on
-AVR the sampling rate equals main-loop frequency. If you need higher
-sampling rate, call `mcu_mdt_watchpoint_check()` from a timer ISR:
-
-```c
-ISR(TIMER0_COMPA_vect) {
-    mcu_mdt_watchpoint_check();
-}
-```
+`mcu_mdt_poll()` samples the watchpoints once per pass (as it reports
+events), so on AVR the sampling rate equals the main-loop frequency. To
+sample faster, call `mcu_mdt_poll()` more often. Several changes between two
+samples collapse into one event: old = value at the last report, new = the
+latest value.
 
 
 ## Application notes

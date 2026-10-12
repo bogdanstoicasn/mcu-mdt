@@ -5,6 +5,14 @@
 #include "mcu_mdt_config.h"
 
 /**
+ * Events are derived from state, not queued. Each source (breakpoints,
+ * watchpoints, error counters) remembers what it has not reported yet; the
+ * event module just asks the sources, one at a time, "anything to report?".
+ * Nothing can be dropped. Several changes between two polls collapse into
+ * one event carrying the latest state.
+ */
+
+/**
  * @brief Enum representing the types of events that can be reported to the host.
  */
 typedef enum {
@@ -16,39 +24,42 @@ typedef enum {
     /* TODO: Add more event types */
 } mdt_event_type_t;
 
-/**
- * @brief Store a pending event. No-op if one is already pending.
- * @param seq Sequence number.
- * @param mem_id Memory ID.
- * @param address Address.
- * @param length Length.
- * @param data Data.
- */
-void mdt_event_set(
-    uint8_t  seq,
-    uint8_t  mem_id,
-    uint32_t address,
-    uint16_t length,
-    uint32_t data);
+/** @brief One event, as reported to the host. */
+typedef struct {
+    uint32_t address;
+    uint32_t data;
+    uint16_t length;
+    uint8_t  seq;    /* event source id (breakpoint / watchpoint slot, 0 for system events) */
+    uint8_t  type;   /* mdt_event_type_t */
+} mdt_event_t;
 
 /**
- * @brief Returns 1 if an event is waiting to be sent.
- * @return 1 if an event is pending, 0 otherwise.
+ * @brief Count a system error (BUFFER_OVERFLOW or FAILED_PACKET).
+ * @note Call only from the packet-processing context (the one that also
+ *       sends the replies), so no locking is needed.
  */
-uint8_t mdt_event_pending(void);
+void mdt_event_error(uint8_t type);
 
 /**
- * @brief Serialize and transmit the pending event packet, then clear it.
- * @note Guards against empty — safe to call unconditionally.
+ * @brief Fetch the next thing to report and mark it reported.
+ *        Priority: breakpoints, watchpoints, buffer overflow, failed packet.
+ * @param ev Filled in when 1 is returned.
+ * @return 1 if an event was produced, 0 if nothing is pending.
+ */
+uint8_t mdt_event_next(mdt_event_t *ev);
+
+/**
+ * @brief Poll mode: send ONE pending event as an unsolicited packet.
+ * @note Does nothing unless the TX buffer is empty, so a packet is never
+ *       truncated. Safe to call unconditionally.
  */
 void mdt_event_send(void);
 
 /**
- * @brief CMD_ID=0 poll handler: checks watchpoints, then fills buf[] with the
- * pending event payload and clears it. If no event is pending the buffer
- * is left untouched. Returns 1 in both cases so the ACK is always sent.
- * @param buf Buffer to fill with the event payload.
- * @return 1 in both cases so the ACK is always sent.
+ * @brief CMD_ID=0 poll handler: fills buf[] in place with one pending event
+ *        and sets FLAG_EVENT. If nothing is pending the buffer is untouched.
+ * @param buf Packet buffer to fill in place.
+ * @return Always 1 so the ACK is sent.
  * @note Only compiled when MDT_FEATURE_UART_IDLE is enabled (interrupt mode).
  */
 #if MDT_FEATURE_UART_IDLE

@@ -228,8 +228,9 @@ monitored bits change value.
   compared on each sample. Slot must be active (ENABLED) for MASK to take effect.
 
 **Notes:**
-- `mcu_mdt_watchpoint_check()` must be called periodically. On AVR `mcu_mdt_poll()` calls it
-  automatically. On STM32 interrupt mode you can call it from a SysTick or timer ISR.
+- Watchpoints are sampled whenever events are polled: every `mcu_mdt_poll()` pass in poll mode,
+  every PC poll in interrupt mode. Several changes between two samples collapse into one event
+  (old = value at the last report, new = latest value).
 - The MCU reads 4 bytes byte-by-byte at the watched address, making it safe at any alignment.
   Unaligned addresses produce a PC-side warning but are not rejected.
 - Maximum slots: `MDT_MAX_WATCHPOINTS` in `mcu_mdt_config.h` (default 4, max 8).
