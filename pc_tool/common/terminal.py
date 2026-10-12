@@ -14,10 +14,10 @@ and emit chain) so the audit log stays complete without the per-call
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 import time
-import logging
 
 # Optional: lets ``event()`` recover the user's half-typed line so an
 # async event print can restore it.  Mirrors the fallback in parser.py.
@@ -158,7 +158,7 @@ class _TerminalPrinter:
         ``sys.stdout.write`` call to minimise syscalls.
         """
         # Imported lazily to keep this module dependency-light
-        from pc_tool.common.enums import MDTFlags, CommandId
+        from pc_tool.common.enums import CommandId, MDTFlags
 
         # Decode the command id
         try:

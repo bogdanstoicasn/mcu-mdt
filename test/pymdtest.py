@@ -1,8 +1,8 @@
 import importlib
 import logging
 import os
-import traceback
 import sys
+import traceback
 
 GREEN  = "\033[92m"
 RED    = "\033[91m"

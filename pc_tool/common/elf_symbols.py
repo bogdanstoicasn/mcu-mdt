@@ -1,6 +1,7 @@
 from dataclasses import dataclass
-from pc_tool.common.logger import MDTLogger
+
 from pc_tool.common.enums import MCUPlatforms, STM32Type
+from pc_tool.common.logger import MDTLogger
 
 try:
     from elftools.elf.elffile import ELFFile

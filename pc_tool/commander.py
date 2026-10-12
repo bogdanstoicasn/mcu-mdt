@@ -1,12 +1,15 @@
-import os
 import shutil
 
 from pc_tool.common.dataclasses import Command
-from pc_tool.common.protocol import serialize_command_packet, validate_command_packet, is_nack_packet
-from pc_tool.common.uart_io import MCUSerialLink
-from pc_tool.common.enums import UtilEnum, MDTOffset
+from pc_tool.common.enums import MDTOffset, UtilEnum
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.protocol import (
+    is_nack_packet,
+    serialize_command_packet,
+    validate_command_packet,
+)
 from pc_tool.common.terminal import Terminal
+from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.parser import parse_packet
 
 
@@ -189,14 +192,3 @@ def exit_command(serial_link: MCUSerialLink, threads: list) -> None:
     for t in threads:
         t.join(timeout=2.0)
     Terminal.success("Debugger closed.")
-
-
-# Module-level shims — preserve existing call sites in main.py and tests
-def ping_command(command: Command, yaml_build_data=None, serial_link: MCUSerialLink = None) -> None:
-    """Send a ping command to the MCU."""
-    Commander(serial_link).ping(command)
-
-
-def execute_command(command: Command, serial_link: MCUSerialLink = None) -> None:
-    """Execute a command on the MCU."""
-    Commander(serial_link).execute(command)

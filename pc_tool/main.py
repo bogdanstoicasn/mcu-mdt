@@ -1,10 +1,17 @@
-from pc_tool.loader import ConfigLoader
-from pc_tool.parser import parse_line, parse_args, CLIHistory
-from pc_tool.commander import Commander, help_command, intro_text, clear_command, serial_link_command, exit_command
-from pc_tool.validator import validate_commands
-from pc_tool.event import start_async_handlers, drain_stale_events
+from pc_tool.commander import (
+    Commander,
+    clear_command,
+    exit_command,
+    help_command,
+    intro_text,
+    serial_link_command,
+)
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.terminal import Terminal
+from pc_tool.event import EventHandler
+from pc_tool.loader import ConfigLoader
+from pc_tool.parser import CLIHistory, parse_args, parse_line
+from pc_tool.validator import validate_commands
 
 
 def build_dispatch(loader, serial_link, commander, threads):
@@ -37,10 +44,12 @@ def setup(build_info_path: str):
 
     uart_idle = bool(loader.yaml_build_data.get('uart_idle', False))
 
-    # Drain any stale events that may have accumulated before the event handlers are started.
-    drain_stale_events(serial_link, uart_idle=uart_idle)
+    events = EventHandler(serial_link, uart_idle=uart_idle)
 
-    threads = start_async_handlers(serial_link, uart_idle=uart_idle)
+    # Drain any stale events that may have accumulated before the event handlers are started.
+    events.drain_stale_events()
+
+    threads = events.start()
 
     commander = Commander(serial_link)
 
@@ -62,7 +71,7 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
     MDTLogger.suppress_console()
 
     try:
-        with open(script_path, 'r') as f:
+        with open(script_path) as f:
             lines = f.readlines()
     except OSError as e:
         MDTLogger.error(f"Cannot open script file: {e}", code=1)

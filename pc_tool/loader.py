@@ -1,16 +1,17 @@
 from __future__ import annotations
+
 import os
 import re
 import xml.etree.ElementTree as ET
 from abc import ABC, abstractmethod
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Iterator
 
 import yaml
 
-from pc_tool.common.enums import MCUPlatforms, STM32Type
 from pc_tool.common.elf_symbols import load_elf_symbols
+from pc_tool.common.enums import MCUPlatforms, STM32Type
 from pc_tool.common.logger import MDTLogger
 
 # Resolved at import time
@@ -377,7 +378,7 @@ class _SVDLoader(_PlatformLoader):
         return {}
 
     @staticmethod
-    def _parse_peripherals(find: "_SVDXmlHelper", meta: MCUMetadata) -> None:
+    def _parse_peripherals(find: _SVDXmlHelper, meta: MCUMetadata) -> None:
         # Index all peripheral elements for derivedFrom resolution
         periph_elems: dict[str, ET.Element] = {
             name: elem
@@ -442,7 +443,7 @@ class _SVDLoader(_PlatformLoader):
                 }
 
     @staticmethod
-    def _parse_registers(base_elem: ET.Element, find: "_SVDXmlHelper") -> dict:
+    def _parse_registers(base_elem: ET.Element, find: _SVDXmlHelper) -> dict:
         """Parse a peripheral's registers into a flat ``name -> metadata`` dict.
 
         CMSIS-SVD ``<dim>`` arrays and ``<cluster>`` blocks are expanded so
@@ -494,7 +495,7 @@ class _SVDLoader(_PlatformLoader):
         return registers
 
     @staticmethod
-    def _parse_bitfields(reg_elem: ET.Element, find: "_SVDXmlHelper") -> dict:
+    def _parse_bitfields(reg_elem: ET.Element, find: _SVDXmlHelper) -> dict:
         """Parse <field> elements from a <register> and return a dict of bitfield metadata."""
         bitfields: dict = {}
         for bf in find.children(reg_elem, "fields/field"):
@@ -569,7 +570,7 @@ _PLATFORM_LOADERS: dict[str, _PlatformLoader] = {
 def load_configs(file_path: str) -> dict:
     """Load and return the contents of a YAML file as a dict."""
     try:
-        with open(file_path, "r") as fh:
+        with open(file_path) as fh:
             return yaml.safe_load(fh) or {}
     except FileNotFoundError:
         MDTLogger.error(f"Config file not found: {file_path}")
@@ -696,7 +697,7 @@ class ConfigLoader:
             defines: dict[str, int] = {}
 
             try:
-                with open(path_to_header, "r") as f:
+                with open(path_to_header) as f:
                     for line in f:
                         match = re.match(
                             r"^\s*#define\s+(\w+)\s+([^\s/]+)",
@@ -756,7 +757,7 @@ def _dim_indices(text: str | None, dim: int) -> list[str]:
     return labels
 
 
-def _expand_dim(elem: ET.Element, find: "_SVDXmlHelper") -> list[tuple[str | None, int]]:
+def _expand_dim(elem: ET.Element, find: _SVDXmlHelper) -> list[tuple[str | None, int]]:
     """Return ``(index_label, byte_offset)`` for every element of a <dim> array.
 
     An element without <dim> yields a single ``(None, 0)`` entry.

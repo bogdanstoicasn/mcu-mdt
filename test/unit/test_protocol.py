@@ -24,21 +24,24 @@ Goal:
 Ensure protocol layer guarantees correct packet construction, reliable CRC validation and handling of modified/corrupted packets.
 """
 
-import struct
-from test.common.asserts import assert_eq
-from test.pymdtest import parametrize
-from pc_tool.common.dataclasses import Command, CommandPacket
+from pc_tool.common.dataclasses import Command
 from pc_tool.common.enums import (
-    MDT_PACKET_SIZE, MDTOffset, MDTFlags, CommandId, MemType,
-    BreakpointControl, WatchpointControl, UtilEnum,
+    MDT_PACKET_SIZE,
+    CommandId,
+    MDTFlags,
+    MDTOffset,
+    MemType,
+    UtilEnum,
 )
 from pc_tool.common.protocol import (
-    serialize_command_packet,
-    deserialize_command_packet,
-    validate_command_packet,
-    is_nack_packet,
     calculate_crc16,
+    deserialize_command_packet,
+    is_nack_packet,
+    serialize_command_packet,
+    validate_command_packet,
 )
+from test.common.asserts import assert_eq
+from test.pymdtest import parametrize
 
 
 # Helpers

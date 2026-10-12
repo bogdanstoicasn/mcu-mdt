@@ -1,7 +1,11 @@
 from pc_tool.common.dataclasses import Command
 from pc_tool.common.enums import (
-    CommandId, MemType, BreakpointControl, WatchpointControl,
-    MDT_MAX_BREAKPOINTS, MDT_MAX_WATCHPOINTS,
+    MDT_MAX_BREAKPOINTS,
+    MDT_MAX_WATCHPOINTS,
+    BreakpointControl,
+    CommandId,
+    MemType,
+    WatchpointControl,
 )
 from pc_tool.common.logger import MDTLogger
 

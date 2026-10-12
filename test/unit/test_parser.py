@@ -26,12 +26,11 @@ Goal:
 Ensure that the command parser correctly translates user input into structured command objects with proper types and values.
 """
 
-from test.common.asserts import assert_eq
-from pc_tool.common.enums import CommandId, MemType, BreakpointControl, WatchpointControl
+from pc_tool.common.enums import BreakpointControl, CommandId, MemType, WatchpointControl
 from pc_tool.parser import parse_line, resolve_register_address
+from test.common.asserts import assert_eq
+from test.common.mdtfixtures import COMMANDS, CONTROL_VALUES, MCU_METADATA_AVR, _reg_meta
 from test.pymdtest import parametrize
-from test.common.mdtfixtures import CONTROL_VALUES, COMMANDS, MCU_METADATA_AVR
-from test.common.mdtfixtures import _reg_meta
 
 MCU_METADATA = {"modules": {}, "memories": {}}
 

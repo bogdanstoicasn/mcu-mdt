@@ -1,7 +1,6 @@
 # Fixtures
 from pc_tool.common.enums import MDT_PACKET_SIZE
 
-
 COMMANDS = {
     "PING":       {"id": 0x05, "params": []},
     "RESET":      {"id": 0x06, "params": []},

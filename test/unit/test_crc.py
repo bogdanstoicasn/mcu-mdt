@@ -15,10 +15,12 @@ Goal:
 Ensure that the CRC16 implementation in the protocol matches the reference impleemntation.
 """
 
-import random
 import binascii
-from test.common.asserts import assert_eq
+import random
+
 from pc_tool.common.protocol import calculate_crc16
+from test.common.asserts import assert_eq
+
 
 def reference_crc16(data: bytes) -> int:
     # CRC-CCITT (0x1021) with initial value 0xFFFF

@@ -1,11 +1,11 @@
 import os
-import time
 import threading
+import time
 
-from pc_tool.common.enums import MDTFlags, MDTOffset, EventType
-from pc_tool.common.protocol import serialize_command_packet
 from pc_tool.common.dataclasses import Command
+from pc_tool.common.enums import EventType, MDTFlags, MDTOffset
 from pc_tool.common.logger import MDTLogger
+from pc_tool.common.protocol import serialize_command_packet
 from pc_tool.common.terminal import Terminal
 
 EVENT_POLL_INTERVAL = 0.5  # seconds
@@ -218,21 +218,3 @@ class EventHandler:
             Terminal.info("Poll mode — MCU drains events via mcu_mdt_poll(), no event poll thread needed.")
 
         return threads
-
-
-def start_async_handlers(serial_link, uart_idle: bool = False) -> list[threading.Thread]:
-    """Module-level shim to start event handlers, preserving existing call sites."""
-    return EventHandler(serial_link, uart_idle=uart_idle).start()
-
-
-def drain_stale_events(serial_link, uart_idle: bool = False,
-                       max_polls: int = 8, per_poll_timeout: float = 0.2) -> int:
-    """Module-level shim to drain stale events at startup."""
-    return EventHandler(serial_link, uart_idle=uart_idle).drain_stale_events(
-        max_polls=max_polls, per_poll_timeout=per_poll_timeout
-    )
-
-
-def rx_worker(serial_link) -> None:
-    """Module-level shim so test_hardware.py can pass this as a thread target."""
-    EventHandler(serial_link).rx_worker()

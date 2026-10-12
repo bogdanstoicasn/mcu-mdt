@@ -43,34 +43,35 @@ Assumptions:
 """
 
 import os
-import struct
-import time
 import threading
-import xml.etree.ElementTree as ET
+import time
+from dataclasses import dataclass
+
 import yaml
-from dataclasses import dataclass, field
-from typing import Iterator
 
-from test.common.asserts import assert_eq
-from test.pymdtest import parametrize
-
-from pc_tool.loader import load_mcu_metadata
+from pc_tool.commander import Commander
 from pc_tool.common.dataclasses import Command
 from pc_tool.common.enums import (
-    MDT_PACKET_SIZE, MDTOffset, MDTFlags,
-    CommandId, MemType, BreakpointControl, WatchpointControl,
-    UtilEnum, EventType,
+    MDT_PACKET_SIZE,
+    BreakpointControl,
+    CommandId,
+    MDTFlags,
+    MDTOffset,
+    MemType,
+    UtilEnum,
+    WatchpointControl,
 )
 from pc_tool.common.protocol import (
     calculate_crc16,
-    serialize_command_packet,
     deserialize_command_packet,
-    validate_command_packet,
     is_nack_packet,
+    serialize_command_packet,
 )
 from pc_tool.common.uart_io import MCUSerialLink
-from pc_tool.commander import execute_command
-from pc_tool.event import rx_worker
+from pc_tool.event import EventHandler
+from pc_tool.loader import load_mcu_metadata
+from test.common.asserts import assert_eq
+from test.pymdtest import parametrize
 
 
 @dataclass(frozen=True)
@@ -135,7 +136,7 @@ class HWConfig:
                 raise FileNotFoundError(
                     f"Build info not found for MCU='{mcu}' at {path}"
                 )
-            with open(path, "r") as f:
+            with open(path) as f:
                 data = yaml.safe_load(f) or {}
 
         platform = (
@@ -929,7 +930,7 @@ def test_hw_rx_worker_routes_event_to_event_queue():
     link = _link()
     try:
         # Start the background worker
-        t = threading.Thread(target=rx_worker, args=(link,), daemon=True)
+        t = threading.Thread(target=EventHandler(link).rx_worker, daemon=True)
         t.start()
 
         # Send a bad packet to provoke NACK + FAILED_PACKET event
@@ -954,13 +955,13 @@ def test_hw_rx_worker_routes_event_to_event_queue():
 
 # Chunked transfers
 def _start_rx_worker(link: MCUSerialLink) -> threading.Thread:
-    t = threading.Thread(target=rx_worker, args=(link,), daemon=True)
+    t = threading.Thread(target=EventHandler(link).rx_worker, daemon=True)
     t.start()
     return t
 
 def test_hw_chunked_16_byte_write_all_acked():
     """
-    execute_command() splits a 16-byte write into 4 × 4-byte packets.
+    Commander.execute() splits a 16-byte write into 4 × 4-byte packets.
     Every chunk must receive an ACK from the real MCU.
     """
     if not HW.available: return _skip()
@@ -971,7 +972,7 @@ def test_hw_chunked_16_byte_write_all_acked():
         cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                    address=HW.scratch(16),
                    length=16, data=payload)
-        execute_command(cmd, serial_link=link)
+        Commander(link).execute(cmd)
     finally:
         link.running = False
         link.close()
@@ -979,7 +980,7 @@ def test_hw_chunked_16_byte_write_all_acked():
 
 def test_hw_chunked_write_then_read_back():
     """
-    Write 8 bytes in two chunks via execute_command(), then read each
+    Write 8 bytes in two chunks via Commander.execute(), then read each
     4-byte word individually and verify the payload was stored correctly.
     """
     if not HW.available: return _skip()
@@ -991,7 +992,7 @@ def test_hw_chunked_write_then_read_back():
 
         write_cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                          address=base, length=8, data=payload)
-        execute_command(write_cmd, serial_link=link)
+        Commander(link).execute(write_cmd)
         time.sleep(0.1)
 
         # Read first word

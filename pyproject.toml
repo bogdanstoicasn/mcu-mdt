@@ -29,7 +29,7 @@ include = ["pc_tool*"]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "W", "C90", "N", "B", "I", "Q000", "S"]
+select = ["E", "F", "W", "I", "B", "UP", "SIM"]
 ignore = ["E501"]
 exclude = ["build/", "dist/", ".venv/"]
 

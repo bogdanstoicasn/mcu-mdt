@@ -78,7 +78,7 @@ CLI
  │    ├── CRC16 calculation and verification
  └── UART Transport
       ├── rx_worker thread (routes responses / events)
-      └── execute_command (chunked send + response collection)
+      └── Commander.execute (chunked send + response collection)
 ```
 
 ### Validation Model

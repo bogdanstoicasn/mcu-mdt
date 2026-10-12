@@ -1,5 +1,5 @@
 from pc_tool.common.dataclasses import Command, CommandPacket
-from pc_tool.common.enums import MDT_PACKET_SIZE, MDTOffset, MDTFlags, UtilEnum
+from pc_tool.common.enums import MDT_PACKET_SIZE, MDTFlags, MDTOffset, UtilEnum
 from pc_tool.common.logger import MDTLogger
 
 _LE = "little"  # all multi-byte fields are little-endian

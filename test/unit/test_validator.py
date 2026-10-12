@@ -22,25 +22,31 @@ Ensure that the command validation logic correctly identifies valid and invalid 
 potentially harmful operations and ensuring correct usage of the protocol.
 """
 
-from test.common.asserts import assert_eq
-from test.pymdtest import parametrize
 from pc_tool.common.dataclasses import Command
-from test.common.mdtfixtures import MCU_METADATA_FLASH
-from test.common.mdtfixtures import _meta_ram, _meta_flash, _meta_eeprom, _reg_meta
 from pc_tool.common.enums import (
-    CommandId, MemType,
-    BreakpointControl, WatchpointControl,
-    MDT_MAX_BREAKPOINTS, MDT_MAX_WATCHPOINTS,
+    BreakpointControl,
+    CommandId,
+    MemType,
+    WatchpointControl,
 )
 from pc_tool.validator import (
-    validate_read_mem,
-    validate_write_mem,
-    validate_read_reg,
-    validate_write_reg,
     validate_breakpoint,
-    validate_watchpoint,
     validate_commands,
+    validate_read_mem,
+    validate_read_reg,
+    validate_watchpoint,
+    validate_write_mem,
+    validate_write_reg,
 )
+from test.common.asserts import assert_eq
+from test.common.mdtfixtures import (
+    MCU_METADATA_FLASH,
+    _meta_eeprom,
+    _meta_flash,
+    _meta_ram,
+    _reg_meta,
+)
+from test.pymdtest import parametrize
 
 
 def _cmd(id, address=0, mem=None, length=4, data=None):

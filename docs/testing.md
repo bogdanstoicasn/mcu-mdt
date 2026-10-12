@@ -6,7 +6,7 @@ The test suite is split into three layers: unit, integration, and hardware.
 Unit and integration tests run anywhere with no hardware attached. Hardware
 tests need a real MCU flashed with the MDT firmware and a serial port.
 
-**248 tests total.** 195 of them always run; the 53 hardware tests skip
+**274 tests total.** 221 of them always run; the 53 hardware tests skip
 cleanly when `MCU` is not set.
 
 
@@ -47,7 +47,7 @@ test runs. See `docs/architecture.md` for the full presentation-layer
 design.
 
 
-## Unit tests (`test/unit/`), 151 cases
+## Unit tests (`test/unit/`), 177 cases
 
 No serial port, no MCU, no external dependencies.
 
@@ -105,6 +105,34 @@ reads 4 bytes byte-by-byte and is safe at any address. The test
 this behaviour explicitly. (The test was previously named
 `..._rejected`, which was wrong: the validator does not reject, it only
 warns. The name was fixed during the polish pass before freezing.)
+
+### `test_loader_dim.py` (11 cases)
+
+SVD `<dim>` array and `<cluster>` expansion in the loader, using a tiny inline
+SVD: `X[%s]` and `X%s` naming, `dimIncrement`, `dimIndex` lists and ranges,
+clusters with and without `<dim>`, a dim register inside a dim cluster, and
+the `NAME[idx]` spelling in `resolve_register_address`.
+
+### `test_event.py` (5 cases)
+
+How the PC shows events from the state-based MCU event system (breakpoint hit
+count, overflow and failed-packet counts) and the startup drain: the default
+`drain_stale_events()` must cover the largest burst the MCU can have pending
+(4 breakpoints + 4 watchpoints + 2 error counters = 10), and `max_polls` is
+respected.
+
+### `test_wire_contract.py` (10 cases)
+
+The C firmware and the Python tool each hold a copy of the protocol
+constants. These cases parse the C headers (`mcu_mdt_protocol.h`,
+`mcu_mdt_event.h`, `mcu_mdt_breakpoints.h`, `mcu_mdt_watchpoint.h`,
+`mcu_mdt_config.h`) and compare them with the Python enums and
+`commands.yaml`: packet size, field offsets, fence bytes, flag bits, command
+ids, event types, memory zones, and breakpoint/watchpoint control values. A
+value added or changed on one side and not the other fails here. Known
+spelling differences (`EVENT` vs `EVENT_PACKET`, `SRAM` vs `RAM`,
+`ENABLE` vs `ENABLED`) are listed as aliases at the top of the file; the PC-only
+commands (`EXIT`, `HELP`, `CLEAR`) must not reuse an MCU command id.
 
 
 ## Integration tests (`test/integration/`), 44 cases
@@ -180,7 +208,7 @@ They are loaded once at module import time into `HW = HWConfig.from_env()`.
   test starts the background thread, sends a bad packet, and confirms the
   NACK lands in `response_queue` while the event (if emitted) lands in
   `event_queue`.
-* **Chunked transfers.** `execute_command()` splits a 16-byte write into
+* **Chunked transfers.** `Commander.execute()` splits a 16-byte write into
   four 4-byte packets, all ACKed. An 8-byte chunked write followed by a
   single-word readback verifies the payload landed in SRAM correctly.
 * **Stress.** 20 consecutive PINGs all ACKed (catches state-machine

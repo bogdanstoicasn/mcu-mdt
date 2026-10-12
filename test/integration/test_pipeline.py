@@ -23,26 +23,37 @@ Validate that the complete PC-side pipeline correctly processes user commands, p
 responses, making sure all components work together as intended.
 """
 
-from test.common.asserts import assert_eq
-from test.pymdtest import parametrize
-
 from pc_tool.common.dataclasses import Command, CommandPacket
 from pc_tool.common.enums import (
-    MDT_PACKET_SIZE, MDTOffset, MDTFlags,
-    CommandId, MemType, BreakpointControl, WatchpointControl,
-    UtilEnum, EventType,
+    MDT_PACKET_SIZE,
+    BreakpointControl,
+    CommandId,
+    EventType,
+    MDTFlags,
+    MDTOffset,
+    MemType,
+    UtilEnum,
+    WatchpointControl,
 )
 from pc_tool.common.protocol import (
     calculate_crc16,
-    serialize_command_packet,
     deserialize_command_packet,
-    validate_command_packet,
     is_nack_packet,
+    serialize_command_packet,
+    validate_command_packet,
 )
 from pc_tool.parser import parse_line
 from pc_tool.validator import validate_commands
-from test.common.mdtfixtures import COMMANDS, CONTROL_VALUES, MCU_METADATA_FLASH, MockUART
-from test.common.mdtfixtures import _meta_ram, _reg_meta
+from test.common.asserts import assert_eq
+from test.common.mdtfixtures import (
+    COMMANDS,
+    CONTROL_VALUES,
+    MCU_METADATA_FLASH,
+    MockUART,
+    _meta_ram,
+    _reg_meta,
+)
+from test.pymdtest import parametrize
 
 
 def _make_ack_packet(for_cmd_id: int) -> bytes:

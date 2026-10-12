@@ -1,6 +1,7 @@
 import os
 import queue
 import time
+
 import serial
 
 from pc_tool.common.enums import MDT_PACKET_SIZE, FenceType

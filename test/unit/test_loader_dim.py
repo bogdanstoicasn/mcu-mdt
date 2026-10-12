@@ -16,9 +16,9 @@ Coverage:
 
 import xml.etree.ElementTree as ET
 
-from test.common.asserts import assert_eq
 from pc_tool.loader import MCUMetadata, _SVDLoader, _SVDXmlHelper
 from pc_tool.parser import resolve_register_address
+from test.common.asserts import assert_eq
 
 _SVD = """
 <device>

@@ -1,15 +1,15 @@
-import os
-import re
-import atexit
 import argparse
+import atexit
+import re
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+
+from pc_tool.common.dataclasses import Command
+from pc_tool.common.elf_symbols import check_watchpoint_alignment, resolve_symbol
 from pc_tool.common.logger import MDTLogger
-from pc_tool.common.terminal import Terminal
-from pc_tool.common.dataclasses import Command, CommandPacket
 from pc_tool.common.protocol import deserialize_command_packet
-from pc_tool.common.elf_symbols import resolve_symbol, check_watchpoint_alignment
+from pc_tool.common.terminal import Terminal
 
 try:
     import readline
