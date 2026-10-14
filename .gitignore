@@ -12,3 +12,4 @@ build/
 .mdt_history
 logs/
 .venv/
+.ruff_cache/

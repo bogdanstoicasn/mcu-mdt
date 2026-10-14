@@ -20,6 +20,18 @@
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
 
+/* Baud rate: avr-libc computes UBRR (rounded) and decides whether U2X is needed. */
+#define BAUD MDT_UART_BAUDRATE
+
+#include <util/setbaud.h>
+
+/* Older megaAVR (ATmega64/128, ...) name the reset-flag register MCUCSR. */
+#if defined(MCUCSR)
+#  define MDT_RESET_FLAGS MCUCSR
+#else
+#  define MDT_RESET_FLAGS MCUSR
+#endif
+
 /*  Ring buffers */
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
@@ -65,10 +77,13 @@ ISR(USART_UDRE_vect_name)
 
 void hal_uart_init(void)
 {
-    uint16_t ubrr = (F_CPU / (16UL * MDT_UART_BAUDRATE)) - 1;
-
-    UBRR0H = (uint8_t)(ubrr >> 8);
-    UBRR0L = (uint8_t)ubrr;
+    UBRR0H = UBRRH_VALUE;
+    UBRR0L = UBRRL_VALUE;
+#if USE_2X
+    UCSR0A |= (1 << U2X0);
+#else
+    UCSR0A &= (uint8_t)~(1 << U2X0);
+#endif
 
     UCSR0B = (1 << RXEN0) | (1 << TXEN0) | (1 << RXCIE0);
     UCSR0C = (1 << UCSZ01) | (1 << UCSZ00);
@@ -122,7 +137,7 @@ uint8_t hal_uart_rx_overflow(void)
 void mdt_wdt_init(void) __attribute__((naked, used, section(".init3")));
 void mdt_wdt_init(void)
 {
-    MCUSR = 0;
+    MDT_RESET_FLAGS = 0;
     wdt_disable();
 }
 
@@ -161,7 +176,12 @@ uint8_t hal_read_memory(uint8_t mem_zone, uint32_t address,
 
         case MDT_MEM_ZONE_FLASH:
             for (uint16_t i = 0; i < length; i++)
+#if defined(__AVR_HAVE_ELPM__)
+                /* >64 KB flash: LPM alone only reaches the first 64 KB (addr is 16-bit here) */
+                buffer[i] = pgm_read_byte_far(address + i);
+#else
                 buffer[i] = pgm_read_byte((const void *)(addr + i));
+#endif
             return 1;
 
         case MDT_MEM_ZONE_EEPROM:
