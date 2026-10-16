@@ -176,6 +176,23 @@ bank-2 code is compiled out on non-XL targets with
 `#ifdef FLASH_XL_DENSITY`.
 
 
+## Startup file and vector table
+
+`build/<MCU>/` contains a copy of the startup file for your family
+(`startup_stm32f103xx.c` or `startup_stm32f030xx.c`), `linker.ld`, `memory.ld`
+and `mcu.h`. The startup file in your project is yours to edit.
+
+On F103 the interrupt vector table has a different size per density
+(59 vectors on low/medium density, 76 on high and XL density). The startup
+file does not guess it: it reads `MDT_VECTORS_LD`, `MDT_VECTORS_MD`,
+`MDT_VECTORS_HD` or `MDT_VECTORS_XL` from the `mcu.h` next to it (set per
+variant in `hal/stm32/cortex-m3/variant/<variant>/mcu.h`) and stops with a
+compile error if none is defined. A table that is too short makes every
+interrupt above IRQ42 jump into garbage on F103xC..xG, so keep `mcu.h` next to
+the startup file and do not remove those lines.
+
+Do not remove `naked` from the reset handler (see `troubleshooting.md`).
+
 ## Flash write and erase
 
 STM32 flash must be erased before writing. The Cortex-M0 and Cortex-M3

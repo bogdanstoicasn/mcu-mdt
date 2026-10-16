@@ -114,7 +114,7 @@ $(BUILD_DIR)/hal_%.o: $(HAL_DIR)/%.c
 # Compile startup
 $(STARTUP_OBJ): $(STARTUP_FILE)
 	@echo "  CC  startup"
-	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -c $< -o $@
+	@$(CC) $(CPU_FLAGS) -ffreestanding -nostdlib -I$(LINKER_MEMORY_DIR) -c $< -o $@
 
 # Static library
 $(LIB_PATH): $(ALL_OBJS)
@@ -133,6 +133,7 @@ copy_files: $(BUILD_DIR)
 	@cp $(LINKER_MEMORY_DIR)/memory.ld  $(BUILD_DIR)/memory.ld
 	@cp $(LINKER_MEMORY_DIR)/mcu.h  	$(BUILD_DIR)/mcu.h
 	@cp $(STARTUP_FILE)             	$(BUILD_DIR)/
+	@cp $(LINKER_SCRIPT)            	$(BUILD_DIR)/linker.ld
 
 # Compile example
 $(EXAMPLE_OBJ): $(BUILD_DIR)/main.c

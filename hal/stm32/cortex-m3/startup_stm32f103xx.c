@@ -1,17 +1,21 @@
 #include <stdint.h>
+#include "mcu.h"   /* per-variant facts: it sits next to this file, in the repo and in a user's project */
 
-
-#if defined(MCU_F103x4) || defined(MCU_F103x6)
+/* The vector table size depends on the device density. The variant's mcu.h says
+ * which one. Nothing is guessed: a wrong table silently breaks every interrupt
+ * above IRQ42 on high-density parts. */
+#if defined(MDT_VECTORS_LD)
   #define DENSITY_LD
-#elif defined(MCU_F103xC) || defined(MCU_F103xD) || defined(MCU_F103xE)
+#elif defined(MDT_VECTORS_MD)
+  #define DENSITY_MD        /* F103x8 / F103xB, e.g. Blue Pill */
+#elif defined(MDT_VECTORS_HD)
   #define DENSITY_HD
-#elif defined(MCU_F103xF) || defined(MCU_F103xG)
+#elif defined(MDT_VECTORS_XL)
   #define DENSITY_XL
-#elif defined(MCU_F105xx) || defined(MCU_F107xx)
+#elif defined(MDT_VECTORS_CL)
   #define DENSITY_CL        /* Connectivity line (F105/F107) */
 #else
-  /* Medium-density is the default (covers F103x8 / F103xB, e.g. Blue Pill) */
-  #define DENSITY_MD
+  #error "mcu.h must define one of MDT_VECTORS_LD / _MD / _HD / _XL / _CL"
 #endif
 
 
