@@ -1,0 +1,12 @@
+version: 1
+
+type: tree_trunk
+
+platform: avr
+
+mdt_defaults:
+  f_cpu: 16000000
+  uart_idle: false
+
+features:
+  uart_idle: false

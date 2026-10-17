@@ -1,0 +1,16 @@
+version: 1
+
+type: tree_root
+
+platform: [avr, stm32]
+
+mdt_defaults:
+  port: /dev/ttyACM0
+  baudrate: 19200
+  buffer_size: 64
+  breakpoints: 4
+  watchpoints: 4
+  elf: mcu_mdt_example.elf
+
+files: /mcu-mdt/src
+
