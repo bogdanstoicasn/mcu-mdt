@@ -1,3 +1,4 @@
+# TRUNK: everything shared by all AVR parts.
 version: 1
 
 type: tree_trunk
@@ -10,3 +11,26 @@ mdt_defaults:
 
 features:
   uart_idle: false
+
+toolchain:
+  prefix: avr-                  # avr-gcc, avr-ar, avr-objcopy, avr-size
+
+build:
+  lib: mcu_mdt_avr              # libmcu_mdt_avr.a
+  hal_dir: hal/avr
+  example_dir: examples/avr
+  part_flag: "-mmcu="           # the node name, lowercased, is appended: -mmcu=atmega328p
+  flags:
+    compile: [-Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections]
+    link: ["-Wl,--gc-sections", "-Wl,--print-gc-sections"]   # quoted: a bare comma would split the item
+  hex: [-O, ihex, -R, .eeprom]  # objcopy arguments that turn the ELF into the .hex
+
+flash:
+  tool: avrdude
+  programmer: arduino
+  programmer_baud: 115200       # the bootloader's speed, not the MDT baud rate
+
+dist:                           # what is copied next to the library for users
+  headers: [mcu_mdt.h, mcu_mdt_config.h, ring_buffer.h]
+  example: {main: main.c, makefile: Makefile}   # the Makefile is shipped as Makefile.example
+  empty: [mcu.h]                # empty placeholder so the PC tool finds an mcu.h

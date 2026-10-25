@@ -1,0 +1,15 @@
+# BRANCH: AT90 (the AT90CAN parts that have USART0)
+# A node is one supported part, named as Microchip spells it (matching is case-insensitive).
+# Nodes carry no data on purpose: flash, RAM and EEPROM sizes stay in the ATDF files
+# (pc_tool/mcu_db/avr), so there is one source for them. Only parts listed here can be built.
+version: 1
+
+type: tree_branch
+
+platform: avr
+branch: at90
+
+nodes:
+  AT90CAN128: {}
+  AT90CAN32:  {}
+  AT90CAN64:  {}

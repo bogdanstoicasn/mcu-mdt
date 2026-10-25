@@ -23,6 +23,8 @@ LIB_PATH := $(BUILD_DIR)/$(LIB_NAME)
 ELF_NAME := mcu_mdt_example.elf
 BIN_NAME := mcu_mdt_example.bin
 HEX_NAME := mcu_mdt_example.hex
+MAP_NAME := mcu_mdt_example.map
+EXAMPLE_MAP := $(BUILD_DIR)/$(MAP_NAME)
 
 # Linker script & startup (live alongside this Makefile)
 normalize_mcu = $(shell echo $(1) | sed 's/^\(....\)./\1x/')
@@ -75,6 +77,7 @@ LDFLAGS  += -T$(LINKER_SCRIPT)
 LDFLAGS  += -Wl,--gc-sections
 LDFLAGS  += -nostdlib
 LDFLAGS  += -Wl,--print-memory-usage
+LDFLAGS  +=  -Wl,-Map=$(EXAMPLE_MAP)
 
 # Example objects
 EXAMPLE_OBJ := $(BUILD_DIR)/main.o
