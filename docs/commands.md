@@ -237,6 +237,10 @@ monitored bits change value.
   (old = value at the last report, new = latest value).
 - The MCU reads 4 bytes byte-by-byte at the watched address, making it safe at any alignment.
   Unaligned addresses produce a PC-side warning but are not rejected.
+- The 4 watched bytes must lie in RAM, or the address must be a register of the part (from its
+  ATDF/SVD). Anything else is rejected: the MCU reads the address on every sample, and an
+  unmapped address faults an STM32. A register that changes when read (a USART data register,
+  some status flags) is changed by every sample too: watch those only if that is intended.
 - Maximum slots: `MDT_MAX_WATCHPOINTS`, set with `make ... WATCHPOINTS=` (default 4, max 8).
 
 

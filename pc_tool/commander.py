@@ -1,7 +1,8 @@
 import shutil
+import time
 
 from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import MDTOffset, UtilEnum
+from pc_tool.common.enums import MDTFlags, MDTOffset, UtilEnum
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.protocol import (
     is_nack_packet,
@@ -11,6 +12,17 @@ from pc_tool.common.protocol import (
 from pc_tool.common.terminal import Terminal
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.parser import parse_packet
+
+_REPLY_TIMEOUT = 1.0  # seconds per attempt
+
+
+def _is_reply_to(reply: bytes, request: bytes) -> bool:
+    """An ACK echoes the request's command id, sequence and address. A NACK carries none of
+    them, but it can only be ours: nothing else is sent while a command holds the link."""
+    if is_nack_packet(reply):
+        return True
+    echoed = (MDTOffset.CMD_ID, MDTOffset.SEQ, *range(MDTOffset.ADDRESS, MDTOffset.ADDRESS + 4))
+    return bool(reply[MDTOffset.FLAGS] & MDTFlags.ACK_NACK) and all(reply[i] == request[i] for i in echoed)
 
 
 class Commander:
@@ -26,32 +38,48 @@ class Commander:
     def __init__(self, serial_link: MCUSerialLink) -> None:
         self._link = serial_link
 
+    def _await_reply(self, request: bytes) -> bytes | None:
+        """Wait for the reply to *request*; replies to anything else are dropped."""
+        deadline = time.monotonic() + _REPLY_TIMEOUT
+        while (left := deadline - time.monotonic()) > 0:
+            reply = self._link.get_response_packet(timeout=left)
+            if reply is None:
+                return None
+            if _is_reply_to(reply, request):
+                return reply
+            MDTLogger.info(f"Dropped a reply to another request: {reply.hex()}")
+        return None
+
     def _send_with_retry(self, packet: bytes, seq: int) -> bytes | None:
         """Send a packet and retry up to MDT_MAX_RETRIES times.
 
+        The link is held for the whole exchange, so the event poller cannot slip a packet in
+        between; replies left over from an earlier timed-out command are dropped first.
         Returns the ACK packet on success, or None if all attempts fail.
         """
-        for attempt in range(1, UtilEnum.MDT_MAX_RETRIES + 1):
-            self._link.send_packet(packet)
-            ack = self._link.get_response_packet()
+        with self._link.lock:
+            for attempt in range(1, UtilEnum.MDT_MAX_RETRIES + 1):
+                self._link.drop_responses()
+                self._link.send_packet(packet)
+                ack = self._await_reply(packet)
 
-            if ack is None:
-                MDTLogger.warning(
-                    f"No response from MCU for seq={seq} "
-                    f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES})."
-                )
-                continue
+                if ack is None:
+                    MDTLogger.warning(
+                        f"No response from MCU for seq={seq} "
+                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES})."
+                    )
+                    continue
 
-            if is_nack_packet(ack):
-                MDTLogger.warning(
-                    f"NACK received for seq={ack[MDTOffset.SEQ]} "
-                    f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}), retrying..."
-                )
-                continue
+                if is_nack_packet(ack):
+                    MDTLogger.warning(
+                        f"NACK received for seq={ack[MDTOffset.SEQ]} "
+                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}), retrying..."
+                    )
+                    continue
 
-            return ack
+                return ack
 
-        return None
+            return None
 
     @staticmethod
     def _log_ack(ack: bytes) -> None:
@@ -73,8 +101,8 @@ class Commander:
 
         self._log_ack(ack)
 
-    def execute(self, command: Command) -> None:
-        """Send a command, splitting into word-sized chunks if needed."""
+    def execute(self, command: Command) -> bool:
+        """Send a command, splitting into word-sized chunks if needed. True when every chunk was ACKed."""
         is_write = command.data is not None
         length   = command.length if command.length is not None else UtilEnum.WORD_SIZE
         seq      = 0
@@ -114,10 +142,11 @@ class Commander:
                     f"(seq={seq}). Aborting.",
                     code=4,
                 )
-                return
+                return False
 
             self._log_ack(ack)
             seq = (seq + 1) % 0xFF
+        return True
 
 
 # UI helpers + CLI commands — stateless, no class needed

@@ -50,6 +50,7 @@ from test.pymdtest import parametrize
 
 # The slot counts the firmware was built with; ConfigLoader puts build_info's values here.
 _LIMITS = {"limits": {"breakpoints": 4, "watchpoints": 4}}
+_RAM_AND_REGS = {**_reg_meta(), "memories": _meta_ram()["memories"], **_LIMITS}   # RAM 0x20000000-0x20004FFF
 
 
 def _cmd(id, address=0, mem=None, length=4, data=None):
@@ -273,7 +274,7 @@ def test_watchpoint_enabled_aligned_address():
     """Test that enabling a watchpoint with a valid 4-byte aligned address is accepted."""
     watched = (0x20000100).to_bytes(4, "little")
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
-    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), True)
 
 def test_watchpoint_enabled_unaligned_address_accepted_with_warning():
     """Test that enabling a watchpoint with an unaligned address is accepted
@@ -281,7 +282,20 @@ def test_watchpoint_enabled_unaligned_address_accepted_with_warning():
     that adjacent bytes will be included in the 4-byte read)."""
     watched = (0x20000101).to_bytes(4, "little")  # not 4-byte aligned
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
-    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), True)
+
+@parametrize("watched,expected", [
+    (0x20004FFC, True),    # last word of RAM
+    (0x20004FFE, False),   # 4-byte read runs past the end of RAM
+    (0x60000000, False),   # unmapped: the MCU would fault on its first poll
+    (0x00000000, False),
+    (0x40013808, True),    # a known register (USART1 BRR)
+])
+def test_watchpoint_enabled_address_must_be_ram_or_register(watched, expected):
+    """The MCU reads the watched 4 bytes on every poll, so they must be mapped."""
+    cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED,
+               data=watched.to_bytes(4, "little"))
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), expected)
 
 def test_watchpoint_enabled_missing_data_rejected():
     """Test that enabling a watchpoint without providing the required data is rejected."""

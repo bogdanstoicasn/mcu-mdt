@@ -23,10 +23,10 @@ def build_dispatch(loader, serial_link, commander, threads):
         "PING":  lambda cmd: commander.ping(cmd),
     }
 
-def setup(build_info_path: str):
+def setup(build_info_path: str, elf_path: str | None = None):
     """Perform initial setup: load configs, initialize logger, open serial link, start event handlers."""
     try:
-        loader = ConfigLoader(build_info_path)
+        loader = ConfigLoader(build_info_path, elf_path=elf_path)
     except (ValueError, FileNotFoundError) as e:
         MDTLogger.error(f"Cannot load the build: {e}", code=1)
         exit(1)
@@ -167,7 +167,7 @@ def run_loop(loader, serial_link, commander, threads):
 def main(args=None):
     if args is None:              # console-script entry (mcu-mdt): parse argv here
         args = parse_args()
-    loader, serial_link, commander, threads = setup(args.build_info)
+    loader, serial_link, commander, threads = setup(args.build_info, args.elf)
 
     if args.script:
         run_script(args.script, loader, serial_link, commander, threads)

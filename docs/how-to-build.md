@@ -237,6 +237,13 @@ linking the example application (no `mcu_mdt_example.*`). The workflow is:
 
 The MDT source tree never needs to be touched by your application build.
 
+Point the PC tool at the firmware you flashed, so it finds your symbols and protects your
+code from flash writes (`build_info.yaml` names the example's ELF):
+
+```bash
+python3 mcu_mdt.py build/<mcu>/build_info.yaml --elf build/<mcu>/mcu_mdt_user.elf
+```
+
 ### Minimal `main.c` for poll mode (AVR, or STM32 with `UART_IDLE=0`)
 
 ```c

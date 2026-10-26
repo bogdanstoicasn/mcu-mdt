@@ -63,6 +63,7 @@ make MCU=F030F4 flash                        # st-flash
 
 ```bash
 python3 mcu_mdt.py build/<mcu>/build_info.yaml   # <mcu> in lower case, e.g. build/f030f4/
+python3 mcu_mdt.py build/<mcu>/build_info.yaml --elf <your firmware>.elf   # your own project
 ```
 
 5. **Start debugging**

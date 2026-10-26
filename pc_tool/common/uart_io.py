@@ -1,5 +1,6 @@
 import os
 import queue
+import threading
 import time
 
 import serial
@@ -30,6 +31,9 @@ class MCUSerialLink:
         self.event_queue    = queue.Queue()
         self._rx_buf       = bytearray()
         self.ser           = None
+        # Every write takes it, so packets from the poll, RX and main threads never interleave.
+        # A command holds it for its whole exchange (Commander), so no poll is sent meanwhile.
+        self.lock          = threading.RLock()
 
     # Lifecycle
     def open(self) -> None:
@@ -118,10 +122,21 @@ class MCUSerialLink:
 
     # I/O
     def send_packet(self, packet: bytes) -> None:
-        if self.ser is None or not self.ser.is_open:
-            raise RuntimeError("Serial port is not open.")
-        self.ser.write(packet)
-        self.ser.flush()
+        with self.lock:
+            if self.ser is None or not self.ser.is_open:
+                raise RuntimeError("Serial port is not open.")
+            self.ser.write(packet)
+            self.ser.flush()
+
+    def try_send_packet(self, packet: bytes) -> bool:
+        """Send unless another thread holds the link (a command in flight); never blocks."""
+        if not self.lock.acquire(blocking=False):
+            return False
+        try:
+            self.send_packet(packet)
+            return True
+        finally:
+            self.lock.release()
 
     def read_packet(self, timeout: float = 1.0) -> bytes | None:
         """Read one full MDT packet from UART, resyncing on the start byte if needed."""
@@ -161,6 +176,14 @@ class MCUSerialLink:
             return self.event_queue.get(timeout=timeout)
         except queue.Empty:
             return None
+
+    def drop_responses(self) -> None:
+        """Forget replies nobody waited for (a command that timed out, a stray NACK)."""
+        while True:
+            try:
+                self.response_queue.get_nowait()
+            except queue.Empty:
+                return
 
     def push_back_packet(self, pkt: bytes) -> None:
         self.response_queue.put(pkt)

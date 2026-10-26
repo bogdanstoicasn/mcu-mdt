@@ -104,6 +104,34 @@ def test_loader_rejects_an_old_or_incomplete_build_info():
         raise AssertionError("an incomplete build_info.yaml was accepted")
 
 
+def test_loader_takes_the_elf_given_instead_of_the_example():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _build_dir(Path(tmp), _f0_info(), [(0x08000000, 0x08000000, 0x100, 0x100)])
+        user_elf = Path(tmp) / "mcu_mdt_user.elf"
+        user_elf.write_bytes(_elf32([(0x08000000, 0x08000000, 0x2000, 0x2000)]))
+        assert_eq(ConfigLoader(path).mcu_metadata["firmware"]["end"], 0x08000100)
+        assert_eq(ConfigLoader(path, elf_path=str(user_elf)).mcu_metadata["firmware"]["end"], 0x08002000)
+
+
+def test_loader_without_the_example_elf_has_no_symbols_and_no_firmware_range():
+    with tempfile.TemporaryDirectory() as tmp:     # e.g. after make lib, which links no example
+        path = _build_dir(Path(tmp), _f0_info(), [])
+        (Path(tmp) / "mcu_mdt_example.elf").unlink()
+        loader = ConfigLoader(path)
+        assert_eq(loader.elf_symbols, {})
+        assert "firmware" not in loader.mcu_metadata
+
+
+def test_loader_rejects_a_missing_elf_given_explicitly():
+    with tempfile.TemporaryDirectory() as tmp:
+        path = _build_dir(Path(tmp), _f0_info(), [])
+        try:
+            ConfigLoader(path, elf_path=str(Path(tmp) / "typo.elf"))
+        except FileNotFoundError:
+            return
+        raise AssertionError("a missing --elf was accepted")
+
+
 def test_loader_without_a_flash_image_records_no_firmware_range():
     with tempfile.TemporaryDirectory() as tmp:
         path = _build_dir(Path(tmp), _f0_info(), [(0x20000000, 0x20000000, 0x10, 0x10)])

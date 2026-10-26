@@ -294,6 +294,14 @@ def validate_watchpoint(operation: Command, mcu_metadata: dict) -> bool:
             MDTLogger.error("WATCHPOINT ENABLED requires a 4-byte watch address in data.", code=3)
             return False
         watched_addr = int.from_bytes(operation.data, "little")
+        # The MCU reads these 4 bytes on every poll: an unmapped address faults an STM32 for good.
+        if (_find_mem_segment(mcu_metadata, MemType.RAM, watched_addr, 4) is None
+                and _find_register(mcu_metadata, watched_addr) is None):
+            MDTLogger.error(
+                f"Watch address 0x{watched_addr:X} is not in RAM (all 4 bytes) "
+                f"or a register of this part.", code=3
+            )
+            return False
         if watched_addr % 4 != 0:
             MDTLogger.warning(
                 f"Watch address 0x{watched_addr:X} is not 4-byte aligned — "

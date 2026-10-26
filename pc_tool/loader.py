@@ -496,6 +496,7 @@ class ConfigLoader:
     Parameters
     ----------
     build_info_path:  Path to the project's build_info.yaml.
+    elf_path:         The firmware actually flashed (default: build_info's ``elf``, next to it).
     commands_path:    Path to commands.yaml (default: the package's own, wherever it is run from).
     platforms_path:   Directory that contains per-platform YAML configs.
     """
@@ -503,6 +504,7 @@ class ConfigLoader:
     def __init__(
         self,
         build_info_path: str = "build/",
+        elf_path:        str | None = None,
         commands_path:   str = str(Path(__file__).parent / "configs" / "commands.yaml"),
         platforms_path:  str = "pc_tool/configs/platforms",
     ) -> None:
@@ -523,9 +525,18 @@ class ConfigLoader:
             "breakpoints": int(info["breakpoints"]),
             "watchpoints": int(info["watchpoints"]),
         }
-        elf_path          = os.path.join(os.path.dirname(os.path.abspath(build_info_path)), info["elf"])
-        self.elf_symbols  = self._load_elf(elf_path)
-        self._inject_firmware_info(elf_path)
+        if elf_path is not None and not os.path.isfile(elf_path):
+            raise FileNotFoundError(f"--elf {elf_path}: no such file")
+        elf_path = elf_path or os.path.join(os.path.dirname(os.path.abspath(build_info_path)), info["elf"])
+        if os.path.isfile(elf_path):
+            self.elf_symbols = self._load_elf(elf_path)
+            self._inject_firmware_info(elf_path)
+        else:
+            MDTLogger.warning(
+                f"Firmware ELF {elf_path} not found: no symbols, and flash writes and erases are not "
+                f"checked against the running image. Give the ELF you flashed with --elf <file>."
+            )
+            self.elf_symbols = {}
 
     def _apply_build_memory(self) -> None:
         """Use the build's memory map (from build_system/) when it has one; it replaces the

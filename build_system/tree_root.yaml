@@ -16,4 +16,3 @@ files:                     # relative to the repository root (the folder that co
   src: src
   inc: inc
   build: build
-

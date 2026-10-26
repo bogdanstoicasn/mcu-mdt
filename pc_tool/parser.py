@@ -87,6 +87,13 @@ def parse_args():
         help="Path to build_info.yaml file",
     )
     parser.add_argument(
+        "--elf",
+        type=str,
+        default=None,
+        help="The firmware you flashed (default: the elf named in build_info.yaml, e.g. your "
+             "project's mcu_mdt_user.elf instead of the example)",
+    )
+    parser.add_argument(
         "--script",
         type=str,
         required=False,
