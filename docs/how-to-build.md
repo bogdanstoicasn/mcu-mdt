@@ -40,19 +40,28 @@ make PLATFORM=stm32 MCU=F030F4     PORT=/dev/ttyUSB0 flash
 
 ## Build variables
 
-The build is driven entirely by command-line variables. The root `Makefile`
-dispatches into `hal/<platform>/Makefile`, which (for STM32) dispatches
-again into `hal/stm32/<core>/Makefile`. Only the variables in the table
-below are user-facing. Everything else (`FLASH_PAGE_SIZE`,
-`FLASH_XL_DENSITY`, `CPU_FLAGS`) is derived from `MCU` automatically.
+AVR: the root `Makefile` runs `build_system/generate.py`, which reads the
+part's YAML descriptors (`build_system/`) plus the variables below and writes
+`build/<MCU>/build.mk` (toolchain, flags, paths) and `build/<MCU>/mdt_target.h`
+(`F_CPU`, baud rate, buffer size, breakpoints, watchpoints). The header is
+force-included into every C file. Defaults live in the YAML; the variables
+below override them for one build. Only parts listed in
+`build_system/avr/tree_branch_*.yaml` can be built.
+
+STM32 (until it moves to `build_system/`): the root `Makefile` dispatches into
+`hal/stm32/<core>/Makefile`. `FLASH_PAGE_SIZE`, `FLASH_XL_DENSITY` and
+`CPU_FLAGS` are derived from `MCU` automatically.
 
 | Variable | Required? | Default | Where used | Purpose |
 |---|---|---|---|---|
-| `PLATFORM` | yes | none | root Makefile | `avr` or `stm32`. Picks the HAL directory. |
+| `PLATFORM` | STM32 only | none | root Makefile | `stm32` selects the STM32 Makefiles. For AVR it is optional (`avr`). |
 | `MCU` | yes | none | all | Target part (`atmega328p`, `F030F4`, `F103C8`, ...). On STM32 this also drives the linker script preprocessing and the per-MCU `FLASH_PAGE_SIZE`. |
 | `PORT` | no | `/dev/ttyACM0` | flash target, build_info | Serial port. Only matters for `flash` and gets written into `build_info.yaml` for the PC tool. |
 | `F_CPU` | no | 16 MHz (AVR), 8 MHz (STM32) | UART baud divisor, delay calculations | CPU frequency. Must match the actual clock the firmware runs at, otherwise the UART baud rate is wrong. |
-| `MDT_USE_UART_IDLE` | no | `1` (STM32), forced `0` (AVR) | STM32 only | Selects packet processing mode. Explained below. |
+| `MDT_USE_UART_IDLE` | no | `1` (STM32), `0` (AVR) | STM32 only | Selects packet processing mode. Explained below. |
+| `BAUDRATE` | no | `19200` | AVR | MDT UART baud rate; also written into `build_info.yaml` so the PC tool uses it. |
+| `BUFFER_SIZE` | no | `64` | AVR | Ring buffer size: 32, 64 or 128. |
+| `BREAKPOINTS`, `WATCHPOINTS` | no | `4` | AVR | Maximum breakpoints / watchpoints, 1 to 8. |
 
 
 ## The `MDT_USE_UART_IDLE` flag (STM32 only)
@@ -95,9 +104,8 @@ The protocol on the wire is identical in both modes (same packets, same
 CRC, same commands, same event format). The flag only controls who drives
 the RX dispatch on the MCU side.
 
-AVR is hardcoded to `MDT_USE_UART_IDLE=0` in `hal/avr/Makefile` because
-the USART hardware has no IDLE interrupt. Setting the flag on the AVR
-command line has no effect.
+AVR has no USART IDLE interrupt, so its descriptor declares the feature
+unsupported and `MDT_USE_UART_IDLE=1` on AVR is rejected with an error.
 
 
 ## The `F_CPU` flag
@@ -179,7 +187,7 @@ make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0 flash
 
 Uses `avrdude` with the Arduino bootloader protocol at 115200 baud. If
 your board uses a different programmer (USBasp, dragon, ...) or baud rate,
-edit the `flash` target in `hal/avr/Makefile`.
+edit `flash:` in `build_system/avr/tree_trunk.yaml`.
 
 ### STM32
 

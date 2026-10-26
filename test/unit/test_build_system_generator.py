@@ -43,10 +43,11 @@ def test_every_avr_node_renders_both_files():
     for part in sorted(_avr_nodes()):
         target = resolve(part)
         make = _make_vars(render_build_mk(target))
-        assert_eq(make["MCU"], part)
+        assert_eq(make["TARGET_MCU"], part)
         assert make["CFLAGS"].startswith(f"-mmcu={part} "), make["CFLAGS"]
         assert make["LDFLAGS"].startswith(f"-mmcu={part} "), make["LDFLAGS"]
         assert_eq(make["BUILD_DIR"], f"build/{part}")
+        assert_eq(make["TARGET_BAUDRATE"], "19200")
         assert_eq(_defines(render_target_header(target))["MDT_TARGET_MCU"], f'"{part}"')
 
 

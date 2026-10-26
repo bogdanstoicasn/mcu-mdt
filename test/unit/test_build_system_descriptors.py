@@ -8,7 +8,6 @@ Coverage:
 1. Structure: tree_root / tree_trunk / tree_branch files, required and unknown keys, ranges
 2. Cross-references: platform directories, file and directory paths (relative, existing)
 3. AVR part allowlist: matches docs/avr/info.md and the host's ATDF database
-4. Equivalence with hal/avr/Makefile (transitional: remove with the Makefile)
 """
 
 import re
@@ -156,77 +155,3 @@ def test_every_avr_node_exists_in_the_host_database():
 
 def test_avr_has_exactly_the_supported_parts():
     assert_eq(len(_avr_nodes()), 80)
-
-
-# ---------------------------------------------------------------- 4. equivalence with hal/avr/Makefile (transitional)
-
-_MAKEFILE = (_ROOT / "hal" / "avr" / "Makefile").read_text()
-
-
-def _make_tokens(variable: str) -> list:
-    tokens = []
-    for line in _MAKEFILE.splitlines():
-        m = re.match(rf"{variable}\s*[:+?]?=\s*(.*)", line)
-        if m:
-            tokens += m.group(1).split("#")[0].split()
-    return tokens
-
-
-def _make_value(variable: str) -> str:
-    values = _make_tokens(variable)
-    assert len(values) == 1, f"{variable}: {values}"
-    return values[0]
-
-
-def test_avr_toolchain_and_names_match_the_makefile():
-    avr, root = _trunk("avr"), _root()
-    prefix = avr["toolchain"]["prefix"]
-    for var, tool in (("CC", "gcc"), ("AR", "ar"), ("OBJCOPY", "objcopy"), ("SIZE", "size")):
-        assert_eq(_make_value(var), prefix + tool, variable=var)
-    assert_eq(_make_value("LIB_NAME"), f"lib{avr['build']['lib']}.a")
-    assert f"-l{avr['build']['lib']} " in _MAKEFILE
-    assert_eq(_make_value("ELF_NAME"), root["mdt_defaults"]["elf"])
-    assert_eq(_make_value("HEX_NAME"), Path(root["mdt_defaults"]["elf"]).stem + ".hex")
-    assert_eq(_make_value("EXAMPLES_DIR").removeprefix("../../"), avr["build"]["example_dir"])
-    assert_eq(_make_value("BUILD_DIR").removeprefix("../../").removesuffix("/$(MCU)"), root["files"]["build"])
-    assert_eq("hal/avr", avr["build"]["hal_dir"])        # the Makefile lives there and uses HAL_DIR := .
-
-
-def test_avr_flags_match_the_makefile():
-    avr = _trunk("avr")
-    part = avr["build"]["part_flag"] + "$(MCU)"
-    # flags the Makefile derives from other settings or needs for its own recipe: not data
-    derived = ["-MMD", "-MP", "$(INCLUDES)", "-I$(HAL_DIR)", "-DF_CPU=$(F_CPU)", "-DPLATFORM_AVR",
-               "-DMDT_FEATURE_UART_IDLE=$(MDT_USE_UART_IDLE)"]
-    assert_eq(sorted(_make_tokens("CFLAGS")), sorted([part, *avr["build"]["flags"]["compile"], *derived]))
-    assert_eq(sorted(_make_tokens("LDFLAGS")), sorted([part, *avr["build"]["flags"]["link"]]))
-
-
-def test_avr_defaults_match_the_makefile():
-    avr, root = _trunk("avr"), _root()
-    assert_eq(int(re.sub(r"\D", "", _make_value("F_CPU"))), avr["mdt_defaults"]["f_cpu"])
-    assert_eq(bool(int(_make_value("MDT_USE_UART_IDLE"))), avr["mdt_defaults"]["uart_idle"])
-    port = re.search(r"^PORT\s*\?=\s*(\S+)", (_ROOT / "Makefile").read_text(), re.M).group(1)
-    assert_eq(port, root["mdt_defaults"]["port"])
-
-
-def test_avr_recipes_match_the_makefile():
-    avr = _trunk("avr")
-    objcopy = re.search(r"\$\(OBJCOPY\)\s+(.*?)\s+\$\(EXAMPLE_ELF\)", _MAKEFILE).group(1).split()
-    assert_eq(objcopy, avr["build"]["hex"])
-    flash = re.search(r"\bavrdude\s+(.*)", _MAKEFILE).group(1).split()
-    assert_eq(flash[flash.index("-c") + 1], avr["flash"]["programmer"])
-    assert_eq(int(flash[flash.index("-b") + 1]), avr["flash"]["programmer_baud"])
-    assert_eq(avr["flash"]["tool"], "avrdude")
-    headers = re.findall(r"cp \$\(INC_DIR\)/(\S+)", _MAKEFILE)
-    assert_eq(headers, avr["dist"]["headers"])
-    assert re.search(rf"cp \$\(EXAMPLES_DIR\)/{avr['dist']['example']['main']}\s", _MAKEFILE)
-    assert re.search(rf"cp \$\(EXAMPLES_DIR\)/{avr['dist']['example']['makefile']}\s+\$\(BUILD_DIR\)/Makefile\.example", _MAKEFILE)
-    assert_eq(re.findall(r"touch \$\(BUILD_DIR\)/(\S+)", _MAKEFILE), avr["dist"]["empty"])
-
-
-def test_avr_build_info_keys_match_the_makefile():
-    avr = _trunk("avr")
-    keys = re.findall(r'echo "(\w+): ', _MAKEFILE.split("build_info.yaml:")[1].split("flash:")[0])
-    assert_eq(keys, ["platform", "mcu", "port", "elf"])
-    assert 'echo "platform: AVR"' in _MAKEFILE and avr["platform"].upper() == "AVR"

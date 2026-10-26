@@ -37,35 +37,39 @@ typedef enum {
     #define NULL ((void *)0)
 #endif
 
-/* MDT_FEATURE_UART_IDLE: set by the HAL Makefile.
- * 1 = interrupt-driven (STM32 default), 0 = poll mode.
- * Override with: make MDT_USE_UART_IDLE=0
- * AVR always sets this to 0 — no UART IDLE hardware support. */
+/* Build configuration comes from build/<mcu>/mdt_target.h, generated from build_system/
+ * and force-included by the build (-include), so it is defined before this file.
+ * MDT_FEATURE_UART_IDLE: 1 = interrupt-driven, 0 = poll mode (always 0 on AVR). */
 #ifndef MDT_FEATURE_UART_IDLE
-    #error "MDT_FEATURE_UART_IDLE must be defined by the build system. \
-See hal/stm32/cortex-m0/Makefile or hal/avr/Makefile."
+    #error "MDT_FEATURE_UART_IDLE must be defined by the build system (mdt_target.h)."
 #endif
 
+/* shortcut: fallbacks only for the STM32 Makefiles that do not use mdt_target.h yet,
+ * remove when STM32 moves to build_system/. */
+#ifndef MDT_UART_BAUDRATE
+    #define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE
+#endif
+#ifndef MDT_BUFFER_SIZE
+    #define MDT_BUFFER_SIZE     MDT_DEFAULT_BUFFER_SIZE
+#endif
+#ifndef F_CPU
+    #define F_CPU               MDT_DEFAULT_F_CPU
+#endif
+#ifndef MDT_MAX_BREAKPOINTS
+    #define MDT_MAX_BREAKPOINTS MDT_DEFAULT_MAX_BREAKPOINTS
+#endif
+#ifndef MDT_MAX_WATCHPOINTS
+    #define MDT_MAX_WATCHPOINTS MDT_DEFAULT_MAX_WATCHPOINTS
+#endif
 
-/* User configuration: edit these */
-#define MDT_UART_BAUDRATE   MDT_DEFAULT_UART_BAUDRATE
-
+/* Not build settings (yet) */
 #define MDT_UART_DATA_BITS  MDT_DEFAULT_UART_DATA_BITS
 
 #define MDT_UART_STOP_BITS  MDT_DEFAULT_UART_STOP_BITS
 
 #define MDT_UART_PARITY     MDT_DEFAULT_UART_PARITY
 
-#define MDT_BUFFER_SIZE     MDT_DEFAULT_BUFFER_SIZE
-
 #define MDT_TIMEOUT_MS      MDT_DEFAULT_TIMEOUT_MS
-
-#ifndef F_CPU
-    #define F_CPU           MDT_DEFAULT_F_CPU
-#endif
-#define MDT_MAX_BREAKPOINTS MDT_DEFAULT_MAX_BREAKPOINTS
-
-#define MDT_MAX_WATCHPOINTS MDT_DEFAULT_MAX_WATCHPOINTS
 
 #define MDT_MAX_RETRIES     MDT_DEFAULT_MAX_RETRIES
 
