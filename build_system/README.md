@@ -1,7 +1,7 @@
 # build_system
 
-One declarative description of every target. A generator (added in step 2) will walk it and
-write the files a build needs. Only AVR is described so far.
+One declarative description of every target. `generate.py` walks it and writes the files a
+build needs; Make still does the building. Only AVR is described so far.
 
 ## The tree
 
@@ -52,9 +52,25 @@ Only the parts listed in `avr/tree_branch_*.yaml` are supported (80: the table i
 | `copy_files`, `touch mcu.h` | `dist.headers`, `dist.example`, `dist.empty` |
 | `build_info.yaml` keys | `platform`, `mcu`, `port`, `elf` |
 
+## Generator
+
+    python3 build_system/generate.py <part> [key=value ...]
+    python3 build_system/generate.py atmega328p f_cpu=8000000 baudrate=38400
+
+The **leaf** is the `key=value` list: any key of the merged `mdt_defaults` (root, then trunk).
+Unknown keys, unsupported parts and out-of-range values are errors. It writes, under
+`<files.build>/<part>/`:
+
+| File | Holds |
+|---|---|
+| `build.mk` | Make variables: `CC AR OBJCOPY SIZE`, `CFLAGS LDFLAGS HEX_FLAGS`, source/build dirs, `LIB ELF HEX`, `PORT`, flash and dist data |
+| `mdt_target.h` | `PLATFORM_<P>`, `MDT_TARGET_MCU`, `F_CPU`, `MDT_FEATURE_UART_IDLE`, `MDT_UART_BAUDRATE`, `MDT_BUFFER_SIZE`, `MDT_MAX_BREAKPOINTS`, `MDT_MAX_WATCHPOINTS` |
+
+A file is rewritten only when its content changes, so Make can run the generator on every build.
+
 ## Checks
 
-    python3 -m test.pymdtest unit                           # test_build_system_descriptors.py
+    python3 -m test.pymdtest unit                           # test_build_system_{descriptors,generator}.py
     python3 test/firmware/check_avr_parts.py --all          # builds all 135 parts; needs avr-gcc
 
 `test_build_system_descriptors.py` also compares the descriptors with `hal/avr/Makefile`; that

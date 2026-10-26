@@ -31,6 +31,6 @@ flash:
   programmer_baud: 115200       # the bootloader's speed, not the MDT baud rate
 
 dist:                           # what is copied next to the library for users
-  headers: [mcu_mdt.h, mcu_mdt_config.h, ring_buffer.h]
+  headers: [mcu_mdt.h, mcu_mdt_config.h]
   example: {main: main.c, makefile: Makefile}   # the Makefile is shipped as Makefile.example
   empty: [mcu.h]                # empty placeholder so the PC tool finds an mcu.h
