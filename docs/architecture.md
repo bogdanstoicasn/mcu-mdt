@@ -447,7 +447,7 @@ code under test.
   linker, producing `linker_pp.ld` in the build directory.
 
 - **Ships as a `.a`**: user gets the static library plus two headers (`mcu_mdt.h`,
-  `mcu_mdt_config.h`) and a ready-to-use `Makefile.example`.
+  `mdt_target.h`) and a ready-to-use `Makefile.example`.
 
 
 ## Testing

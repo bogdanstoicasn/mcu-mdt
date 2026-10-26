@@ -11,7 +11,7 @@ The AVR HAL supports a wide range of AVR microcontrollers using
 USART0. Support is determined by the ATDF files in
 `pc_tool/mcu_db/avr/` and the UART vector portability layer in
 `hal_avr.c`. AVR hardware has no UART IDLE interrupt, so AVR builds
-always run in poll mode regardless of the `MDT_USE_UART_IDLE` flag.
+always run in poll mode (`UART_IDLE=1` is rejected).
 
 
 ## Libraries required
@@ -109,7 +109,7 @@ latest value.
    will freeze breakpoint and watchpoint handling for their duration.
    Keep blocking sections short or restructure to cooperative polling.
 3. **Baud rate is set at compile time** via `MDT_UART_BAUDRATE` in
-   `mcu_mdt_config.h` (default 19200). The PC side must match with
+   `build_system/tree_root.yaml` (default 19200, override with `make ... BAUDRATE=`). The PC side must match with
    `MDT_BAUD=19200`.
 4. **No flash write support.** The MCU returns an error for FLASH writes
    and ERASE commands. EEPROM is the only writable persistent memory on

@@ -201,7 +201,7 @@ WRITE_REG 0x40013800 000000FF # raw address
 - `MDT_BREAKPOINT(id)` must be placed in user firmware code.
 - `mcu_mdt_poll()` must be called frequently in the main loop for breakpoints to work in poll mode.
 - Blocking calls like `delay()` temporarily freeze breakpoint handling.
-- Maximum slots: `MDT_MAX_BREAKPOINTS` in `mcu_mdt_config.h` (default 4, max 8).
+- Maximum slots: `MDT_MAX_BREAKPOINTS`, set with `make ... BREAKPOINTS=` (default 4, max 8).
 
 
 ### WATCHPOINT (ID: 0x08)
@@ -233,7 +233,7 @@ monitored bits change value.
   (old = value at the last report, new = latest value).
 - The MCU reads 4 bytes byte-by-byte at the watched address, making it safe at any alignment.
   Unaligned addresses produce a PC-side warning but are not rejected.
-- Maximum slots: `MDT_MAX_WATCHPOINTS` in `mcu_mdt_config.h` (default 4, max 8).
+- Maximum slots: `MDT_MAX_WATCHPOINTS`, set with `make ... WATCHPOINTS=` (default 4, max 8).
 
 
 ## CLI-Only Commands

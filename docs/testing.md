@@ -126,7 +126,7 @@ respected.
 The C firmware and the Python tool each hold a copy of the protocol
 constants. These cases parse the C headers (`mcu_mdt_protocol.h`,
 `mcu_mdt_event.h`, `mcu_mdt_breakpoints.h`, `mcu_mdt_watchpoint.h`,
-`mcu_mdt_config.h`) and compare them with the Python enums and
+`mcu_mdt_hal.h`) and compare them with the Python enums and
 `commands.yaml`: packet size, field offsets, fence bytes, flag bits, command
 ids, event types, memory zones, and breakpoint/watchpoint control values. A
 value added or changed on one side and not the other fails here. Known

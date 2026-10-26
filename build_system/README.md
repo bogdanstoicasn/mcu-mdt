@@ -23,7 +23,8 @@ root (the folder that contains `build_system/`); absolute paths are rejected.
 
 `<platform>/tree_trunk.yaml`: `platform`, `mdt_defaults` (`f_cpu uart_idle`), `features`
 (`uart_idle`: whether the platform can do interrupt mode at all), `toolchain.prefix`,
-`build` (`lib hal_dir example_dir part_flag flags.compile flags.link hex`), `flash`, `dist`.
+`build` (`lib hal_dir example_dir part_flag flags.compile flags.link hex`), `flash` (a command
+template with `{mcu} {port} {hex}`), `dist`.
 
 `<platform>/tree_branch_<name>.yaml`: `platform`, `branch`, `nodes`.
 
@@ -38,21 +39,23 @@ Only the parts listed in `avr/tree_branch_*.yaml` are supported (80: the table i
 ## Generator
 
     python3 build_system/generate.py <part> [key=value ...]
-    python3 build_system/generate.py atmega328p f_cpu=8000000 baudrate=38400
+    python3 build_system/generate.py atmega328p F_CPU=8000000 BAUDRATE=38400
 
 The root `Makefile` runs it on every build (`make MCU=<part> F_CPU=...`) and includes
-`build.mk`. The **leaf** is the `key=value` list: any key of the merged `mdt_defaults` (root, then trunk).
+`build.mk`; the Makefile has no platform knowledge. The **leaf** is the `key=value` list: any key
+of the merged `mdt_defaults` (root, then trunk), case-insensitive.
 Unknown keys, unsupported parts and out-of-range values are errors. It writes, under
 `<files.build>/<part>/`:
 
 | File | Holds |
 |---|---|
-| `build.mk` | Make variables: `CC AR OBJCOPY SIZE`, `CFLAGS LDFLAGS HEX_FLAGS`, source/build dirs, `LIB ELF HEX`, `PORT`, flash and dist data |
-| `mdt_target.h` | `PLATFORM_<P>`, `MDT_TARGET_MCU`, `F_CPU`, `MDT_FEATURE_UART_IDLE`, `MDT_UART_BAUDRATE`, `MDT_BUFFER_SIZE`, `MDT_MAX_BREAKPOINTS`, `MDT_MAX_WATCHPOINTS` |
+| `build.mk` | Make variables: `CC AR OBJCOPY SIZE`, `CFLAGS LDFLAGS HEX_FLAGS`, source/build dirs, `LIB ELF HEX`, `FLASH_CMD`, dist files |
+| `mdt_target.h` | `PLATFORM_<P>`, `MDT_TARGET_MCU`, `F_CPU`, `MDT_FEATURE_UART_IDLE`, `MDT_UART_BAUDRATE`, `MDT_BUFFER_SIZE`, `MDT_MAX_BREAKPOINTS`, `MDT_MAX_WATCHPOINTS`, and `_Static_assert`s on them. Force-included into every C file; it replaces `mcu_mdt_config.h` |
+| `build_info.yaml` | `platform mcu port baudrate elf`, for the PC tool |
 
 A file is rewritten only when its content changes, so Make can run the generator on every build.
 
 ## Checks
 
     python3 -m test.pymdtest unit                           # test_build_system_{descriptors,generator}.py
-    python3 test/firmware/check_avr_parts.py --all          # builds all 135 parts; needs avr-gcc
+    python3 test/firmware/check_avr_parts.py                # builds the 80 listed parts; needs avr-gcc

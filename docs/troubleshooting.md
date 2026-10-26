@@ -14,7 +14,7 @@ and the steps taken to resolve them.
 **Check in order:**
 
 1. Baud rate mismatch. The firmware baud rate is set at compile time via
-   `MDT_UART_BAUDRATE` in `mcu_mdt_config.h` (default 19200).
+   `MDT_UART_BAUDRATE` in `build/<MCU>/mdt_target.h` (default 19200, `make ... BAUDRATE=`).
 
 2. Wrong port. Check which port the MCU is on:
    ```bash

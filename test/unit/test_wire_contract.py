@@ -103,7 +103,7 @@ def test_event_types():
 
 
 def test_memory_zones():
-    c = _c_members("inc/mcu_mdt_config.h", "MDT_MEM_ZONE_", {"SRAM": "RAM"})
+    c = _c_members("inc/mcu_mdt_hal.h", "MDT_MEM_ZONE_", {"SRAM": "RAM"})
     _assert_same(c, _py(enums.MemType), "MDT_MEM_ZONE_*")
 
 

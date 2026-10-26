@@ -2,7 +2,6 @@
 #define MCU_MDT_EVENT_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /**
  * Events are derived from state, not queued. Each source (breakpoints,
