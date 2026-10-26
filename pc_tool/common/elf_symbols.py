@@ -9,26 +9,28 @@ try:
 except ImportError:
     _ELFTOOLS_AVAILABLE = False
 
-# AVR ELF encodes SRAM addresses with this offset — strip it before sending
+# avr-gcc puts the data space (RAM, registers) at this offset in the ELF to keep it apart from
+# flash at 0; the MCU sees the address without it. Other toolchains use the real address.
 AVR_SRAM_OFFSET = 0x800000
-
-# AVR SRAM typically starts at 0x60 (ATmega) or 0x100 (larger devices)
-# after stripping the offset. Flash symbols have raw_addr < AVR_SRAM_OFFSET.
-AVR_SRAM_MIN = 0x60
-
 
 
 @dataclass
 class SymbolInfo:
     name:    str
-    address: int   # address to send to MCU (AVR offset stripped, STM32 as-is)
+    address: int   # address to send to MCU (AVR data-space offset stripped, others as-is)
     size:    int   # size in bytes from ELF (0 = unknown)
     mask:    int   # suggested 32-bit watch mask based on size
 
 
-def _is_ram_symbol_avr(raw_addr: int) -> bool:
-    """AVR: RAM symbols have the 0x800000 offset applied in the ELF."""
-    return raw_addr >= AVR_SRAM_OFFSET
+def _mcu_address(raw_addr: int, platform: str) -> int | None:
+    """The address the MCU uses for an ELF symbol address, or None if it is not in the data space.
+
+    AVR is the one exception to "ELF address == MCU address": its data space is offset in the
+    ELF, and anything below the offset is flash (a PROGMEM constant at 0x150 is not RAM 0x150).
+    """
+    if platform == MCUPlatforms.AVR:
+        return raw_addr - AVR_SRAM_OFFSET if raw_addr >= AVR_SRAM_OFFSET else None
+    return raw_addr
 
 
 def _in_ranges(addr: int, ranges) -> bool:
@@ -41,15 +43,19 @@ def load_elf_symbols(elf_path: str, platform: str, ram_ranges=()) -> dict[str, S
     Parse the .symtab of an ELF file and return a dict of symbol name -> SymbolInfo.
     Only data symbols (STT_OBJECT) that live in RAM are included — flash/const
     symbols are silently skipped since they cannot change and cannot be watched.
-    *ram_ranges*: the part's RAM as [start, end) pairs (from the build's memory map);
-    used where the address alone does not say RAM (STM32).
-    Returns empty dict if ELF has no symbol table or pyelftools is missing.
+    *ram_ranges*: the part's RAM as [start, end) pairs, in MCU addresses (the build's memory
+    map, or the description file's RAM segments). A symbol is watchable only inside them.
+    Returns empty dict if ELF has no symbol table, no RAM range is known or pyelftools is missing.
     """
     if not _ELFTOOLS_AVAILABLE:
         MDTLogger.warning(
             "pyelftools not installed — symbol resolution unavailable. "
             "Install with: pip install pyelftools"
         )
+        return {}
+
+    if not ram_ranges:
+        MDTLogger.warning("No RAM region known for this part: watchpoint symbol lookup disabled.")
         return {}
 
     plat = platform.lower()
@@ -77,19 +83,9 @@ def load_elf_symbols(elf_path: str, platform: str, ram_ranges=()) -> dict[str, S
                 if raw_addr == 0 and size == 0:
                     continue
 
-                if plat == MCUPlatforms.AVR:
-                    if not _is_ram_symbol_avr(raw_addr):
-                        continue  # flash / EEPROM symbol, not watchable
-                    addr = raw_addr - AVR_SRAM_OFFSET
-
-                elif plat == MCUPlatforms.STM:
-                    if not _in_ranges(raw_addr, ram_ranges):
-                        continue  # flash / peripheral symbol, not watchable
-                    addr = raw_addr  # STM32 ELF addresses are already correct
-
-                else:
-                    # Unknown platform — include everything, let the user decide
-                    addr = raw_addr
+                addr = _mcu_address(raw_addr, plat)
+                if addr is None or not _in_ranges(addr, ram_ranges):
+                    continue  # flash, EEPROM or peripheral symbol: cannot change, not watchable
 
                 symbols[sym.name] = SymbolInfo(
                     name=sym.name,

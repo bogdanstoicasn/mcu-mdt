@@ -9,13 +9,14 @@ Coverage:
 1. Description file chosen by build_info's mcu_db, parser by file type
 2. ConfigLoader: required keys, memory map, limits, firmware range from the ELF
 3. load_image_extent on a hand-built ELF (code + .data initialisers, RAM-only segment ignored)
+4. Watchable symbols: inside the part's RAM on every platform; AVR's ELF data-space offset stripped
 """
 
 import struct
 import tempfile
 from pathlib import Path
 
-from pc_tool.common.elf_symbols import load_image_extent
+from pc_tool.common.elf_symbols import load_elf_symbols, load_image_extent
 from pc_tool.loader import ConfigLoader, load_mcu_metadata
 from test.common.asserts import assert_eq
 
@@ -57,7 +58,7 @@ def _f0_info(**overrides) -> dict:
 
 def test_description_file_comes_from_the_build():
     meta = load_mcu_metadata("f030f4", "stm32/cortex-m0/STM32F0x0.svd")
-    assert_eq(meta["device"], "stm32f030f4")
+    assert_eq((meta["device"], meta["family"]), ("f030f4", "STM32F0x0"))   # no vendor prefix added
     assert "USART1" in meta["modules"]
     meta = load_mcu_metadata("atmega328p", "avr/atmega/ATmega328P.atdf")
     assert_eq(meta["memories"]["FLASH"]["size"], 0x8000)
@@ -118,3 +119,52 @@ def test_image_extent_spans_code_and_data_initialisers_in_flash():
         assert_eq(load_image_extent(str(elf), [(0, 0x8000)]), (0, 0xC0A))      # AVR-like: .data LMA after .text
         assert_eq(load_image_extent(str(elf), [(0x8000, 0x10000)]), None)       # nothing loads there
         assert_eq(load_image_extent(str(elf), []), None)
+
+
+# ---------------------------------------------------------------- 4. watchable symbols
+
+def _elf32_symbols(symbols: list) -> bytes:
+    """Minimal ELF32 with only a symbol table: [(name, value, size)] as global data objects."""
+    shstrtab = b"\0.shstrtab\0.strtab\0.symtab\0"
+    strtab, entries = b"\0", struct.pack("<IIIBBH", 0, 0, 0, 0, 0, 0)
+    for name, value, size in symbols:
+        entries += struct.pack("<IIIBBH", len(strtab), value, size, 0x11, 0, 0xFFF1)   # GLOBAL OBJECT, ABS
+        strtab += name.encode() + b"\0"
+    blobs, offset, layout = [shstrtab, strtab, entries], 52, []
+    for blob in blobs:
+        layout.append(offset)
+        offset += len(blob)
+    sections = [
+        (0, 0, 0, 0, 0, 0, 0),
+        (1, 3, layout[0], len(shstrtab), 0, 0, 0),           # .shstrtab
+        (11, 3, layout[1], len(strtab), 0, 0, 0),            # .strtab
+        (19, 2, layout[2], len(entries), 2, 1, 16),          # .symtab -> .strtab
+    ]
+    header = struct.pack("<4sBBBBB7sHHIIIIIHHHHHH", b"\x7fELF", 1, 1, 1, 0, 0, b"\0" * 7,
+                         2, 40, 1, 0, 0, offset, 0, 52, 0, 0, 40, len(sections), 1)
+    shdrs = b"".join(struct.pack("<IIIIIIIIII", name, kind, 0, 0, off, size, link, info, 1, entsize)
+                     for name, kind, off, size, link, info, entsize in sections)
+    return header + b"".join(blobs) + shdrs
+
+
+def _watchable(platform: str, symbols: list, ram: list) -> dict:
+    with tempfile.TemporaryDirectory() as tmp:
+        elf = Path(tmp) / "a.elf"
+        elf.write_bytes(_elf32_symbols(symbols))
+        return {name: info.address for name, info in load_elf_symbols(str(elf), platform, ram).items()}
+
+
+def test_only_ram_symbols_are_watchable_on_any_platform():
+    symbols = [("counter", 0x20000010, 4), ("table", 0x00001000, 4), ("gpio", 0x40000000, 4)]
+    for platform in ("STM32", "NXP"):      # a platform the PC tool has never heard of behaves the same
+        assert_eq(_watchable(platform, symbols, [(0x20000000, 0x20001000)]), {"counter": 0x20000010},
+                  platform=platform)
+
+
+def test_avr_symbols_lose_the_data_space_offset_and_flash_stays_out():
+    symbols = [("ticks", 0x800100, 2), ("progmem_table", 0x150, 4), ("eeprom_cfg", 0x810000, 4)]
+    assert_eq(_watchable("AVR", symbols, [(0x100, 0x900)]), {"ticks": 0x100})
+
+
+def test_no_ram_range_means_no_watchable_symbols():
+    assert_eq(_watchable("STM32", [("counter", 0x20000010, 4)], []), {})

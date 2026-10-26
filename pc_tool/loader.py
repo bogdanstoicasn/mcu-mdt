@@ -223,19 +223,16 @@ class _ATDFLoader(_PlatformLoader):
 
 
 class _SVDLoader(_PlatformLoader):
-    """Parse ARM SVD files for STM32 devices."""
+    """Parse CMSIS-SVD files (any Arm vendor: ST, NXP, ...)."""
 
     def load(self, mcu_name: str, path: str) -> MCUMetadata:
-        """Parse the SVD file at *path* (the build names it). Memory comes from the build, not the SVD."""
-        mcu_lower = mcu_name.lower()
-        if not mcu_lower.startswith("stm32"):
-            mcu_lower = "stm32" + mcu_lower
-
+        """Parse the SVD file at *path* (the build names it). Memory comes from the build, not the SVD.
+        The device is the part as the build names it; the SVD's own name (a family) is `family`."""
         root, ns   = self._parse_xml(path)
         find       = _SVDXmlHelper(root, ns)
 
         meta = MCUMetadata(
-            device       = mcu_lower,
+            device       = mcu_name.lower(),
             architecture = find.text("cpu/name"),
             family       = find.text("name"),
         )

@@ -7,10 +7,9 @@ structure, cross-references, and that they say the same thing as the rest of the
 Coverage:
 1. Structure: tree_root / tree_trunk / tree_branch files, known keys, every node resolves
 2. Cross-references: platform directories, paths (relative, existing), host description files
-3. Part allowlists: each platform's nodes match its docs table (and AVR the ATDF database)
+3. Part allowlists: each platform's nodes match the MCU table in docs/<platform>/info.md
 """
 
-import re
 from pathlib import Path
 
 import yaml
@@ -24,9 +23,6 @@ _TREE = _ROOT / "build_system"
 _ROOT_KEYS = {"version", "type", "platform", "mdt_defaults", "files"}
 _MDT_ROOT = {"port", "baudrate", "buffer_size", "breakpoints", "watchpoints", "elf"}
 _FILES = {"src", "inc", "build"}
-_DOCS = {"avr": "docs/avr/info.md", "stm32": "docs/stm32/info.md"}
-
-
 def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text())
 
@@ -145,20 +141,28 @@ def test_every_node_has_its_host_description_file():
         assert (_ROOT / "pc_tool" / "mcu_db" / mcu_db).is_file(), f"{part}: pc_tool/mcu_db/{mcu_db} missing"
 
 
-# ---------------------------------------------------------------- 3. part allowlists
+# allow list
+
+def _cells(row: str) -> list:
+    return [cell.strip() for cell in row.strip().strip("|").split("|")]
+
 
 def _docs_parts(platform: str) -> set:
-    text = (_ROOT / _DOCS[platform]).read_text()
-    table = text[text.index("| MCU |"):]
-    table = table[:table.find("\n\n")] if "\n\n" in table else table
-    return {name.lower() for name in re.findall(r"\b(AT90\w+|ATmega\w+|ATtiny\w+|F0\d\d\w\w|F1\d\d\w\w)\b", table)}
+    """Part names in the first table of docs/<platform>/info.md whose header has an MCU column:
+    every cell of every column headed `MCU` (AVR uses four, STM32 one beside other facts)."""
+    lines = (_ROOT / "docs" / platform / "info.md").read_text().splitlines()
+    start = next((i for i, line in enumerate(lines) if line.startswith("|") and "MCU" in _cells(line)), None)
+    assert start is not None, f"docs/{platform}/info.md has no table with an MCU column"
+    columns = [i for i, header in enumerate(_cells(lines[start])) if header == "MCU"]
+    parts = set()
+    for row in lines[start + 2:]:                 # skip the |---| separator
+        if not row.startswith("|"):
+            break
+        cells = _cells(row)
+        parts |= {cells[i].lower() for i in columns if i < len(cells) and cells[i]}
+    return parts
 
 
 def test_every_platform_allowlist_matches_its_docs_table():
     for platform in _root()["platform"]:
         assert_eq(_nodes(platform), _docs_parts(platform), platform=platform)
-
-
-def test_every_avr_node_exists_in_the_atdf_database():
-    known = {p.stem.lower() for p in (_ROOT / "pc_tool" / "mcu_db" / "avr" / "atmega").iterdir()}
-    assert_eq(sorted(_nodes("avr") - known), [])

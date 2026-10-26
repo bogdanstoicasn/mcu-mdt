@@ -6,7 +6,7 @@ The test suite is split into three layers: unit, integration, and hardware.
 Unit and integration tests run anywhere with no hardware attached. Hardware
 tests need a real MCU flashed with the MDT firmware and a serial port.
 
-**313 tests total.** 260 of them always run; the 53 hardware tests skip
+**315 tests total.** 262 of them always run; the 53 hardware tests skip
 cleanly when `MCU` is not set.
 
 
