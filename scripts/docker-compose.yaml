@@ -3,7 +3,7 @@ services:
   # Interactive container with the full toolchain.
   # Usage:
   #   docker compose run --rm dev
-  #   docker compose run --rm dev make PLATFORM=avr MCU=atmega328p
+  #   docker compose run --rm dev make MCU=atmega328p
   dev:
     build:
       context: ..
@@ -36,12 +36,12 @@ services:
       MCU:  ${MCU:-atmega328p}
       PORT: ${PORT:-/dev/ttyACM0}
     command: >
-      bash -c "make PLATFORM=avr MCU=$${MCU} PORT=$${PORT}"
+      bash -c "make MCU=$${MCU} PORT=$${PORT}"
   # STM32 firmware build
   # Builds the STM32 firmware for the given MCU (default: F030F4).
   # Usage:
   #   docker compose run --rm build-stm32
-  #   MCU=F103 docker compose run --rm build-stm32
+  #   MCU=F030F4 docker compose run --rm build-stm32
   build-stm32:
     build:
       context: ..
@@ -54,14 +54,14 @@ services:
       MCU:  ${MCU:-F030F4}
       PORT: ${PORT:-/dev/ttyUSB0}
     command: >
-      bash -c "make PLATFORM=stm32 MCU=$${MCU} PORT=$${PORT}"
+      bash -c "make MCU=$${MCU} PORT=$${PORT}"
   # MCU-MDT host tool
   # Runs the PC-side debugger against a built firmware's build_info.yaml.
   # Needs the USB serial adapter forwarded — adjust the device path to match
   # your host (e.g. /dev/ttyACM0 for AVR boards).
   # Usage:
   #   docker compose run --rm tool
-  #   MCU=F103x6 docker compose run --rm tool
+  #   MCU=F030F4 docker compose run --rm tool
   tool:
     build:
       context: ..
@@ -77,6 +77,6 @@ services:
     devices:
       - /dev/ttyUSB0:/dev/ttyUSB0
     command: >
-      bash -c "python3 mcu_mdt.py build/$${MCU}/build_info.yaml"
+      bash -c "python3 mcu_mdt.py build/$${MCU,,}/build_info.yaml"   # build dirs are lower case
 volumes:
   build-cache:

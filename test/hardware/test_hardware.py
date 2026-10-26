@@ -69,7 +69,7 @@ from pc_tool.common.protocol import (
 )
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.event import EventHandler
-from pc_tool.loader import load_mcu_metadata
+from pc_tool.loader import ConfigLoader
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 
@@ -82,7 +82,7 @@ class HWConfig:
     platform:   str
     sram_base:  int      # first safe scratch word inside SRAM
     flash_base: int      # start of flash region
-    meta:       dict     # full MCU metadata from SVD/ATDF via load_mcu_metadata
+    meta:       dict     # full MCU metadata as the PC tool loads it (ConfigLoader)
     registers:  dict     # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
     uart_idle:  bool = False  # True when MDT_FEATURE_UART_IDLE=1 (STM32 interrupt mode)
 
@@ -131,7 +131,7 @@ class HWConfig:
             # If we are from test directory, we go 1 directory back to find build/
             if os.path.basename(os.getcwd()) == "test":
                 os.chdir("..")
-            path = os.path.join("build", mcu, "build_info.yaml")
+            path = os.path.join("build", mcu.lower(), "build_info.yaml")   # build dirs are lowercase
             if not os.path.exists(path):
                 raise FileNotFoundError(
                     f"Build info not found for MCU='{mcu}' at {path}"
@@ -145,7 +145,7 @@ class HWConfig:
         ).lower()
 
         port    = os.environ.get("MDT_PORT",    data.get("port", ""))
-        baud    = int(os.environ.get("MDT_BAUD",    "19200"))
+        baud    = int(os.environ.get("MDT_BAUD",    data.get("baudrate", 19200)))
         timeout = float(os.environ.get("MDT_TIMEOUT", "2.0"))
 
         # Load MCU metadata when we have an MCU identifier; fall back to
@@ -153,7 +153,7 @@ class HWConfig:
         meta      = {}
         if mcu:
             try:
-                meta      = load_mcu_metadata(data.get("mcu", mcu), platform)
+                meta      = ConfigLoader(path).mcu_metadata
             except Exception as exc:
                 print(f"  [WARN] Could not load MCU metadata: {exc}")
 
@@ -718,7 +718,7 @@ def test_hw_breakpoint_control_acked(bp_id, control, ctrl_val):
         link.close()
 
 def test_hw_breakpoint_invalid_slot_nacked():
-    """Slot ID >= MDT_MAX_BREAKPOINTS (4) must be NACKed by the firmware."""
+    """A slot ID beyond the build's breakpoint count (at most 8) must be NACKed by the firmware."""
     if not HW.available: return _skip()
     link = _link()
     try:
@@ -855,7 +855,7 @@ def test_hw_watchpoint_mask_on_inactive_slot_nacked():
         link.close()
 
 def test_hw_watchpoint_invalid_slot_nacked():
-    """Slot ID >= MDT_MAX_WATCHPOINTS (4) must be NACKed by the firmware."""
+    """A slot ID beyond the build's watchpoint count (at most 8) must be NACKed by the firmware."""
     if not HW.available: return _skip()
     link = _link()
     try:

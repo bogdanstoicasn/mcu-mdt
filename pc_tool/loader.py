@@ -10,8 +10,7 @@ from pathlib import Path
 
 import yaml
 
-from pc_tool.common.elf_symbols import load_elf_symbols
-from pc_tool.common.enums import MCUPlatforms, STM32Type
+from pc_tool.common.elf_symbols import load_elf_symbols, load_image_extent
 from pc_tool.common.logger import MDTLogger
 
 # Resolved at import time
@@ -56,19 +55,18 @@ class _PlatformLoader(ABC):
     """Strategy interface for per-platform MCU metadata parsers."""
 
     @abstractmethod
-    def load(self, mcu_name: str, db_root: str) -> MCUMetadata:
-        """Return an MCUMetadata for *mcu_name*, sourcing data from *db_root*."""
+    def load(self, mcu_name: str, path: str) -> MCUMetadata:
+        """Return an MCUMetadata for *mcu_name*, parsed from the description file at *path*."""
 
 
 # ATDF (AVR) parser
 class _ATDFLoader(_PlatformLoader):
     """Parse Microchip ATDF files for AVR devices."""
 
-    def load(self, mcu_name: str, db_root: str) -> MCUMetadata:
-        """Load the ATDF file for *mcu_name* from *db_root* and parse it into MCUMetadata."""
+    def load(self, mcu_name: str, path: str) -> MCUMetadata:
+        """Parse the ATDF file at *path* (the build names it) into MCUMetadata for *mcu_name*."""
         mcu_lower = mcu_name.lower()
-        atdf_path = self._find_file(mcu_lower, db_root)
-        root      = self._parse_xml(atdf_path)
+        root      = self._parse_xml(path)
         device    = self._validate_device(root, mcu_lower)
 
         meta = MCUMetadata(
@@ -82,18 +80,6 @@ class _ATDFLoader(_PlatformLoader):
         self._parse_interrupts(root, meta)
         self._parse_peripherals(root, meta)
         return meta
-
-    @staticmethod
-    def _find_file(mcu_name: str, db_root: str) -> str:
-        """Search *db_root* recursively for an ATDF file matching *mcu_name* (case-insensitive)."""
-        for dirpath, _, files in os.walk(db_root):
-            for fname in files:
-                if fname.lower().endswith(".atdf") and \
-                        os.path.splitext(fname)[0].lower() == mcu_name:
-                    return os.path.join(dirpath, fname)
-        raise FileNotFoundError(
-            f"ATDF file for MCU '{mcu_name}' not found in {db_root}"
-        )
 
     @staticmethod
     def _parse_xml(path: str) -> ET.Element:
@@ -236,44 +222,16 @@ class _ATDFLoader(_PlatformLoader):
             }
 
 
-# TODO: Improve this family parser
-@dataclass(frozen=True)
-class STM32SVD:
-    core: str
-    families: set[str]
-
-_STM32_SVD_MAP = {
-    "STM32F0x0.svd": STM32SVD(
-        core="cortex-m0",
-        families={"f030", "f070"},
-    ),
-    "STM32F0x1.svd": STM32SVD(
-        core="cortex-m0",
-        families={"f031", "f051"},
-    ),
-    "STM32F0x2.svd": STM32SVD(
-        core="cortex-m0",
-        families={"f042", "f072"},
-    ),
-    "STM32F103.svd": STM32SVD(
-        core="cortex-m3",
-        families={"f103"},
-    ),
-}
-
 class _SVDLoader(_PlatformLoader):
     """Parse ARM SVD files for STM32 devices."""
 
-    def load(self, mcu_name: str, db_root: str) -> MCUMetadata:
+    def load(self, mcu_name: str, path: str) -> MCUMetadata:
+        """Parse the SVD file at *path* (the build names it). Memory comes from the build, not the SVD."""
         mcu_lower = mcu_name.lower()
         if not mcu_lower.startswith("stm32"):
             mcu_lower = "stm32" + mcu_lower
 
-        svd_path   = self._find_svd(mcu_lower, db_root)
-        yaml_path  = Path(svd_path).with_suffix(".yaml")
-        mem_data   = load_configs(str(yaml_path)) if yaml_path.is_file() else None
-
-        root, ns   = self._parse_xml(svd_path)
+        root, ns   = self._parse_xml(path)
         find       = _SVDXmlHelper(root, ns)
 
         meta = MCUMetadata(
@@ -282,24 +240,8 @@ class _SVDLoader(_PlatformLoader):
             family       = find.text("name"),
         )
 
-        self._parse_memories(mcu_lower, mem_data, meta)
         self._parse_peripherals(find, meta)
         return meta
-
-    @staticmethod
-    def _find_svd(mcu_lower: str, db_root: str) -> str:
-        family = mcu_lower[5:9]
-
-        for svd_file, svd in _STM32_SVD_MAP.items():
-            if family in svd.families:
-                path = Path(db_root) / "stm32" / svd.core / svd_file
-
-                if path.is_file():
-                    return str(path)
-
-        raise FileNotFoundError(
-            f"SVD file for MCU '{mcu_lower}' not found in {db_root}"
-        )
 
     @staticmethod
     def _parse_xml(path: str) -> tuple[ET.Element, dict]:
@@ -314,68 +256,6 @@ class _SVDLoader(_PlatformLoader):
             uri = root.tag.split("}")[0].strip("{")
             ns  = {"svd": uri}
         return root, ns
-
-    @staticmethod
-    def _parse_memories(
-        mcu_lower: str,
-        mem_data: dict | None,
-        meta: MCUMetadata,
-    ) -> None:
-        """Parse memory information from the YAML file corresponding to the SVD, if it exists, and populate meta.memories."""
-        if not mem_data:
-            return
-
-        variant = _SVDLoader._lookup_variant(
-            mem_data.get("variants", {}) or {}, mcu_lower
-        )
-
-        flash_size = variant.get("flash")
-        ram_size   = variant.get("ram")
-        flash_page = variant.get("flash_page")
-
-        if flash_size:
-            meta.memories["FLASH"] = {
-                "start":    STM32Type.FLASH_BASE,
-                "size":     flash_size,
-                "type":     "flash",
-                "pagesize": str(flash_page) if flash_page else None,
-            }
-        if ram_size:
-            meta.memories["RAM"] = {
-                "start":    STM32Type.RAM_BASE,
-                "size":     ram_size,
-                "type":     "ram",
-                "pagesize": None,
-            }
-
-    @staticmethod
-    def _lookup_variant(variants: dict, mcu_lower: str) -> dict:
-        """Find memory variant entry for *mcu_lower* in a family YAML.
-
-        STM32 YAMLs use either exact part numbers (e.g. stm32f030c8) or density
-        classes with wildcard package codes (e.g. stm32f103x8 for C8/R8/T8 variants).
-
-        We first try an exact match. If that fails, we fall back to the density
-        class by replacing the package letter with 'x', matching MCU_NORM behavior
-        used for linker script selection.
-        """
-
-        # YAML keys may be written in any case; mcu_lower is always lowercase.
-        variants = {str(k).lower(): v for k, v in variants.items()}
-
-        # 1. Exact part-number match (F0-style YAMLs)
-        if mcu_lower in variants:
-            return variants[mcu_lower]
-
-        # 2. Density-class fallback (F1-style YAMLs).
-        #    Layout: 'stm32' (5) + family (4) + package letter (1) + density.
-        #    Replace the package letter at index 9 with 'x'.
-        if mcu_lower.startswith("stm32") and len(mcu_lower) > 10:
-            density_key = mcu_lower[:9] + "x" + mcu_lower[10:]
-            if density_key in variants:
-                return variants[density_key]
-
-        return {}
 
     @staticmethod
     def _parse_peripherals(find: _SVDXmlHelper, meta: MCUMetadata) -> None:
@@ -559,10 +439,10 @@ class _SVDXmlHelper:
         except TypeError:
             return elem.findall(path)
 
-# Platform loader registry — add new platforms here, nothing else changes
-_PLATFORM_LOADERS: dict[str, _PlatformLoader] = {
-    MCUPlatforms.AVR: _ATDFLoader(),
-    MCUPlatforms.STM: _SVDLoader(),
+# Description-file parsers by file type; the build says which file a part uses (build_info: mcu_db)
+_LOADERS_BY_SUFFIX: dict[str, _PlatformLoader] = {
+    ".atdf": _ATDFLoader(),
+    ".svd":  _SVDLoader(),
 }
 
 
@@ -580,31 +460,41 @@ def load_configs(file_path: str) -> dict:
         return {}
 
 
-def load_mcu_metadata(mcu_name: str, mcu_platform: str) -> dict:
+def load_mcu_metadata(mcu_name: str, mcu_db: str) -> dict:
     """
-    Dispatch to the correct platform loader and return metadata as a plain dict
+    Parse the description file of a part and return its metadata as a plain dict
     (for backwards compatibility with validator.py and commander.py).
+
+    *mcu_db* is the file named in build_info.yaml, relative to pc_tool/mcu_db (or absolute).
 
     Raises
     ------
-    NotImplementedError  If the platform has no loader registered yet.
-    ValueError           If the platform string is not recognised.
+    FileNotFoundError  If the file does not exist.
+    ValueError         If no parser handles the file type.
     """
-    platform = mcu_platform.lower()
-    loader   = _PLATFORM_LOADERS.get(platform)
-
+    path   = _DB_ROOT / mcu_db
+    loader = _LOADERS_BY_SUFFIX.get(path.suffix.lower())
     if loader is None:
-        if platform == MCUPlatforms.PIC:
-            raise NotImplementedError("PIC platform support is not implemented yet")
-        raise ValueError(f"Unsupported MCU platform: '{platform}'")
-
-    return loader.load(mcu_name, db_root=str(_DB_ROOT)).to_dict()
+        raise ValueError(f"No parser for '{mcu_db}': known file types are {', '.join(_LOADERS_BY_SUFFIX)}")
+    if not path.is_file():
+        raise FileNotFoundError(f"MCU description file not found: {path}")
+    return loader.load(mcu_name, str(path)).to_dict()
 
 
 # Top-level ConfigLoader — used by main.py
+
+# Written by build_system/generate.py; an older build_info.yaml lacks some of these.
+_BUILD_INFO_KEYS = ("platform", "mcu", "mcu_db", "port", "baudrate", "uart_idle",
+                    "breakpoints", "watchpoints", "elf")
+
+
 class ConfigLoader:
     """
     Load all configuration data needed to drive an MCU-MDT session.
+
+    Everything about the target comes from build_info.yaml, written by the build from
+    build_system/: the description file (ATDF/SVD), the memory map when the build has one,
+    the breakpoint/watchpoint limits and the ELF. Nothing about a part is hardcoded here.
 
     Parameters
     ----------
@@ -622,105 +512,80 @@ class ConfigLoader:
         self.yaml_build_data    = load_configs(build_info_path)
         self.yaml_command_data  = load_configs(commands_path)
 
-        mcu      = self.yaml_build_data.get("mcu")
-        platform = self.yaml_build_data.get("platform", "")
+        info    = self.yaml_build_data
+        missing = [key for key in _BUILD_INFO_KEYS if key not in info]
+        if missing:
+            raise ValueError(
+                f"{build_info_path} has no {', '.join(missing)}: it is missing or comes from an "
+                f"older build. Rebuild with: make MCU=<part>"
+            )
 
-        self.mcu_metadata = load_mcu_metadata(mcu, platform)
-        self.elf_symbols  = self._load_elf(build_info_path)
-        self._inject_firmware_info(build_info_path)
+        self.mcu_metadata = load_mcu_metadata(info["mcu"], info["mcu_db"])
+        self._apply_build_memory()
+        self.mcu_metadata["limits"] = {
+            "breakpoints": int(info["breakpoints"]),
+            "watchpoints": int(info["watchpoints"]),
+        }
+        elf_path          = os.path.join(os.path.dirname(os.path.abspath(build_info_path)), info["elf"])
+        self.elf_symbols  = self._load_elf(elf_path)
+        self._inject_firmware_info(elf_path)
 
-
-    def _inject_firmware_info(self, build_info_path: str) -> None:
-        """Merge firmware boundary fields from build_info into mcu_metadata.
-
-        The validator uses these to prevent writes and erases that would
-        overwrite the running firmware image in flash.
-
-        Fields read from build_info.yaml (written by the Makefile):
-          firmware_start_address  — first byte of firmware in flash
-          firmware_end_address    — first byte AFTER firmware (exclusive)
-          firmware_size           — byte count  (= end - start)
-          flash_page_size         — erase granularity in bytes
-
-        PyYAML safe_load parses bare hex literals (0x…) as ints, so no
-        manual conversion is needed.  The method is a no-op for platforms
-        that do not emit these fields (e.g. AVR).
-        """
-        start     = self.yaml_build_data.get("firmware_start_address")
-        end       = self.yaml_build_data.get("firmware_end_address")
-        size      = self.yaml_build_data.get("firmware_size")
-        page_size = self._load_mcu_header(build_info_path).get("FLASH_PAGE_SIZE")
-
-        if start is None or end is None:
-            return   # platform doesn't provide firmware boundaries
-
-        def _to_int(v: object) -> int | None:
-            if v is None:
-                return None
-            if isinstance(v, int):
-                return v
-            try:
-                return int(str(v), 0)
-            except ValueError:
-                return None
-
-        self.mcu_metadata["firmware"] = {
-            "start":     _to_int(start),
-            "end":       _to_int(end),
-            "size":      _to_int(size),
-            "page_size": _to_int(page_size),
+    def _apply_build_memory(self) -> None:
+        """Use the build's memory map (from build_system/) when it has one; it replaces the
+        description file's segments. A region's name is its type: flash, ram, eeprom."""
+        regions = self.yaml_build_data.get("memory") or {}
+        if not regions:
+            return
+        self.mcu_metadata["memories"] = {
+            name.upper(): {
+                "start":    int(region["origin"]),
+                "size":     int(region["size"]),
+                "type":     name,
+                "pagesize": hex(region["page"]) if region.get("page") else None,
+            }
+            for name, region in regions.items()
         }
 
-    def _load_elf(self, build_info_path: str) -> dict:
-        """Load ELF symbols from the path specified in build_info.yaml, if it exists."""
-        elf_rel = self.yaml_build_data.get("elf")
-        if not elf_rel:
-            MDTLogger.info(
-                "No 'elf' key in build_info.yaml — symbol resolution disabled. "
-                "Add 'elf: path/to/firmware.elf' to enable watchpoint symbol lookup."
-            )
-            return {}
+    def _flash_segments(self) -> list[dict]:
+        return [seg for seg in self.mcu_metadata.get("memories", {}).values() if seg.get("type") == "flash"]
 
-        build_dir = os.path.dirname(os.path.abspath(build_info_path))
-        elf_path  = os.path.normpath(os.path.join(build_dir, elf_rel))
-        platform  = self.yaml_build_data.get("platform", "")
-        symbols   = load_elf_symbols(elf_path, platform)
+    def _inject_firmware_info(self, elf_path: str) -> None:
+        """Protect the running firmware: record the flash range the ELF loads.
+
+        The validator uses it to reject writes and erases that would overwrite the
+        firmware. The range is read from the ELF's load segments inside flash, so it is
+        exactly what objcopy puts in the image (code, read-only data, .data initialisers).
+        """
+        flash = self._flash_segments()
+        ranges = [(int(seg["start"]), int(seg["start"]) + int(seg["size"])) for seg in flash]
+        extent = load_image_extent(elf_path, ranges)
+        if extent is None:
+            MDTLogger.warning(
+                "Firmware range unknown (no ELF or no load segment in flash): "
+                "flash writes and erases are not checked against the running image."
+            )
+            return
+
+        start, end = extent
+        page = next((seg.get("pagesize") for seg in flash
+                     if int(seg["start"]) <= start < int(seg["start"]) + int(seg["size"])), None)
+        self.mcu_metadata["firmware"] = {
+            "start":     start,
+            "end":       end,
+            "size":      end - start,
+            "page_size": int(page, 0) if isinstance(page, str) else page,
+        }
+
+    def _load_elf(self, elf_path: str) -> dict:
+        """Load the watchable (RAM) symbols of the firmware ELF."""
+        ram = [
+            (int(seg["start"]), int(seg["start"]) + int(seg["size"]))
+            for seg in self.mcu_metadata.get("memories", {}).values() if seg.get("type") == "ram"
+        ]
+        symbols = load_elf_symbols(elf_path, self.yaml_build_data["platform"], ram)
         MDTLogger.info(f"Loaded {len(symbols)} symbol(s) from {elf_path}")
         return symbols
 
-    def _load_mcu_header(self, build_info_path: str) -> dict:
-            path_to_header = os.path.join(
-                os.path.dirname(os.path.abspath(build_info_path)),
-                "mcu.h",
-            )
-
-            defines: dict[str, int] = {}
-
-            try:
-                with open(path_to_header) as f:
-                    for line in f:
-                        match = re.match(
-                            r"^\s*#define\s+(\w+)\s+([^\s/]+)",
-                            line,
-                        )
-
-                        if not match:
-                            continue
-
-                        name, value = match.groups()
-
-                        # Remove common c suffixes(ul etc)
-                        value = re.sub(r"[uUlL]+$", "", value)
-                        try:
-                            defines[name] = int(value, 0)
-                        except ValueError:
-                            continue
-            except FileNotFoundError:
-                MDTLogger.warning(
-                    f"MCU header not found: {path_to_header}"
-                )
-
-            return defines
 
 # Internal utilities
 def _iter_yaml_files(folder: str) -> Iterator[str]:

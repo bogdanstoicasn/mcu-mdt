@@ -6,7 +6,7 @@ The test suite is split into three layers: unit, integration, and hardware.
 Unit and integration tests run anywhere with no hardware attached. Hardware
 tests need a real MCU flashed with the MDT firmware and a serial port.
 
-**274 tests total.** 221 of them always run; the 53 hardware tests skip
+**313 tests total.** 260 of them always run; the 53 hardware tests skip
 cleanly when `MCU` is not set.
 
 
@@ -26,6 +26,26 @@ python3 -m test.pymdtest hardware     # hardware only (requires MCU)
 
 Do not use `pytest` directly. The `@parametrize` decorator is custom and
 not compatible with pytest.
+
+Two more checks need a toolchain rather than a board:
+
+```bash
+python3 test/firmware/check_parts.py -j 8      # build every part listed in build_system/
+```
+
+### Hardware tests without a board (STM32, Renode)
+
+The firmware can run in [Renode](https://renode.io) with USART1 on a TCP socket, and the
+PC tool and the hardware tests accept a `socket://` port. Renode's STM32F0 USART has no
+IDLE interrupt, so build in poll mode:
+
+```bash
+make MCU=F030F4 UART_IDLE=0
+renode --disable-gui test/simulators/stm32f030.resc          # USART1 on localhost:3456
+MCU=F030F4 MDT_PORT=socket://localhost:3456 python3 -m test.pymdtest hardware
+```
+
+Interrupt mode (`UART_IDLE=1`) still needs a real board.
 
 
 ## How the runner keeps tests quiet
@@ -92,7 +112,7 @@ validation, and dispatch routing. Parameterized across valid and invalid
 slot IDs.
 
 Firmware protection has dedicated cases: FLASH write inside firmware is
-rejected (start, mid, end-minus-one); write at `firmware_end_address` is
+rejected (start, mid, end-minus-one); write at the end of the image is
 accepted; write spanning the boundary is rejected; no firmware info in
 metadata allows write (the AVR path); ERASE of a page overlapping firmware
 is rejected (page 0, mid-firmware, last firmware page); ERASE of the first

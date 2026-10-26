@@ -1,0 +1,39 @@
+# BRANCH: STM32F0 value line (F030, F070): Cortex-M0, one HAL, startup, linker script and SVD.
+# A node is one supported part, named without the STM32 prefix (matching is case-insensitive).
+# Sizes: STM32F030/F070 datasheets. page: flash erase page, RM0360 (1K up to 64K flash, 2K above).
+version: 1
+
+type: tree_branch
+
+platform: stm32
+branch: f0
+
+build:
+  hal_dir: hal/stm32/cortex-m0
+  startup: hal/stm32/cortex-m0/startup_stm32f030xx.c
+  flags:
+    compile: [-mcpu=cortex-m0]
+    link: [-mcpu=cortex-m0, -Thal/stm32/cortex-m0/linker.ld]
+
+commands:                       # erase and flash-recover connect under reset, for a sleeping or locked core
+  erase: openocd -f interface/stlink.cfg -f target/stm32f0x.cfg -c "init; reset halt; stm32f0x mass_erase 0; reset; shutdown"
+  flash-recover: openocd -f interface/stlink.cfg -f target/stm32f0x.cfg -c "init; reset halt; stm32f0x mass_erase 0; flash write_image erase {image}.elf; verify_image {image}.elf; reset run; shutdown"
+
+dist:
+  files: [hal/stm32/cortex-m0/linker.ld, hal/stm32/cortex-m0/startup_stm32f030xx.c]
+
+host:
+  mcu_db: stm32/cortex-m0/STM32F0x0.svd
+
+nodes:                          # parts with the same density share their sizes (&anchor / *alias)
+  F030F4: {memory: {flash: {size: 16K, page: 1K}, ram: {size: 4K}}}
+  F030K6: {memory: &f030x6 {flash: {size: 32K, page: 1K}, ram: {size: 4K}}}
+  F030C6: {memory: *f030x6}
+  F030C8: {memory: &f030x8 {flash: {size: 64K, page: 1K}, ram: {size: 8K}}}
+  F030R8: {memory: *f030x8}
+  F030CC: {memory: &f030xc {flash: {size: 256K, page: 2K}, ram: {size: 32K}}}
+  F030RC: {memory: *f030xc}
+  F070F6: {memory: &f070x6 {flash: {size: 32K, page: 1K}, ram: {size: 6K}}}
+  F070C6: {memory: *f070x6}
+  F070CB: {memory: &f070xb {flash: {size: 128K, page: 2K}, ram: {size: 16K}}}
+  F070RB: {memory: *f070xb}

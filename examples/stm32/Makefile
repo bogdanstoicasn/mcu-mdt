@@ -20,7 +20,7 @@ CC      := arm-none-eabi-gcc
 OBJCOPY := arm-none-eabi-objcopy
 SIZE    := arm-none-eabi-size
 
-# MCU family detection (mirrors hal/stm32/Makefile router)
+# MCU family detection (the repo build takes these flags from build_system/stm32/)
 
 MCU_UPPER := $(shell echo $(MCU) | tr '[:lower:]' '[:upper:]')
 

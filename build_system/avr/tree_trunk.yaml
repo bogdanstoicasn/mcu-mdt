@@ -1,4 +1,6 @@
 # TRUNK: everything shared by all AVR parts.
+# A branch or a node may add to any section below: mappings merge key by key, lists are
+# appended, a single value is replaced. Placeholders in flags and commands: see README.md.
 version: 1
 
 type: tree_trunk
@@ -10,7 +12,7 @@ mdt_defaults:
   uart_idle: false
 
 features:
-  uart_idle: false
+  uart_idle: false              # the USART has no IDLE interrupt: poll mode only
 
 toolchain:
   prefix: avr-                  # avr-gcc, avr-ar, avr-objcopy, avr-size
@@ -18,17 +20,19 @@ toolchain:
 build:
   lib: mcu_mdt_avr              # libmcu_mdt_avr.a
   hal_dir: hal/avr
-  example_dir: examples/avr
-  part_flag: "-mmcu="           # the node name, lowercased, is appended: -mmcu=atmega328p
-  flags:
-    compile: [-Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections]
-    link: ["-Wl,--gc-sections", "-Wl,--print-gc-sections"]   # quoted: a bare comma would split the item
-  hex: [-O, ihex, -R, .eeprom]  # objcopy arguments that turn the ELF into the .hex
+  example: examples/avr/main.c
+  flags:                        # quote anything with a comma or a brace
+    compile: ["-mmcu={mcu}", -Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections]
+    link: ["-mmcu={mcu}", "-Wl,--gc-sections", "-Wl,--print-gc-sections"]
+  outputs:                      # image format -> objcopy arguments
+    hex: [-O, ihex, -R, .eeprom]
 
-# {mcu} {port} {hex} are filled in by the generator. -b is the bootloader's speed, not the MDT baud rate.
-flash: "avrdude -c arduino -p {mcu} -P {port} -b 115200 -U flash:w:{hex}:i"
+commands:                       # make MCU=<part> <name>; -b is the bootloader's speed, not the MDT baud rate
+  flash: avrdude -c arduino -p {mcu} -P {port} -b 115200 -U flash:w:{image}.hex:i
 
-dist:                           # what is copied next to the library for users
-  headers: [mcu_mdt.h]
-  example: {main: main.c, makefile: Makefile}   # the Makefile is shipped as Makefile.example
-  empty: [mcu.h]                # empty placeholder so the PC tool finds an mcu.h
+dist:                           # copied next to the library for a user project
+  files: [inc/mcu_mdt.h, examples/avr/main.c]
+  makefile: examples/avr/Makefile   # shipped as Makefile.example
+
+host:                           # for the PC tool, relative to pc_tool/mcu_db
+  mcu_db: avr/atmega/{node}.atdf

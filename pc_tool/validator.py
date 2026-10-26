@@ -1,7 +1,5 @@
 from pc_tool.common.dataclasses import Command
 from pc_tool.common.enums import (
-    MDT_MAX_BREAKPOINTS,
-    MDT_MAX_WATCHPOINTS,
     BreakpointControl,
     CommandId,
     MemType,
@@ -253,14 +251,21 @@ def validate_write_reg(operation: Command, mcu_metadata: dict) -> bool:
 
 
 # Breakpoint / watchpoint validators
-def validate_breakpoint(operation: Command) -> bool:
+def _valid_slot(kind: str, slot: int, mcu_metadata: dict) -> bool:
+    """A slot exists if it is below the count the firmware was built with (build_info.yaml)."""
+    count = (mcu_metadata.get("limits") or {}).get(kind)
+    if count is None:
+        MDTLogger.error(f"Number of {kind} unknown: build_info.yaml has no '{kind}'. Rebuild the firmware.", code=3)
+        return False
+    if not (0 <= slot < count):
+        MDTLogger.error(f"Invalid {kind[:-1]} ID: {slot}. Must be 0..{count - 1}.", code=3)
+        return False
+    return True
+
+
+def validate_breakpoint(operation: Command, mcu_metadata: dict) -> bool:
     """Validate that a BREAKPOINT command's address is a valid slot ID, and that the control value is valid."""
-    if not (0 <= operation.address < MDT_MAX_BREAKPOINTS):
-        MDTLogger.error(
-            f"Invalid breakpoint ID: {operation.address}. "
-            f"Must be 0..{MDT_MAX_BREAKPOINTS - 1}.",
-            code=3,
-        )
+    if not _valid_slot("breakpoints", operation.address, mcu_metadata):
         return False
 
     try:
@@ -273,14 +278,9 @@ def validate_breakpoint(operation: Command) -> bool:
     return True
 
 
-def validate_watchpoint(operation: Command) -> bool:
+def validate_watchpoint(operation: Command, mcu_metadata: dict) -> bool:
     """Validate that a WATCHPOINT command's address is a valid slot ID, that the control value is valid, and that the data contains a valid watch address if enabling."""
-    if not (0 <= operation.address < MDT_MAX_WATCHPOINTS):
-        MDTLogger.error(
-            f"Invalid watchpoint ID: {operation.address}. "
-            f"Must be 0..{MDT_MAX_WATCHPOINTS - 1}.",
-            code=3,
-        )
+    if not _valid_slot("watchpoints", operation.address, mcu_metadata):
         return False
 
     try:
@@ -312,8 +312,8 @@ _DISPATCH = {
     CommandId.WRITE_MEM:  validate_write_mem,
     CommandId.READ_REG:   validate_read_reg,
     CommandId.WRITE_REG:  validate_write_reg,
-    CommandId.BREAKPOINT: lambda op, _: validate_breakpoint(op),
-    CommandId.WATCHPOINT: lambda op, _: validate_watchpoint(op),
+    CommandId.BREAKPOINT: validate_breakpoint,
+    CommandId.WATCHPOINT: validate_watchpoint,
 }
 
 

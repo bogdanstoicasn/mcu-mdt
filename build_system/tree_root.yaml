@@ -2,7 +2,7 @@ version: 1
 
 type: tree_root
 
-platform: [avr]            # stm32 comes back in a later step: its files do not exist yet
+platform: [avr, stm32]     # each has a <platform>/tree_trunk.yaml
 
 mdt_defaults:
   port: /dev/ttyACM0

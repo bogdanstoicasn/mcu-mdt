@@ -225,32 +225,22 @@ void    hal_reset(void);  /* drains TX, then resets MCU; does not return */
 ## Firmware Protection
 
 The PC validator prevents the user from accidentally erasing or overwriting the
-running firmware image. The protected range is computed at build time and embedded
-in `build_info.yaml`:
+running firmware image. `ConfigLoader` reads the protected range from the firmware
+ELF named in `build_info.yaml`: the span of its load segments that fall in flash
+(code, read-only data and the initial values of `.data`), which is exactly what
+objcopy writes to the `.bin`/`.hex`. The erase page comes from the flash segment of
+the memory map (the build's for STM32, the ATDF's for AVR).
 
-```yaml
-firmware_start_address: 0x08000000
-firmware_end_address:   0x080034a0
-firmware_size:          13472
-flash_page_size:        0x400
-```
-
-`firmware_end_address` equals the size of the linked `.bin` file added to the flash
-origin, it is the first byte of free flash after the firmware. The Makefile computes
-this automatically from `wc -c` on the `.bin` file after linking, so the value is
-always accurate for the actual build.
-
-`ConfigLoader` reads these fields and injects them into `mcu_metadata["firmware"]`.
-The validator uses them in two places:
+`ConfigLoader` injects the range into `mcu_metadata["firmware"]`
+(`start`, `end` = first free byte, `size`, `page_size`). The validator uses it in two places:
 
 - **FLASH write**: any write whose byte range `[address, address+len)` intersects
   `[fw_start, fw_end)` is rejected before the packet is sent.
 - **ERASE**: the full page containing `address` is expanded to
   `[page_base, page_base+page_size)` and checked against the firmware range.
 
-AVR does not support flash write, so no protection fields are emitted and the checks
-are silently skipped.
-
+If the ELF is missing or nothing of it loads into flash, the PC tool warns that flash
+writes and erases are not checked.
 
 ## Register Name Resolution
 
@@ -364,7 +354,8 @@ must agree to give up a peripheral before MDT is allowed to claim one.
   Default mask is `0xFFFFFFFF` (all bits). Use `WATCHPOINT MASK` to narrow to specific bits.
 
 - **Up to 8 watchpoints**: the active set is tracked by a `uint8_t` bitmask, limiting the
-  maximum to 8. Configurable via `MDT_MAX_WATCHPOINTS` (default: 4).
+  maximum to 8. Set with `make ... WATCHPOINTS=` (default: 4); the PC tool takes the same
+  count from `build_info.yaml`.
 
 - **Unaligned addresses are allowed**: the byte-by-byte read is safe at any address. The PC
   tool logs a warning for unaligned addresses but does not reject them.

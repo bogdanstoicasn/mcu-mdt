@@ -79,8 +79,8 @@ or erases a flash page (zone `ERASE`).
   the PC validator.
 - **FLASH**: half-word (16-bit) programming on STM32. The target area must be erased
   first using the `ERASE` zone. Flash writes that overlap the running firmware image are
-  rejected by the PC validator to prevent self-corruption. Only addresses at or above
-  `firmware_end_address` (from `build_info.yaml`) are accepted.
+  rejected by the PC validator to prevent self-corruption. Only addresses past the end of
+  the firmware image (read from the ELF) are accepted.
 - **EEPROM**: AVR only. Passed through to `eeprom_write_block()`.
 - **ERASE**: STM32 only. Erases the flash page containing `address`. The page
   boundary is computed on the MCU (`data` and `len` are ignored by the firmware). The PC
@@ -186,7 +186,7 @@ WRITE_REG 0x40013800 000000FF # raw address
 
 | Name    | Type   | Description                                         |
 |---------|--------|-----------------------------------------------------|
-| id      | uint32 | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`)      |
+| id      | uint32 | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`, `breakpoints` in `build_info.yaml`) |
 | control | str    | Control value: DISABLED, ENABLED, RESET, NEXT       |
 
 **Behavior:**
@@ -213,7 +213,7 @@ monitored bits change value.
 
 | Name    | Type   | Description                                              |
 |---------|--------|----------------------------------------------------------|
-| id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`)           |
+| id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
 | control | str    | Control value: DISABLED, ENABLED, RESET, MASK            |
 | data    | uint32 | ENABLED: address to watch. MASK: 32-bit mask. Others: -  |
 
@@ -253,8 +253,7 @@ These commands are handled entirely on the PC side and are never sent over UART.
 - All multi-byte fields (address, length, data) are little-endian.
 - Data payload per packet is 4 bytes maximum. Larger transfers are split automatically by the PC.
 - Flash writes and erases on STM32 are protected: any command that would overwrite the firmware
-  image is rejected by the PC validator before the packet is sent. The protected range is read
-  from `firmware_start_address` and `firmware_end_address` in `build_info.yaml`, which the
-  Makefile computes from the actual linked binary size at build time.
+  image is rejected by the PC validator before the packet is sent. The protected range is the
+  part of the firmware ELF that loads into flash, which the PC tool reads at start-up.
 - Adding a new command requires: adding the ID to `mdt_cmd_t` in `mcu_mdt_protocol.h`, adding a
   handler in `mcu_mdt_protocol.c`, and adding the command definition to `pc_tool/configs/commands.yaml`.

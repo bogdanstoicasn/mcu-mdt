@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from pc_tool.common.enums import MCUPlatforms, STM32Type
+from pc_tool.common.enums import MCUPlatforms
 from pc_tool.common.logger import MDTLogger
 
 try:
@@ -16,9 +16,6 @@ AVR_SRAM_OFFSET = 0x800000
 # after stripping the offset. Flash symbols have raw_addr < AVR_SRAM_OFFSET.
 AVR_SRAM_MIN = 0x60
 
-# STM32 RAM region: 0x20000000 - 0x2FFFFFFF
-STM32_RAM_BASE  = STM32Type.RAM_BASE   # 0x20000000
-STM32_RAM_END   = 0x2FFFFFFF
 
 
 @dataclass
@@ -34,16 +31,18 @@ def _is_ram_symbol_avr(raw_addr: int) -> bool:
     return raw_addr >= AVR_SRAM_OFFSET
 
 
-def _is_ram_symbol_stm32(addr: int) -> bool:
-    """STM32: RAM is in the 0x2xxxxxxx region."""
-    return STM32_RAM_BASE <= addr <= STM32_RAM_END
+def _in_ranges(addr: int, ranges) -> bool:
+    """True if addr falls in one of the [start, end) ranges."""
+    return any(start <= addr < end for start, end in ranges)
 
 
-def load_elf_symbols(elf_path: str, platform: str) -> dict[str, SymbolInfo]:
+def load_elf_symbols(elf_path: str, platform: str, ram_ranges=()) -> dict[str, SymbolInfo]:
     """
     Parse the .symtab of an ELF file and return a dict of symbol name -> SymbolInfo.
     Only data symbols (STT_OBJECT) that live in RAM are included — flash/const
     symbols are silently skipped since they cannot change and cannot be watched.
+    *ram_ranges*: the part's RAM as [start, end) pairs (from the build's memory map);
+    used where the address alone does not say RAM (STM32).
     Returns empty dict if ELF has no symbol table or pyelftools is missing.
     """
     if not _ELFTOOLS_AVAILABLE:
@@ -84,7 +83,7 @@ def load_elf_symbols(elf_path: str, platform: str) -> dict[str, SymbolInfo]:
                     addr = raw_addr - AVR_SRAM_OFFSET
 
                 elif plat == MCUPlatforms.STM:
-                    if not _is_ram_symbol_stm32(raw_addr):
+                    if not _in_ranges(raw_addr, ram_ranges):
                         continue  # flash / peripheral symbol, not watchable
                     addr = raw_addr  # STM32 ELF addresses are already correct
 
@@ -105,6 +104,30 @@ def load_elf_symbols(elf_path: str, platform: str) -> dict[str, SymbolInfo]:
         MDTLogger.warning(f"Failed to parse ELF symbols: {exc}")
 
     return symbols
+
+
+def load_image_extent(elf_path: str, flash_ranges) -> tuple[int, int] | None:
+    """Return [first, last) of what the ELF loads into flash: the firmware image.
+
+    Uses the load segments' physical addresses (LMA), so .data initialisers stored
+    after the code count too; that is exactly what objcopy writes to .bin/.hex.
+    *flash_ranges*: the part's flash as [start, end) pairs. None if unknown.
+    """
+    if not _ELFTOOLS_AVAILABLE or not flash_ranges:
+        return None
+    try:
+        with open(elf_path, "rb") as f:
+            spans = [
+                (seg["p_paddr"], seg["p_paddr"] + seg["p_filesz"])
+                for seg in ELFFile(f).iter_segments()
+                if seg["p_type"] == "PT_LOAD" and seg["p_filesz"] and _in_ranges(seg["p_paddr"], flash_ranges)
+            ]
+    except (OSError, ValueError) as exc:
+        MDTLogger.warning(f"Cannot read the firmware range from {elf_path}: {exc}")
+        return None
+    if not spans:
+        return None
+    return min(start for start, _ in spans), max(end for _, end in spans)
 
 
 def resolve_symbol(name: str, symbols: dict[str, SymbolInfo]) -> SymbolInfo | None:
