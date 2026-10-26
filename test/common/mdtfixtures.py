@@ -7,7 +7,7 @@ COMMANDS = {
     "READ_MEM": {
         "id": 0x01,
         "params": [
-            {"name": "control_value", "type": "str"},
+            {"name": "control_value", "type": "str", "values": ["RAM", "FLASH", "EEPROM"]},
             {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "len",           "type": "uint32", "format": "dec"},
         ],
@@ -15,7 +15,7 @@ COMMANDS = {
     "WRITE_MEM": {
         "id": 0x02,
         "params": [
-            {"name": "control_value", "type": "str"},
+            {"name": "control_value", "type": "str", "values": ["RAM", "FLASH", "EEPROM", "ERASE"]},
             {"name": "address",       "type": "uint32", "format": "hex"},
             {"name": "len",           "type": "uint32", "format": "dec"},
             {"name": "data",          "type": "bytes"},
@@ -36,14 +36,14 @@ COMMANDS = {
         "id": 0x07,
         "params": [
             {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "control_value", "type": "str"},
+            {"name": "control_value", "type": "str", "values": ["DISABLED", "ENABLED", "RESET", "NEXT"]},
         ],
     },
     "WATCHPOINT": {
         "id": 0x08,
         "params": [
             {"name": "address",       "type": "uint32", "format": "hex"},
-            {"name": "control_value", "type": "str"},
+            {"name": "control_value", "type": "str", "values": ["DISABLED", "ENABLED", "RESET", "MASK"]},
             {"name": "wp_data",       "type": "uint32", "format": "hex"},
         ],
     },

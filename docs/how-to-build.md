@@ -226,7 +226,8 @@ make clean_logs                        # remove logs/ (PC tool session logs)
 
 Every build directory ships everything you need for a downstream build:
 the static library, the public headers, and a ready-to-use
-`Makefile.example`. The workflow is:
+`Makefile.example`. `make MCU=<mcu> lib` gives the same directory without
+linking the example application (no `mcu_mdt_example.*`). The workflow is:
 
 1. `cd build/<mcu>/`
 2. `mv Makefile.example Makefile`

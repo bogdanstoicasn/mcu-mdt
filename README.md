@@ -49,6 +49,7 @@ lives in `build_system/` (YAML).
 ```bash
 make MCU=atmega328p PORT=/dev/ttyACM0   # AVR
 make MCU=F030F4     PORT=/dev/ttyUSB0   # STM32 Cortex-M0
+make MCU=F030F4     lib                 # the same, without linking the example main
 ```
 
 3. **Flash the firmware**

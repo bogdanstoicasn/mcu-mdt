@@ -36,6 +36,10 @@ Used with the WATCHPOINT command.
 | RESET    | 2     | Disable and clear the watchpoint slot                    |
 | MASK     | 3     | Set the bit mask for an already-active watchpoint slot   |
 
+A command takes only the names of its own table (READ_MEM: RAM, FLASH, EEPROM). `BREAKPOINT 0 MASK`
+is rejected even though MASK and NEXT are both 3. The names each command accepts are its param's
+`values` in `pc_tool/configs/commands.yaml`.
+
 
 ## Protocol Commands
 

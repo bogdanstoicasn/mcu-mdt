@@ -37,7 +37,7 @@ REQUIRED = (("toolchain", "prefix"), ("features", "uart_idle"), ("build", "lib")
             ("build", "example"), ("build", "flags"), ("build", "outputs"), ("dist", "files"),
             ("dist", "makefile"), ("host", "mcu_db"))
 REGION_KEYS = {"origin", "size", "page", "access"}
-MAKE_TARGETS = {"all", "clean", "wipe", "clean_logs", "help"}   # a command may not take these names
+MAKE_TARGETS = {"all", "lib", "clean", "wipe", "clean_logs", "help"}   # a command may not take these names
 
 
 class DescriptorError(Exception):

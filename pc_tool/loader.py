@@ -496,14 +496,14 @@ class ConfigLoader:
     Parameters
     ----------
     build_info_path:  Path to the project's build_info.yaml.
-    commands_path:    Path to commands.yaml (default matches repo layout).
+    commands_path:    Path to commands.yaml (default: the package's own, wherever it is run from).
     platforms_path:   Directory that contains per-platform YAML configs.
     """
 
     def __init__(
         self,
         build_info_path: str = "build/",
-        commands_path:   str = "pc_tool/configs/commands.yaml",
+        commands_path:   str = str(Path(__file__).parent / "configs" / "commands.yaml"),
         platforms_path:  str = "pc_tool/configs/platforms",
     ) -> None:
         self.yaml_build_data    = load_configs(build_info_path)

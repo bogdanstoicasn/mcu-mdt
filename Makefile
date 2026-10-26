@@ -1,5 +1,5 @@
 # ===== mcu-mdt build =====
-# make MCU=<part> [all | clean | flash | <other command of the platform>]    make wipe | clean_logs | help
+# make MCU=<part> [all | lib | clean | flash | <other command of the platform>]    make wipe | clean_logs | help
 # Optional settings, defaults in build_system/: PORT F_CPU BAUDRATE BUFFER_SIZE BREAKPOINTS WATCHPOINTS UART_IDLE
 #
 # build_system/generate.py turns the part's YAML plus those settings into build/<part>/build.mk
@@ -9,7 +9,7 @@
 
 SETTINGS := PORT F_CPU BAUDRATE BUFFER_SIZE BREAKPOINTS WATCHPOINTS UART_IDLE
 
-.PHONY: all clean wipe clean_logs help
+.PHONY: all lib clean wipe clean_logs help
 
 ifneq ($(filter-out wipe clean_logs help,$(or $(MAKECMDGOALS),all)),)
 ifndef MCU
@@ -28,10 +28,19 @@ MAIN        := $(EXAMPLE:%.c=$(BUILD_DIR)/%.o)
 LIB_A       := $(BUILD_DIR)/lib$(LIB).a
 IMAGES      := $(addprefix $(IMAGE).,$(OUTPUTS))
 
-# Builds the library and the example, then puts what a user project needs next to them.
-all: $(IMAGES)
+# What a user project needs next to the library: headers, link files, an example main and Makefile.
+define copy_dist
 	@cp $(DIST_FILES) $(BUILD_DIR)/
 	@cp $(DIST_MAKEFILE) $(BUILD_DIR)/Makefile.example
+endef
+
+# Builds the library and the example, then puts what a user project needs next to them.
+all: $(IMAGES)
+	$(copy_dist)
+
+# The same as all, without linking the example application.
+lib: $(LIB_A)
+	$(copy_dist)
 
 # build.mk is a prerequisite so changed flags rebuild; mdt_target.h is tracked by the .d files.
 $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/build.mk

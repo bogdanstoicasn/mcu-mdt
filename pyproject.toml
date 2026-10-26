@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=62.3"]   # 62.3: "**" in package-data
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,6 +26,10 @@ dev = ["ruff"]
 
 [tool.setuptools.packages.find]
 include = ["pc_tool*"]
+
+# The tool reads these at run time; without them an installed mcu-mdt has no commands and no parts.
+[tool.setuptools.package-data]
+pc_tool = ["configs/*.yaml", "mcu_db/**/*.atdf", "mcu_db/**/*.svd"]
 
 [tool.ruff]
 line-length = 100
