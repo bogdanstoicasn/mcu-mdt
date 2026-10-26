@@ -281,7 +281,7 @@ static inline void flash_clear_flags2(void)
 /* Verify a whole page reads back erased after an erase operation. */
 static uint8_t flash_page_blank(uint32_t page_base)
 {
-    for (uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 2)
+    for (uint32_t i = 0; i < MDT_FLASH_PAGE_SIZE; i += 2)
     {
         if (*((volatile uint16_t *)(uintptr_t)(page_base + i)) != 0xFFFFU)
             return 0;
@@ -382,7 +382,7 @@ static uint8_t flash_erase_page(uint32_t address)
 {
     /* Compute page base — the flash controller needs the exact page start
      * address in FLASH_AR, not an arbitrary address within the page. */
-    uint32_t page_base = address & ~(FLASH_PAGE_SIZE - 1UL);
+    uint32_t page_base = address & ~(MDT_FLASH_PAGE_SIZE - 1UL);
 
 #ifdef FLASH_XL_DENSITY
     if (address >= FLASH_BANK2_START)

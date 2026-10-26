@@ -6,7 +6,7 @@ The test suite is split into three layers: unit, integration, and hardware.
 Unit and integration tests run anywhere with no hardware attached. Hardware
 tests need a real MCU flashed with the MDT firmware and a serial port.
 
-**315 tests total.** 262 of them always run; the 53 hardware tests skip
+**319 tests total.** 266 of them always run; the 53 hardware tests skip
 cleanly when `MCU` is not set.
 
 
@@ -36,16 +36,21 @@ python3 test/firmware/check_parts.py -j 8      # build every part listed in buil
 ### Hardware tests without a board (STM32, Renode)
 
 The firmware can run in [Renode](https://renode.io) with USART1 on a TCP socket, and the
-PC tool and the hardware tests accept a `socket://` port. Renode's STM32F0 USART has no
-IDLE interrupt, so build in poll mode:
+PC tool and the hardware tests accept a `socket://` port.
 
 ```bash
+# F103: both modes work (Renode's STM32F1 USART has the IDLE interrupt)
+make MCU=F103C8
+renode --disable-gui test/simulators/stm32f103.resc          # USART1 on localhost:3456
+MCU=F103C8 MDT_PORT=socket://localhost:3456 python3 -m test.pymdtest hardware
+
+# F030: poll mode only (Renode's STM32F0 USART has no IDLE interrupt)
 make MCU=F030F4 UART_IDLE=0
-renode --disable-gui test/simulators/stm32f030.resc          # USART1 on localhost:3456
+renode --disable-gui test/simulators/stm32f030.resc
 MCU=F030F4 MDT_PORT=socket://localhost:3456 python3 -m test.pymdtest hardware
 ```
 
-Interrupt mode (`UART_IDLE=1`) still needs a real board.
+F0 interrupt mode (`UART_IDLE=1`) still needs a real board.
 
 
 ## How the runner keeps tests quiet

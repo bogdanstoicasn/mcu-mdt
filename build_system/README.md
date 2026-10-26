@@ -1,7 +1,7 @@
 # build_system
 
 One declarative description of every target. `generate.py` walks it and writes the files a
-build needs; Make does the building. AVR and STM32 F0 are described so far.
+build needs; Make does the building. AVR, STM32 F0 and STM32 F1 are described.
 
 ## The tree
 
@@ -31,6 +31,7 @@ root (the folder that contains `build_system/`).
 | `features` | `uart_idle`: whether the platform can do interrupt mode at all |
 | `toolchain` | `prefix` (`avr-`, `arm-none-eabi-`) |
 | `memory` | regions by name (`flash`, `ram`): `origin`, `size`, `page` (erase page), `access` (`rx`, `rwx`). Sizes: `16384`, `0x4000`, `16K`, `1M` |
+| `defines` | `NAME: value` written to `mdt_target.h` as `#define NAME value`: part facts the C code needs (vector table length, flash banks) |
 | `build` | `lib`, `hal_dir` (every `.c` in it goes into the library), `startup` (optional: linked into the program, not the library), `example`, `flags.compile`, `flags.link`, `flags.libs` (after the objects), `outputs` (format → objcopy arguments) |
 | `commands` | name → shell command, run as `make MCU=<part> <name>` after a build (`flash`, `erase`, ...) |
 | `dist` | `files` copied next to the library for a user project; `makefile`, shipped as `Makefile.example` |
@@ -58,7 +59,7 @@ sections and out-of-range values are errors. It writes, under `<files.build>/<pa
 | File | Holds |
 |---|---|
 | `build.mk` | Make variables: `CC AR OBJCOPY SIZE`, `CFLAGS LDFLAGS LDLIBS`, `HAL_DIR STARTUP EXAMPLE`, `IMAGE LIB`, `OUTPUTS` + `OBJCOPY_FLAGS_<format>`, `COMMANDS` + `CMD_<name>`, `DIST_FILES DIST_MAKEFILE` |
-| `mdt_target.h` | `PLATFORM_<P>`, `MDT_TARGET_MCU`, `F_CPU`, `MDT_FEATURE_UART_IDLE`, `MDT_UART_BAUDRATE`, `MDT_BUFFER_SIZE`, `MDT_MAX_BREAKPOINTS`, `MDT_MAX_WATCHPOINTS`, per memory region `MDT_<REGION>_ORIGIN/_SIZE/_PAGE_SIZE`, and `_Static_assert`s. Force-included into every C file |
+| `mdt_target.h` | `PLATFORM_<P>`, `MDT_TARGET_MCU`, `F_CPU`, `MDT_FEATURE_UART_IDLE`, `MDT_UART_BAUDRATE`, `MDT_BUFFER_SIZE`, `MDT_MAX_BREAKPOINTS`, `MDT_MAX_WATCHPOINTS`, per memory region `MDT_<REGION>_ORIGIN/_SIZE/_PAGE_SIZE`, the `defines`, and `_Static_assert`s. Force-included into every C file |
 | `memory.ld` | the linker `MEMORY` regions, when the part describes its memory (included by the core's `linker.ld`) |
 | `build_info.yaml` | `platform mcu mcu_db port baudrate uart_idle breakpoints watchpoints elf` and the memory map, for the PC tool |
 
@@ -83,8 +84,9 @@ Only the parts listed in `avr/tree_branch_*.yaml` are supported (the table in
 
 ## STM32
 
-F0 (F030, F070) is in `stm32/tree_branch_f0.yaml`, with sizes from the datasheets (the table in
-`docs/stm32/info.md`). F1 is not described yet; its old files are in `hal/stm32/cortex-m3/`.
+F0 (F030, F070) is in `stm32/tree_branch_f0.yaml` and F1 (F103) in `stm32/tree_branch_f1.yaml`,
+with sizes from the datasheets (the tables in `docs/stm32/info.md`). F1 nodes also carry
+`defines:` for the density (`MDT_VECTORS_*`, and `FLASH_XL_DENSITY` on XL).
 
 ## Checks
 

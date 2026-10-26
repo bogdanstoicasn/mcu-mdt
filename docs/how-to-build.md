@@ -1,8 +1,7 @@
 # How to Build
 
 This document covers how to build, flash, and integrate MCU-MDT firmware on
-all supported platforms (AVR and STM32 Cortex-M0; STM32 Cortex-M3 returns when it
-moves to `build_system/`).
+all supported platforms (AVR, STM32 Cortex-M0 and STM32 Cortex-M3).
 Platform-specific reference material (supported MCU lists, HAL notes,
 processing-mode details) lives in `docs/avr/info.md` and
 `docs/stm32/info.md`.

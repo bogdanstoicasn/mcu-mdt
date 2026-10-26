@@ -15,8 +15,7 @@ exposed debug header or with the SWD pins unavailable.
 **Supported platforms:**
 - **AVR** — ATmega family (80+ MCUs via ATDF database)
 - **STM32 Cortex-M0** — STM32F030xx, STM32F070xx
-- **STM32 Cortex-M3** — STM32F103xx (all densities, including XL dual-bank); being moved to
-  `build_system/`, so not buildable on the `build-system-rework` branch yet
+- **STM32 Cortex-M3** — STM32F103xx (all densities, including XL dual-bank)
 
 **Capabilities:**
 - Read and write SRAM at any address

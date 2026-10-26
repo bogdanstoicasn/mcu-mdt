@@ -40,8 +40,8 @@ def _branches(platform: str) -> dict:
             for p in sorted((_TREE / platform).glob("tree_branch_*.yaml"))}
 
 
-def _nodes(platform: str) -> set:
-    return {n.lower() for doc in _branches(platform).values() for n in doc["nodes"]}
+def _nodes(platform: str, branch: str = None) -> set:
+    return {n.lower() for name, doc in _branches(platform).items() if branch in (None, name) for n in doc["nodes"]}
 
 
 def _all_nodes() -> list:
@@ -148,18 +148,20 @@ def _cells(row: str) -> list:
 
 
 def _docs_parts(platform: str) -> set:
-    """Part names in the first table of docs/<platform>/info.md whose header has an MCU column:
-    every cell of every column headed `MCU` (AVR uses four, STM32 one beside other facts)."""
+    """Part names in docs/<platform>/info.md: every cell of every column headed `MCU`, in every
+    table that has one. A cell may list several parts separated by commas."""
     lines = (_ROOT / "docs" / platform / "info.md").read_text().splitlines()
-    start = next((i for i, line in enumerate(lines) if line.startswith("|") and "MCU" in _cells(line)), None)
-    assert start is not None, f"docs/{platform}/info.md has no table with an MCU column"
-    columns = [i for i, header in enumerate(_cells(lines[start])) if header == "MCU"]
-    parts = set()
-    for row in lines[start + 2:]:                 # skip the |---| separator
-        if not row.startswith("|"):
-            break
-        cells = _cells(row)
-        parts |= {cells[i].lower() for i in columns if i < len(cells) and cells[i]}
+    parts, columns = set(), None
+    for i, line in enumerate(lines):
+        if not line.startswith("|"):
+            columns = None
+        elif columns is None and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
+            headers = _cells(line)
+            columns = [k for k, header in enumerate(headers) if header == "MCU"] or []
+        elif columns and not set(line.replace("|", "").strip()) <= set("-: "):
+            cells = _cells(line)
+            parts |= {name.strip().lower() for k in columns if k < len(cells) for name in cells[k].split(",") if name.strip()}
+    assert parts, f"docs/{platform}/info.md has no table with an MCU column"
     return parts
 
 

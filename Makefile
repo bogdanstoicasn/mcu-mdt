@@ -21,7 +21,7 @@ $(error build_system/generate.py failed, see the message above)
 endif
 include $(GEN_DIR)/build.mk
 
-CFLAGS      += -MMD -MP -I$(INC_DIR) -I$(HAL_DIR) -include $(BUILD_DIR)/mdt_target.h
+CFLAGS      += -MMD -MP -I$(INC_DIR) -I$(HAL_DIR) -I$(BUILD_DIR) -include $(BUILD_DIR)/mdt_target.h
 OBJS        := $(patsubst %.c,$(BUILD_DIR)/%.o,$(filter-out $(STARTUP),$(wildcard $(SRC_DIR)/*.c $(HAL_DIR)/*.c)))
 STARTUP_OBJ := $(STARTUP:%.c=$(BUILD_DIR)/%.o)
 MAIN        := $(EXAMPLE:%.c=$(BUILD_DIR)/%.o)

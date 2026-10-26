@@ -423,19 +423,21 @@ code under test.
 
 
 
-- **Three levels**: root Makefile picks the platform, platform Makefile picks the core (e.g.
-  cortex-m0 vs cortex-m3), core Makefile does the actual build. Only `MCU` and `PORT` flow
-  downward. `INCLUDES` is exported as absolute paths from the root so `-I` flags work everywhere.
+- **Description, then build**: `build_system/` describes every part as a YAML tree (root,
+  platform trunk, family branch, part node; see `build_system/README.md`). On every `make`,
+  `build_system/generate.py` turns the part's description plus the command-line settings into
+  `build/<mcu>/build.mk`, `mdt_target.h`, `memory.ld` and `build_info.yaml`. One root Makefile,
+  with no platform knowledge, does the build from `build.mk`.
 
 - **Automatic header dependency tracking**: `-MMD -MP` generates a `.d` file next to each `.o`.
   Change a header, everything that includes it recompiles automatically.
 
-- **`src_` and `hal_` prefixes on object files**: avoids silent overwrites if a file with the
-  same name exists in both `src/` and `hal/`.
+- **Objects mirror the source tree** (`build/<mcu>/src/...`, `build/<mcu>/hal/...`), so files
+  with the same name in `src/` and `hal/` never overwrite each other.
 
-- **Linker script preprocessing**: the STM32 linker scripts use `#ifdef` to select flash/RAM
-  sizes per MCU. The Makefile runs the C preprocessor over `linker.ld` before passing it to the
-  linker, producing `linker_pp.ld` in the build directory.
+- **Memory layout from the part**: each STM32 core has one `linker.ld` that includes the
+  generated `memory.ld` (flash and RAM regions with the node's sizes); the same sizes reach the
+  C code (`MDT_FLASH_*`, `MDT_RAM_*`) and the PC tool (`build_info.yaml`).
 
 - **Ships as a `.a`**: user gets the static library plus two headers (`mcu_mdt.h`,
   `mdt_target.h`) and a ready-to-use `Makefile.example`.

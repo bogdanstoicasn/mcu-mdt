@@ -23,6 +23,7 @@ from build_system.generate import (
     render_memory_ld,
     render_target_header,
     resolve,
+    validate,
     write_if_changed,
 )
 from test.common.asserts import assert_eq
@@ -144,7 +145,7 @@ def test_f0_memory_reaches_header_linker_and_host():
 
 
 def test_f0_densities_match_the_datasheets():
-    memory = {part: resolve(part)["memory"] for part in _nodes("stm32")}
+    memory = {part: resolve(part)["memory"] for part in _nodes("stm32", "f0")}
     sizes = {part: (m["flash"]["size"] // 1024, m["ram"]["size"] // 1024, m["flash"]["page"] // 1024)
              for part, m in memory.items()}
     assert_eq(sizes, {
@@ -152,6 +153,46 @@ def test_f0_densities_match_the_datasheets():
         "f030cc": (256, 32, 2), "f030rc": (256, 32, 2), "f070f6": (32, 6, 1), "f070c6": (32, 6, 1),
         "f070cb": (128, 16, 2), "f070rb": (128, 16, 2),
     })
+
+
+def test_f1_densities_match_the_datasheets_and_rm0008():
+    """flash K, RAM K, page K, the vector-table define, and the second flash bank (XL only)."""
+    facts = {}
+    for part in _nodes("stm32", "f1"):
+        target = resolve(part)
+        m, defines = target["memory"], target["desc"]["defines"]
+        vectors = [name.removeprefix("MDT_VECTORS_") for name in defines if name.startswith("MDT_VECTORS_")]
+        facts[part] = (m["flash"]["size"] // 1024, m["ram"]["size"] // 1024, m["flash"]["page"] // 1024,
+                       vectors, "FLASH_XL_DENSITY" in defines)
+    density = {"4": (16, 6, 1, ["LD"], False), "6": (32, 10, 1, ["LD"], False), "8": (64, 20, 1, ["MD"], False),
+               "b": (128, 20, 1, ["MD"], False), "c": (256, 48, 2, ["HD"], False), "d": (384, 64, 2, ["HD"], False),
+               "e": (512, 64, 2, ["HD"], False), "f": (768, 96, 2, ["XL"], True), "g": (1024, 96, 2, ["XL"], True)}
+    assert_eq(len(facts), 29)
+    assert_eq(facts, {part: density[part[-1]] for part in facts})
+
+
+def test_f1_defines_reach_the_header_and_the_cpu_flags_the_build():
+    header = _defines(render_target_header(resolve("f103rg")))
+    assert_eq((header["MDT_VECTORS_XL"], header["FLASH_XL_DENSITY"], header["MDT_FLASH_PAGE_SIZE"]), ("1", "1", "0x800UL"))
+    assert "FLASH_XL_DENSITY" not in _defines(render_target_header(resolve("f103c8")))
+    make = _make_vars(render_build_mk(resolve("f103c8")))
+    assert "-mcpu=cortex-m3" in make["CFLAGS"].split() and "-Thal/stm32/cortex-m3/linker.ld" in make["LDFLAGS"].split()
+    assert_eq(make["STARTUP"], "hal/stm32/cortex-m3/startup_stm32f103xx.c")
+    assert "target/stm32f1x.cfg" in make["CMD_erase"]
+    assert "mcu_db: stm32/cortex-m3/STM32F103.svd\n" in render_build_info(resolve("f103c8"))
+
+
+def test_avr_and_f0_headers_have_no_part_facts_block():
+    assert "Part facts" not in render_target_header(resolve("atmega328p"))
+    assert "Part facts" not in render_target_header(resolve("f030f4"))
+
+
+def test_defines_must_be_plain_values_and_not_hide_generated_macros():
+    target = resolve("f103c8")
+    for defines, match in (({"MDT_VECTORS_MD": True}, "1, not true"), ({"9BAD": 1}, "C identifier"),
+                           ({"F_CPU": 1}, "already written"), ({"MDT_FLASH_SIZE": 1}, "already written")):
+        desc = {**target["desc"], "defines": defines}
+        _raises(validate, target["config"], desc, target["memory"], "stm32", match=match)
 
 
 def test_f0_poll_mode_is_allowed():
@@ -180,7 +221,7 @@ def test_placeholders_follow_the_leaf():
 
 def test_rejects_what_cannot_be_built():
     _raises(resolve, "atmega8", match="unsupported part")
-    _raises(resolve, "f103c8", match="unsupported part")
+    _raises(resolve, "f105rc", match="unsupported part")     # connectivity line: no node
     _raises(resolve, "atmega328p", ["foo=1"], match="unknown setting")
     _raises(resolve, "atmega328p", ["f_cpu"], match="unknown setting")
     _raises(resolve, "atmega328p", ["f_cpu=fast"], match="not a valid int")
