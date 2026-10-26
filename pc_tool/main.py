@@ -23,16 +23,20 @@ def build_dispatch(loader, serial_link, commander, threads):
         "PING":  lambda cmd: commander.ping(cmd),
     }
 
-def setup(build_info_path: str):
+def setup(build_info_path: str, elf_path: str | None = None):
     """Perform initial setup: load configs, initialize logger, open serial link, start event handlers."""
-    loader = ConfigLoader(build_info_path)
+    try:
+        loader = ConfigLoader(build_info_path, elf_path=elf_path)
+    except (ValueError, FileNotFoundError) as e:
+        MDTLogger.error(f"Cannot load the build: {e}", code=1)
+        exit(1)
 
     MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
     MDTLogger.session_start(loader.yaml_build_data)
 
     serial_link = serial_link_command(
         port=loader.yaml_build_data['port'],
-        baudrate=loader.yaml_build_data.get('baudrate', 19200),
+        baudrate=loader.yaml_build_data['baudrate'],
         ping_command_id=loader.yaml_command_data['commands']['PING']['id']
     )
 
@@ -42,7 +46,7 @@ def setup(build_info_path: str):
         MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
 
-    uart_idle = bool(loader.yaml_build_data.get('uart_idle', False))
+    uart_idle = bool(loader.yaml_build_data['uart_idle'])
 
     events = EventHandler(serial_link, uart_idle=uart_idle)
 
@@ -163,7 +167,7 @@ def run_loop(loader, serial_link, commander, threads):
 def main(args=None):
     if args is None:              # console-script entry (mcu-mdt): parse argv here
         args = parse_args()
-    loader, serial_link, commander, threads = setup(args.build_info)
+    loader, serial_link, commander, threads = setup(args.build_info, args.elf)
 
     if args.script:
         run_script(args.script, loader, serial_link, commander, threads)

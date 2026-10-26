@@ -1,7 +1,7 @@
 # How to Build
 
 This document covers how to build, flash, and integrate MCU-MDT firmware on
-all supported platforms (AVR, STM32 Cortex-M0, and STM32 Cortex-M3).
+all supported platforms (AVR, STM32 Cortex-M0 and STM32 Cortex-M3).
 Platform-specific reference material (supported MCU lists, HAL notes,
 processing-mode details) lives in `docs/avr/info.md` and
 `docs/stm32/info.md`.
@@ -20,53 +20,57 @@ Python 3.10+ is needed for the PC tool.
 ## Quick start
 
 ```bash
-# AVR
-make PLATFORM=avr   MCU=atmega328p PORT=/dev/ttyACM0
-
-# STM32 Cortex-M0
-make PLATFORM=stm32 MCU=F030F4     PORT=/dev/ttyUSB0
-
-# STM32 Cortex-M3
-make PLATFORM=stm32 MCU=F103C8     PORT=/dev/ttyUSB0
+make MCU=atmega328p PORT=/dev/ttyACM0     # AVR
+make MCU=F030F4     PORT=/dev/ttyUSB0     # STM32 Cortex-M0
 ```
 
-Append `flash` to the same invocation to program the board:
+The part name alone picks the platform; `PLATFORM=` is accepted and ignored. Append
+`flash` to the same invocation to program the board:
 
 ```bash
-make PLATFORM=avr   MCU=atmega328p PORT=/dev/ttyACM0 flash
-make PLATFORM=stm32 MCU=F030F4     PORT=/dev/ttyUSB0 flash
+make MCU=atmega328p PORT=/dev/ttyACM0 flash
+make MCU=F030F4 flash
 ```
 
 
 ## Build variables
 
-The build is driven entirely by command-line variables. The root `Makefile`
-dispatches into `hal/<platform>/Makefile`, which (for STM32) dispatches
-again into `hal/stm32/<core>/Makefile`. Only the variables in the table
-below are user-facing. Everything else (`FLASH_PAGE_SIZE`,
-`FLASH_XL_DENSITY`, `CPU_FLAGS`) is derived from `MCU` automatically.
+The root `Makefile` runs `build_system/generate.py`, which reads the part's YAML
+descriptors (`build_system/`, see its README) plus the variables below and writes, in
+`build/<mcu>/` (the part name in lower case):
+
+* `build.mk`: toolchain, flags, sources, output formats, platform commands
+* `mdt_target.h`: `F_CPU`, baud rate, buffer size, breakpoints, watchpoints and, on
+  STM32, the flash/RAM layout; force-included into every C file
+* `memory.ld`: the linker's flash and RAM regions (STM32)
+* `build_info.yaml`: what the PC tool needs
+
+Defaults live in the YAML; the variables below override them for one build. Only
+parts listed in `build_system/<platform>/tree_branch_*.yaml` can be built.
 
 | Variable | Required? | Default | Where used | Purpose |
 |---|---|---|---|---|
-| `PLATFORM` | yes | none | root Makefile | `avr` or `stm32`. Picks the HAL directory. |
-| `MCU` | yes | none | all | Target part (`atmega328p`, `F030F4`, `F103C8`, ...). On STM32 this also drives the linker script preprocessing and the per-MCU `FLASH_PAGE_SIZE`. |
+| `MCU` | yes | none | all | Target part (`atmega328p`, `F030F4`, ...), case-insensitive. It picks the platform and the part's memory layout. |
 | `PORT` | no | `/dev/ttyACM0` | flash target, build_info | Serial port. Only matters for `flash` and gets written into `build_info.yaml` for the PC tool. |
 | `F_CPU` | no | 16 MHz (AVR), 8 MHz (STM32) | UART baud divisor, delay calculations | CPU frequency. Must match the actual clock the firmware runs at, otherwise the UART baud rate is wrong. |
-| `MDT_USE_UART_IDLE` | no | `1` (STM32), forced `0` (AVR) | STM32 only | Selects packet processing mode. Explained below. |
+| `UART_IDLE` | no | `1` (STM32), `0` (AVR) | STM32 only | Selects packet processing mode. Explained below. |
+| `BAUDRATE` | no | `19200` | all | MDT UART baud rate; also written into `build_info.yaml` so the PC tool uses it. |
+| `BUFFER_SIZE` | no | `64` | all | Ring buffer size: 32, 64 or 128. |
+| `BREAKPOINTS`, `WATCHPOINTS` | no | `4` | all | Maximum breakpoints / watchpoints, 1 to 8; the PC tool takes the same numbers from `build_info.yaml`. |
 
 
-## The `MDT_USE_UART_IDLE` flag (STM32 only)
+## The `UART_IDLE` flag (STM32 only)
 
 This is the one user-visible mode toggle in the build system. It picks how
 the firmware handles inbound UART traffic.
 
 ```bash
-make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0                       # interrupt mode (default)
-make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0 MDT_USE_UART_IDLE=0   # poll mode
+make MCU=F030F4 PORT=/dev/ttyUSB0               # interrupt mode (default)
+make MCU=F030F4 PORT=/dev/ttyUSB0 UART_IDLE=0   # poll mode
 ```
 
-The Makefile injects the value as `-DMDT_FEATURE_UART_IDLE=<0|1>` into
-every translation unit. `mcu_mdt_config.h` declares the macro mandatory:
+The build writes the value as `MDT_FEATURE_UART_IDLE` (0 or 1) into
+`mdt_target.h`, which every translation unit includes. The library declares the macro mandatory:
 
 ```c
 #ifndef MDT_FEATURE_UART_IDLE
@@ -95,9 +99,8 @@ The protocol on the wire is identical in both modes (same packets, same
 CRC, same commands, same event format). The flag only controls who drives
 the RX dispatch on the MCU side.
 
-AVR is hardcoded to `MDT_USE_UART_IDLE=0` in `hal/avr/Makefile` because
-the USART hardware has no IDLE interrupt. Setting the flag on the AVR
-command line has no effect.
+AVR has no USART IDLE interrupt, so its descriptor declares the feature
+unsupported and `UART_IDLE=1` on AVR is rejected with an error.
 
 
 ## The `F_CPU` flag
@@ -107,9 +110,8 @@ STM32 (matches HSI on reset, before any PLL setup). Override it if your
 firmware configures a different clock:
 
 ```bash
-make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0 F_CPU=48000000UL   # HSI x6 via PLL
-make PLATFORM=stm32 MCU=F103C8 PORT=/dev/ttyUSB0 F_CPU=72000000UL   # HSE x9 via PLL
-make PLATFORM=avr   MCU=atmega328p PORT=/dev/ttyACM0 F_CPU=8000000UL
+make MCU=F030F4     F_CPU=48000000UL   # HSI x6 via PLL
+make MCU=atmega328p F_CPU=8000000UL
 ```
 
 A wrong `F_CPU` is the most common reason for a non-responsive board. The
@@ -120,52 +122,57 @@ nothing is responding, double-check `F_CPU` first.
 
 ## Build output
 
-Each build lands in `build/<MCU>/`. One directory per part, never
-overwritten across MCUs. The contents differ slightly by platform but
-follow the same shape:
+Each build lands in `build/<mcu>/` (lower case). One directory per part, never
+overwritten across MCUs. Objects mirror the source tree inside it (`src/`, `hal/`,
+`examples/`). The rest follows the same shape on every platform:
 
 ```
-build/<MCU>/
+build/<mcu>/
 ├── libmcu_mdt_<platform>.a   # static library (the actual artifact)
 ├── mcu_mdt.h                 # public header (3 functions + the BREAKPOINT macro)
-├── mcu_mdt_config.h          # configurable knobs (BAUDRATE, BUFFER_SIZE, ...)
+├── mdt_target.h              # settings this library was built with (generated)
 ├── mcu_mdt_example.elf       # example application linked against the library
-├── mcu_mdt_example.hex       # ready to flash (AVR)
+├── mcu_mdt_example.hex       # ready to flash
 ├── mcu_mdt_example.bin       # ready to flash (STM32)
+├── mcu_mdt_example.map       # linker map (STM32)
 ├── Makefile.example          # drop-in user Makefile (see below)
 ├── main.c                    # minimal example main
-└── build_info.yaml           # platform / mcu / port / firmware metadata for the PC tool
+├── build.mk                  # generated Make variables
+└── build_info.yaml           # what the PC tool needs (see below)
 ```
 
-STM32 builds also include `mcu_mdt_hal.h`, `ring_buffer.h`, `linker.ld`,
-and `startup_stm32f<family>.c`. These are needed when linking your own
-project against the library.
+STM32 builds also include `linker.ld`, the generated `memory.ld` and
+`startup_stm32f030xx.c`, needed when linking your own project against the library.
 
 ### `build_info.yaml`
 
-Generated automatically at link time. The PC tool reads it to:
+Written by the generator from the YAML and the settings. The PC tool reads it to:
 
-* Decide which SVD or ATDF to load for register name resolution.
-* Decide whether to send periodic event-poll packets (`uart_idle: 1`
-  means yes).
-* Enforce firmware self-protection. `firmware_start_address` and
-  `firmware_end_address` come from `wc -c` on the linked `.bin` file and
-  define the range the validator refuses to overwrite or erase. STM32
-  only; AVR has no flash-write support, so these fields are absent.
+* Load the part's SVD or ATDF (`mcu_db`, relative to `pc_tool/mcu_db/`) for register
+  name resolution.
+* Talk at the right speed (`baudrate`) and decide whether to send periodic event-poll
+  packets (`uart_idle: true` means yes).
+* Accept only the breakpoint and watchpoint slots the firmware has.
+* Check memory accesses against the part's memory map (`memory`, STM32; AVR takes it
+  from the ATDF).
+* Enforce firmware self-protection: the PC tool reads the flash range the firmware
+  occupies from the ELF (`elf`) and refuses writes and erases that overlap it.
 
 Example (STM32 F030F4):
 
 ```yaml
 platform: STM32
-core: cortex-m0
-mcu: F030F4
+mcu: f030f4
+mcu_db: stm32/cortex-m0/STM32F0x0.svd
 port: /dev/ttyUSB0
+baudrate: 19200
+uart_idle: true
+breakpoints: 4
+watchpoints: 4
 elf: mcu_mdt_example.elf
-uart_idle: 1
-flash_page_size: 0x400
-firmware_start_address: 0x08000000
-firmware_end_address:   0x080034a0
-firmware_size:          13472
+memory:
+  flash: {origin: 0x08000000, size: 16384, page: 1024}
+  ram: {origin: 0x20000000, size: 4096}
 ```
 
 
@@ -174,20 +181,23 @@ firmware_size:          13472
 ### AVR
 
 ```bash
-make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0 flash
+make MCU=atmega328p PORT=/dev/ttyACM0 flash
 ```
 
 Uses `avrdude` with the Arduino bootloader protocol at 115200 baud. If
 your board uses a different programmer (USBasp, dragon, ...) or baud rate,
-edit the `flash` target in `hal/avr/Makefile`.
+edit `commands.flash` in `build_system/avr/tree_trunk.yaml`.
 
 ### STM32
 
 ```bash
-make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0 flash
+make MCU=F030F4 flash            # st-flash write <bin> 0x08000000
+make MCU=F030F4 erase            # OpenOCD mass erase, connecting under reset
+make MCU=F030F4 flash-recover    # erase + flash + verify through OpenOCD, for a sleeping or locked core
 ```
 
-Uses `st-flash` to write the binary to flash at `0x08000000`. Note:
+The commands come from `commands:` in the platform's YAML (the flash origin from the
+part's memory map). `flash` uses `st-flash` to write the binary to flash at `0x08000000`. Note:
 `st-flash` performs a mass erase before writing, so anything already in
 flash is gone. `PORT` is ignored for STM32 flashing because `st-flash`
 finds the ST-Link by itself over USB.
@@ -204,21 +214,22 @@ finds the ST-Link by itself over USB.
 ## Cleaning
 
 ```bash
-make PLATFORM=<plat> MCU=<mcu> clean   # remove build/<MCU>/ only
+make MCU=<mcu> clean                   # remove build/<mcu>/ only
 make wipe                              # remove the entire build/ directory
 make clean_logs                        # remove logs/ (PC tool session logs)
 ```
 
-`wipe` and `clean_logs` do not require `PLATFORM` or `MCU`.
+`wipe` and `clean_logs` do not require `MCU`.
 
 
 ## Using the library in your own project
 
 Every build directory ships everything you need for a downstream build:
 the static library, the public headers, and a ready-to-use
-`Makefile.example`. The workflow is:
+`Makefile.example`. `make MCU=<mcu> lib` gives the same directory without
+linking the example application (no `mcu_mdt_example.*`). The workflow is:
 
-1. `cd build/<MCU>/`
+1. `cd build/<mcu>/`
 2. `mv Makefile.example Makefile`
 3. Drop your `.c` files into the directory next to `main.c`.
 4. `make MCU=<mcu> PORT=<port>`. Every `.c` in the directory is picked up
@@ -226,7 +237,14 @@ the static library, the public headers, and a ready-to-use
 
 The MDT source tree never needs to be touched by your application build.
 
-### Minimal `main.c` for poll mode (AVR, or STM32 with `MDT_USE_UART_IDLE=0`)
+Point the PC tool at the firmware you flashed, so it finds your symbols and protects your
+code from flash writes (`build_info.yaml` names the example's ELF):
+
+```bash
+python3 mcu_mdt.py build/<mcu>/build_info.yaml --elf build/<mcu>/mcu_mdt_user.elf
+```
+
+### Minimal `main.c` for poll mode (AVR, or STM32 with `UART_IDLE=0`)
 
 ```c
 #include "mcu_mdt.h"
@@ -245,7 +263,7 @@ int main(void)
 }
 ```
 
-### Minimal `main.c` for STM32 interrupt mode (`MDT_USE_UART_IDLE=1`, default)
+### Minimal `main.c` for STM32 interrupt mode (`UART_IDLE=1`, default)
 
 ```c
 #include "mcu_mdt.h"
@@ -271,7 +289,7 @@ whenever the PC polls for events (about every 0.5 s).
 Once flashed and the board is running, connect with the PC tool:
 
 ```bash
-python3 mcu_mdt.py build/<MCU>/build_info.yaml
+python3 mcu_mdt.py build/<mcu>/build_info.yaml
 PING
 ```
 
@@ -309,21 +327,21 @@ The compose file defines four services, all built from the same image.
 ```bash
 # Interactive shell (run anything inside)
 docker compose run --rm dev
-docker compose run --rm dev make PLATFORM=avr MCU=atmega328p
+docker compose run --rm dev make MCU=atmega328p
 
 # One-shot builds
 docker compose run --rm build-avr
 MCU=atmega2560 docker compose run --rm build-avr
 docker compose run --rm build-stm32
-MCU=F103x6 docker compose run --rm build-stm32
+MCU=F030F4 docker compose run --rm build-stm32
 
 # Run the PC tool against a built firmware
-MCU=F103x6 docker compose run --rm tool
+MCU=F030F4 docker compose run --rm tool
 ```
 
 The project root is mounted live into the container, so edits on the host take
 effect immediately with no rebuild of the image. Build output lands in the same
-`build/<MCU>/` directory on the host as a native build would, through a shared
+`build/<mcu>/` directory on the host as a native build would, through a shared
 volume.
 
 ### Plain Docker without compose
@@ -333,7 +351,7 @@ build context is the project root, with the Dockerfile under `scripts/`.
 
 ```bash
 docker build -t mcu-mdt -f scripts/Dockerfile .
-docker run --rm -it -v "$PWD":/workspace mcu-mdt make PLATFORM=stm32 MCU=F103x6
+docker run --rm -it -v "$PWD":/workspace mcu-mdt make MCU=F030F4
 ```
 
 ### Forwarding the serial adapter

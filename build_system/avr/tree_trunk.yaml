@@ -1,0 +1,38 @@
+# TRUNK: everything shared by all AVR parts.
+# A branch or a node may add to any section below: mappings merge key by key, lists are
+# appended, a single value is replaced. Placeholders in flags and commands: see README.md.
+version: 1
+
+type: tree_trunk
+
+platform: avr
+
+mdt_defaults:
+  f_cpu: 16000000
+  uart_idle: false
+
+features:
+  uart_idle: false              # the USART has no IDLE interrupt: poll mode only
+
+toolchain:
+  prefix: avr-                  # avr-gcc, avr-ar, avr-objcopy, avr-size
+
+build:
+  lib: mcu_mdt_avr              # libmcu_mdt_avr.a
+  hal_dir: hal/avr
+  example: examples/avr/main.c
+  flags:                        # quote anything with a comma or a brace
+    compile: ["-mmcu={mcu}", -Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections]
+    link: ["-mmcu={mcu}", "-Wl,--gc-sections", "-Wl,--print-gc-sections"]
+  outputs:                      # image format -> objcopy arguments
+    hex: [-O, ihex, -R, .eeprom]
+
+commands:                       # make MCU=<part> <name>; -b is the bootloader's speed, not the MDT baud rate
+  flash: avrdude -c arduino -p {mcu} -P {port} -b 115200 -U flash:w:{image}.hex:i
+
+dist:                           # copied next to the library for a user project
+  files: [inc/mcu_mdt.h, examples/avr/main.c]
+  makefile: examples/avr/Makefile   # shipped as Makefile.example
+
+host:                           # for the PC tool, relative to pc_tool/mcu_db
+  mcu_db: avr/atmega/{node}.atdf

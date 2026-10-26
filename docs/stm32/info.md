@@ -6,28 +6,29 @@ handling, and how to add a new core. For build invocation, flashing, and
 user-project integration see `docs/how-to-build.md`.
 
 
-## Supported cores
+## Supported parts
 
-| Core | Families |
-|---|---|
-| Cortex-M0 | STM32F030xx, STM32F070xx |
-| Cortex-M3 | STM32F103xx |
+| Core | Families | Build description |
+|---|---|---|
+| Cortex-M0 | STM32F030xx, STM32F070xx | `build_system/stm32/tree_branch_f0.yaml` |
+| Cortex-M3 | STM32F103xx | `build_system/stm32/tree_branch_f1.yaml` |
 
-The build system picks the right core automatically based on the `MCU`
-value passed at build time. Flash and RAM sizes are resolved by
-preprocessing the linker script with `#ifdef` guards, so there is no
-separate linker script per MCU variant.
+Only the parts listed as nodes in `build_system/stm32/tree_branch_*.yaml` can be
+built; the MCU tables under "Cortex-M0 details" and "Cortex-M3 details" are that list. Each node carries the part's
+flash size, RAM size and flash erase page. The build turns them into the linker's
+`memory.ld`, the `MDT_FLASH_*` / `MDT_RAM_*` macros in `mdt_target.h` and the memory map
+in `build_info.yaml` for the PC tool, so a size is written once.
 
 
 ## Processing modes
 
 STM32 supports two ways of handling inbound UART packets. The mode is
-selected at build time via `MDT_USE_UART_IDLE` (see
+selected at build time via `UART_IDLE` (see
 `docs/how-to-build.md` for the flag itself) and is written to
 `build_info.yaml` so the PC tool knows whether to send periodic
 event-poll packets.
 
-### Interrupt mode (`MDT_USE_UART_IDLE=1`, default)
+### Interrupt mode (`UART_IDLE=1`, default)
 
 USART1 fires three interrupt sources:
 
@@ -54,7 +55,7 @@ main loop. For example if it uses `HAL_Delay()`, blocking I2C/SPI
 transactions, or any other operation that stalls the loop for more than
 a few milliseconds.
 
-### Poll mode (`MDT_USE_UART_IDLE=0`)
+### Poll mode (`UART_IDLE=0`)
 
 RXNE and TXE interrupts still run (the ring buffers are always
 ISR-driven), but the IDLE interrupt is not used. The `main()` loop has
@@ -70,7 +71,7 @@ main loop
 ```
 
 In poll mode the PC tool does not send CMD_ID=0 poll packets.
-`build_info.yaml` will contain `uart_idle: 0` and the PC tool's
+`build_info.yaml` will contain `uart_idle: false` and the PC tool's
 `event_poll_worker` thread is not started. Events are delivered
 automatically by `mcu_mdt_poll()` at step 1.
 
@@ -108,17 +109,27 @@ Reference manual: RM0360.
   (RM0360 §3.1). The HAL handles this automatically inside
   `flash_unlock()`.
 
-| MCU    | Part numbers       | Flash  | RAM   | Page size | Notes                      |
-|--------|--------------------|--------|-------|-----------|----------------------------|
-| F030F4 | STM32F030F4P6      | 16 KB  | 4 KB  | 1 KB      | Primary development target |
-| F030F6 | STM32F030F6P6      | 32 KB  | 4 KB  | 1 KB      |                            |
-| F030F8 | STM32F030F8P6      | 64 KB  | 8 KB  | 1 KB      |                            |
-| F030C6 | STM32F030C6T6      | 32 KB  | 4 KB  | 1 KB      | LQFP48                     |
-| F030C8 | STM32F030C8T6      | 64 KB  | 8 KB  | 1 KB      | LQFP48                     |
-| F030CC | STM32F030CCT6      | 256 KB | 32 KB | 2 KB      | LQFP48, largest F030       |
-| F070F6 | STM32F070F6P6      | 32 KB  | 6 KB  | 1 KB      | USB device support         |
-| F070CB | STM32F070CBT6      | 128 KB | 16 KB | 2 KB      | USB device support         |
-| F070RB | STM32F070RBT6      | 128 KB | 16 KB | 2 KB      | LQFP64, USB device support |
+Sizes from the STM32F030/F070 datasheets; erase page per RM0360. Parts with the same
+flash and RAM size share their numbers in the YAML (`&anchor` / `*alias`).
+
+| MCU | Part number | Flash | RAM | Page size | Package |
+|---|---|---|---|---|---|
+| F030F4 | STM32F030F4 | 16 KB | 4 KB | 1 KB | TSSOP20 |
+| F030K6 | STM32F030K6 | 32 KB | 4 KB | 1 KB | LQFP32 |
+| F030C6 | STM32F030C6 | 32 KB | 4 KB | 1 KB | LQFP48 |
+| F030C8 | STM32F030C8 | 64 KB | 8 KB | 1 KB | LQFP48 |
+| F030R8 | STM32F030R8 | 64 KB | 8 KB | 1 KB | LQFP64 |
+| F030CC | STM32F030CC | 256 KB | 32 KB | 2 KB | LQFP48 |
+| F030RC | STM32F030RC | 256 KB | 32 KB | 2 KB | LQFP64 |
+| F070F6 | STM32F070F6 | 32 KB | 6 KB | 1 KB | TSSOP20, USB |
+| F070C6 | STM32F070C6 | 32 KB | 6 KB | 1 KB | LQFP48, USB |
+| F070CB | STM32F070CB | 128 KB | 16 KB | 2 KB | LQFP48, USB |
+| F070RB | STM32F070RB | 128 KB | 16 KB | 2 KB | LQFP64, USB |
+
+Build output is in `build/<mcu>/` with the name in lower case (`build/f030f4/`).
+
+ST's `STM32F0x0.svd` (v1.2), used by the PC tool, lists a PVD interrupt at IRQ 1;
+F030/F070 have none (RM0360), and the startup file correctly leaves that vector reserved.
 
 
 ## Cortex-M3 details (F103xx)
@@ -134,62 +145,65 @@ Reference manual: RM0008.
 * HSI must be enabled for all flash operations (RM0008 §3.3.3). The HAL
   enables it automatically in `flash_unlock()`.
 
-| Density | Example parts              | Flash   | RAM    | Page size | Notes                  |
-|---------|----------------------------|---------|--------|-----------|------------------------|
-| F103x4  | STM32F103C4, R4, T4        | 16 KB   | 6 KB   | 1 KB      | Low                    |
-| F103x6  | STM32F103C6, R6, T6        | 32 KB   | 10 KB  | 1 KB      | Low                    |
-| F103x8  | STM32F103C8, R8, T8, V8    | 64 KB   | 20 KB  | 1 KB      | Medium                 |
-| F103xB  | STM32F103CB, RB, TB, VB    | 128 KB  | 20 KB  | 1 KB      | Medium                 |
-| F103xC  | STM32F103RC, VC, ZC        | 256 KB  | 48 KB  | 2 KB      | High                   |
-| F103xD  | STM32F103RD, VD, ZD        | 384 KB  | 64 KB  | 2 KB      | High                   |
-| F103xE  | STM32F103RE, VE, ZE        | 512 KB  | 64 KB  | 2 KB      | High                   |
-| F103xF  | STM32F103RF, VF, ZF        | 768 KB  | 96 KB  | 2 KB      | XL, dual-bank          |
-| F103xG  | STM32F103RG, VG, ZG        | 1024 KB | 96 KB  | 2 KB      | XL, dual-bank          |
+Sizes from the STM32F103 datasheets; erase page and vector table per RM0008. Each node
+in the YAML also carries its density's `MDT_VECTORS_LD/MD/HD/XL` (the vector table length,
+read by the startup file) and, on XL, `FLASH_XL_DENSITY` (the second flash bank, read by the
+HAL). Parts of one density share these values.
 
-Any package variant (C=LQFP48, R=LQFP64, T=VFQFPN36, V=LQFP100,
-Z=LQFP144) at a given density maps to the same linker script entry. Pass
-the density letter in the `MCU` argument:
+| Density | MCU | Flash | RAM | Page size | Vectors | Notes |
+|---|---|---|---|---|---|---|
+| x4 | F103C4, F103R4, F103T4 | 16 KB | 6 KB | 1 KB | 59 | Low |
+| x6 | F103C6, F103R6, F103T6 | 32 KB | 10 KB | 1 KB | 59 | Low |
+| x8 | F103C8, F103R8, F103T8, F103V8 | 64 KB | 20 KB | 1 KB | 59 | Medium (Blue Pill: F103C8) |
+| xB | F103CB, F103RB, F103TB, F103VB | 128 KB | 20 KB | 1 KB | 59 | Medium |
+| xC | F103RC, F103VC, F103ZC | 256 KB | 48 KB | 2 KB | 76 | High |
+| xD | F103RD, F103VD, F103ZD | 384 KB | 64 KB | 2 KB | 76 | High |
+| xE | F103RE, F103VE, F103ZE | 512 KB | 64 KB | 2 KB | 76 | High |
+| xF | F103RF, F103VF, F103ZF | 768 KB | 96 KB | 2 KB | 76 | XL, dual-bank |
+| xG | F103RG, F103VG, F103ZG | 1024 KB | 96 KB | 2 KB | 76 | XL, dual-bank |
 
-```
-MCU=F103C8   # LQFP48, 64 KB flash
-MCU=F103RB   # LQFP64, 128 KB flash
-```
+The package letter (C=LQFP48, R=LQFP64, T=VFQFPN36, V=LQFP100, Z=LQFP144) does not change
+the build; pass the part as `MCU` (`make MCU=F103C8`).
+
+ST's `STM32F103.svd` (v1.1), used by the PC tool, has no entry for IRQ 42; RM0008 and the
+CMSIS headers put USB wake-up there (`USBWakeUp_IRQn = 42`), and so does the startup file.
 
 
 ### XL-density dual-bank (F103xF, F103xG)
 
-F103xF and F103xG have 1 MB of flash split into two independent 512 KB
-banks:
+F103xF (768 KB) and F103xG (1 MB) split their flash into two independent banks;
+bank 1 is always the first 512 KB:
 
 | Bank | Address range             | Control registers               |
 |------|---------------------------|---------------------------------|
 | 1    | 0x08000000 - 0x0807FFFF   | FLASH_CR, FLASH_SR, FLASH_AR    |
-| 2    | 0x08080000 - 0x080FFFFF   | FLASH_CR2, FLASH_SR2, FLASH_AR2 |
+| 2    | 0x08080000 - end of flash | FLASH_CR2, FLASH_SR2, FLASH_AR2 |
 
 The HAL picks the right register set automatically based on the address.
 Any write or erase to an address `>= 0x08080000` uses the bank 2
 registers. Both banks are unlocked independently using their own key
 registers.
 
-The build system passes `-DFLASH_XL_DENSITY` for F103xF and F103xG. All
-bank-2 code is compiled out on non-XL targets with
+The xF and xG nodes set `FLASH_XL_DENSITY` (in `defines:`), which reaches the HAL through
+`mdt_target.h`. All bank-2 code is compiled out on non-XL targets with
 `#ifdef FLASH_XL_DENSITY`.
 
 
 ## Startup file and vector table
 
-`build/<MCU>/` contains a copy of the startup file for your family
-(`startup_stm32f103xx.c` or `startup_stm32f030xx.c`), `linker.ld`, `memory.ld`
-and `mcu.h`. The startup file in your project is yours to edit.
+The startup file (vector table, reset handler) is linked into the program, not into the
+library: the branch names it in `build.startup`. `build/<mcu>/` gets a copy of it,
+`linker.ld` and the generated `memory.ld` (regions `flash` and `ram`), so a user project
+can link the library with them. The startup file in your project is yours to edit.
 
-On F103 the interrupt vector table has a different size per density
-(59 vectors on low/medium density, 76 on high and XL density). The startup
-file does not guess it: it reads `MDT_VECTORS_LD`, `MDT_VECTORS_MD`,
-`MDT_VECTORS_HD` or `MDT_VECTORS_XL` from the `mcu.h` next to it (set per
-variant in `hal/stm32/cortex-m3/variant/<variant>/mcu.h`) and stops with a
-compile error if none is defined. A table that is too short makes every
-interrupt above IRQ42 jump into garbage on F103xC..xG, so keep `mcu.h` next to
-the startup file and do not remove those lines.
+The F0 vector table has 48 entries (16 core, 32 IRQ). The build places it at the start of
+flash; its first word is the top of the part's RAM (for example `0x20001000` on F030F4,
+`0x20008000` on F030CC).
+
+On F103 the table size depends on the density: 59 vectors on low/medium density, 76 on
+high and XL density. The startup file reads the length from the `MDT_VECTORS_*` define of
+the part's node (it includes `mdt_target.h`, which ships next to it) and stops with a
+compile error if none is set.
 
 Do not remove `naked` from the reset handler (see `troubleshooting.md`).
 
@@ -208,9 +222,9 @@ READ_MEM  FLASH 0x08004000 4            # verify readback
 ```
 
 The PC validator prevents writes and erases that would touch the running
-firmware image. The firmware-occupied range
-(`firmware_start_address` to `firmware_end_address`) is read from
-`build_info.yaml` and checked before every FLASH write and ERASE
+firmware image. The PC tool reads the firmware-occupied range from the ELF
+(its load segments in flash: code, read-only data and the `.data` initial values,
+exactly what goes into the `.bin`) and checks it before every FLASH write and ERASE
 command.
 
 Page sizes:
@@ -221,28 +235,34 @@ Page sizes:
   connectivity density).
 
 For ERASE the MCU computes the page base address from the given address
-and `FLASH_PAGE_SIZE` (injected by the Makefile at compile time). The
+and `MDT_FLASH_PAGE_SIZE` (the node's `memory.flash.page`, in `mdt_target.h`). The
 user can pass any address within the target page.
 
 
-## Adding a new STM32 core
+## Adding a part, a family or a core
 
-To add support for a new Cortex core (for example Cortex-M4 for
-STM32F4xx):
+**A part of an existing family** (for example another F030): add one node to the
+branch with its sizes, and a row to the table above:
+
+```yaml
+  F030CC: {memory: {flash: {size: 256K, page: 2K}, ram: {size: 32K}}}
+```
+
+**A family on an existing core:** add `build_system/stm32/tree_branch_<family>.yaml`
+with the HAL directory, startup file, `-mcpu`, linker script, the OpenOCD commands, the
+SVD for the PC tool (`host.mcu_db`) and the nodes. `tree_branch_f0.yaml` is the example.
+
+**A new core** (for example Cortex-M4 for STM32F4xx):
 
 1. Create `hal/stm32/cortex-m4/` with:
-   * `hal_stm.c` implementing all HAL functions (UART driver + memory
-     access).
-   * `uart.h` with peripheral register structs and bit masks for the
-     target family.
-   * `commands.h` with the FLASH register map, bit defines, key values,
-     and FLASH_PAGE_SIZE guard.
-   * `Makefile` copied from `cortex-m0/` with `CPU_FLAGS` and MCU
-     mapping adjusted.
+   * `hal_stm.c` implementing all HAL functions (UART driver + memory access).
+   * `uart.h` with peripheral register structs and bit masks for the target family.
+   * `commands.h` with the FLASH register map, bit defines and key values; the page
+     size is `MDT_FLASH_PAGE_SIZE` from `mdt_target.h`.
    * `startup_<device>.c` for the target.
-   * `linker.ld` with `#ifdef` guards for flash and RAM sizes.
-2. Add the MCU family mapping in `hal/stm32/Makefile` (the router).
-3. `src/` is not modified.
+   * `linker.ld` that includes `memory.ld` and places sections in `flash` and `ram`.
+2. Add its branch YAML as above, and the SVD under `pc_tool/mcu_db/stm32/`.
+3. `src/`, the Makefile, the generator and the PC tool are not modified.
 
 
 ## Application notes
@@ -250,8 +270,8 @@ STM32F4xx):
 1. **Do not use USART1** in your application code. It is owned by the
    MDT UART driver.
 2. **SVD files for register validation** live in
-   `pc_tool/mcu_db/stm32/`. Add an SVD plus YAML config to support a
-   new STM32 family in the PC tool validator.
+   `pc_tool/mcu_db/stm32/`. The branch YAML names the one its parts use
+   (`host.mcu_db`); memory sizes come from the build, not from the SVD.
 3. **HSI must be running during flash operations.** The HAL enables it
    automatically in `flash_unlock()`. If your application disables HSI
    after startup, be aware that the first flash operation after MDT

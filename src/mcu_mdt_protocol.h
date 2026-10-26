@@ -2,7 +2,6 @@
 #define MCU_MDT_PROTOCOL_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /* Protocol specific definitions */ 
 

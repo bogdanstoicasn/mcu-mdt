@@ -4,6 +4,9 @@
 #include "mcu_mdt_hal.h"
 #include "mcu_mdt_watchpoint.h"
 
+/** @brief Canary written around the buffer to detect overruns */
+#define MDT_FENCE_PATTERN 0xA5A5A5A5
+
 /** @brief Type definition for MDT fence structure */
 typedef uint32_t mdt_fence_t;
 

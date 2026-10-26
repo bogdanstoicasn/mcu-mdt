@@ -6,7 +6,7 @@ The test suite is split into three layers: unit, integration, and hardware.
 Unit and integration tests run anywhere with no hardware attached. Hardware
 tests need a real MCU flashed with the MDT firmware and a serial port.
 
-**274 tests total.** 221 of them always run; the 53 hardware tests skip
+**319 tests total.** 266 of them always run; the 53 hardware tests skip
 cleanly when `MCU` is not set.
 
 
@@ -26,6 +26,31 @@ python3 -m test.pymdtest hardware     # hardware only (requires MCU)
 
 Do not use `pytest` directly. The `@parametrize` decorator is custom and
 not compatible with pytest.
+
+Two more checks need a toolchain rather than a board:
+
+```bash
+python3 test/firmware/check_parts.py -j 8      # build every part listed in build_system/
+```
+
+### Hardware tests without a board (STM32, Renode)
+
+The firmware can run in [Renode](https://renode.io) with USART1 on a TCP socket, and the
+PC tool and the hardware tests accept a `socket://` port.
+
+```bash
+# F103: both modes work (Renode's STM32F1 USART has the IDLE interrupt)
+make MCU=F103C8
+renode --disable-gui test/simulators/stm32f103.resc          # USART1 on localhost:3456
+MCU=F103C8 MDT_PORT=socket://localhost:3456 python3 -m test.pymdtest hardware
+
+# F030: poll mode only (Renode's STM32F0 USART has no IDLE interrupt)
+make MCU=F030F4 UART_IDLE=0
+renode --disable-gui test/simulators/stm32f030.resc
+MCU=F030F4 MDT_PORT=socket://localhost:3456 python3 -m test.pymdtest hardware
+```
+
+F0 interrupt mode (`UART_IDLE=1`) still needs a real board.
 
 
 ## How the runner keeps tests quiet
@@ -92,7 +117,7 @@ validation, and dispatch routing. Parameterized across valid and invalid
 slot IDs.
 
 Firmware protection has dedicated cases: FLASH write inside firmware is
-rejected (start, mid, end-minus-one); write at `firmware_end_address` is
+rejected (start, mid, end-minus-one); write at the end of the image is
 accepted; write spanning the boundary is rejected; no firmware info in
 metadata allows write (the AVR path); ERASE of a page overlapping firmware
 is rejected (page 0, mid-firmware, last firmware page); ERASE of the first
@@ -126,7 +151,7 @@ respected.
 The C firmware and the Python tool each hold a copy of the protocol
 constants. These cases parse the C headers (`mcu_mdt_protocol.h`,
 `mcu_mdt_event.h`, `mcu_mdt_breakpoints.h`, `mcu_mdt_watchpoint.h`,
-`mcu_mdt_config.h`) and compare them with the Python enums and
+`mcu_mdt_hal.h`) and compare them with the Python enums and
 `commands.yaml`: packet size, field offsets, fence bytes, flag bits, command
 ids, event types, memory zones, and breakpoint/watchpoint control values. A
 value added or changed on one side and not the other fails here. Known

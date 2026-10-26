@@ -1,87 +1,83 @@
-# ===== Root Makefile =====
-# Usage: make PLATFORM=avr MCU=atmega328p [F_CPU=16000000UL]
+# ===== mcu-mdt build =====
+# make MCU=<part> [all | lib | clean | flash | <other command of the platform>]    make wipe | clean_logs | help
+# Optional settings, defaults in build_system/: PORT F_CPU BAUDRATE BUFFER_SIZE BREAKPOINTS WATCHPOINTS UART_IDLE
+#
+# build_system/generate.py turns the part's YAML plus those settings into build/<part>/build.mk
+# (included below), mdt_target.h (force-included into every .c), memory.ld (when the part
+# describes its memory) and build_info.yaml (PC tool). It rewrites a file only when its content
+# changes, so it runs on every make. Nothing in here is platform specific: a new platform is YAML only.
 
-# Targets that do NOT require PLATFORM/MCU
-NO_CONFIG_TARGETS := wipe help clean_logs
+SETTINGS := PORT F_CPU BAUDRATE BUFFER_SIZE BREAKPOINTS WATCHPOINTS UART_IDLE
 
-# Returns non-empty ONLY if at least one goal REQUIRES config
-REQUIRES_CONFIG := $(filter-out $(NO_CONFIG_TARGETS),$(MAKECMDGOALS))
+.PHONY: all lib clean wipe clean_logs help
 
-# Only enforce configuration if target requires it
-ifneq ($(REQUIRES_CONFIG),)
-
-ifndef PLATFORM
-$(error PLATFORM is not set. Example: PLATFORM=avr)
-endif
-
+ifneq ($(filter-out wipe clean_logs help,$(or $(MAKECMDGOALS),all)),)
 ifndef MCU
-$(error MCU is not set. Example: MCU=atmega328p)
+$(error MCU is not set. Example: make MCU=atmega328p)
 endif
-
+GEN_DIR := $(shell python3 build_system/generate.py $(MCU) $(foreach s,$(SETTINGS),$(if $($(s)),$(s)=$($(s)))))
+ifneq ($(.SHELLSTATUS),0)
+$(error build_system/generate.py failed, see the message above)
 endif
+include $(GEN_DIR)/build.mk
 
-# Public include directories (exported to sub-makefiles)
-INCLUDES := -I$(CURDIR)/inc
-export INCLUDES
+CFLAGS      += -MMD -MP -I$(INC_DIR) -I$(HAL_DIR) -I$(BUILD_DIR) -include $(BUILD_DIR)/mdt_target.h
+OBJS        := $(patsubst %.c,$(BUILD_DIR)/%.o,$(filter-out $(STARTUP),$(wildcard $(SRC_DIR)/*.c $(HAL_DIR)/*.c)))
+STARTUP_OBJ := $(STARTUP:%.c=$(BUILD_DIR)/%.o)
+MAIN        := $(EXAMPLE:%.c=$(BUILD_DIR)/%.o)
+LIB_A       := $(BUILD_DIR)/lib$(LIB).a
+IMAGES      := $(addprefix $(IMAGE).,$(OUTPUTS))
 
-# Optional: Port
-PORT ?= /dev/ttyACM0
+# What a user project needs next to the library: headers, link files, an example main and Makefile.
+define copy_dist
+	@cp $(DIST_FILES) $(BUILD_DIR)/
+	@cp $(DIST_MAKEFILE) $(BUILD_DIR)/Makefile.example
+endef
 
-PLATFORM_MAKE := hal/$(PLATFORM)/Makefile
+# Builds the library and the example, then puts what a user project needs next to them.
+all: $(IMAGES)
+	$(copy_dist)
 
-# Only check platform file when configuration is required
-ifneq ($(REQUIRES_CONFIG),)
-ifeq ("$(wildcard $(PLATFORM_MAKE))","")
-$(error Unsupported PLATFORM '$(PLATFORM)'. No file '$(PLATFORM_MAKE)')
-endif
-endif
+# The same as all, without linking the example application.
+lib: $(LIB_A)
+	$(copy_dist)
 
-.PHONY: all clean flash flash-recover erase wipe clean_logs help
+# build.mk is a prerequisite so changed flags rebuild; mdt_target.h is tracked by the .d files.
+$(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/build.mk
+	@mkdir -p $(@D)
+	@echo "  CC  $<"
+	@$(CC) $(CFLAGS) -c $< -o $@
 
-BUILD_INFO_FILE := ./build/$(MCU)/build_info.yaml
+$(LIB_A): $(OBJS)
+	@echo "  AR  $@"
+	@rm -f $@ && $(AR) rcs $@ $^
 
-# Helper: only pass F_CPU if defined
-F_CPU_ARG := $(if $(F_CPU),F_CPU=$(F_CPU))
+# The startup file (vector table, reset handler) belongs to the program, not the library.
+$(IMAGE).elf: $(STARTUP_OBJ) $(MAIN) $(LIB_A)
+	@echo "  LD  $@"
+	@$(CC) $(LDFLAGS) $(STARTUP_OBJ) $(MAIN) -L$(BUILD_DIR) -l$(LIB) $(LDLIBS) -o $@
+	@$(SIZE) $@
 
-all:
-	@echo "Building for PLATFORM=$(PLATFORM), MCU=$(MCU)"
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG)
+$(IMAGES): $(IMAGE).%: $(IMAGE).elf
+	@echo "  OBJCOPY $@"
+	@$(OBJCOPY) $(OBJCOPY_FLAGS_$*) $< $@
 
-flash:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) flash
+-include $(OBJS:.o=.d) $(STARTUP_OBJ:.o=.d) $(MAIN:.o=.d)
 
-# STM32-only recovery targets (no-op rule exists only in the STM32 HALs).
-erase:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) erase
-
-flash-recover:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) flash-recover
+# Platform commands (flash, erase, ...) come from the YAML; each runs on a fresh build.
+.PHONY: $(COMMANDS)
+$(COMMANDS): all
+	$(CMD_$@)
 
 clean:
-	@$(MAKE) -C hal/$(PLATFORM) MCU=$(MCU) PORT=$(PORT) $(F_CPU_ARG) clean
+	rm -rf $(BUILD_DIR)
+endif
 
 wipe:
-	@echo "Removing all build artifacts..."
-	@rm -rf build
-	@echo "All build artifacts removed."
+	rm -rf build
 
 clean_logs:
-	@echo "Removing logs..."
-	@rm -rf logs
-	@echo "Logs removed."
+	rm -rf logs
 
 help:
-	@echo ""
-	@echo "Build usage:"
-	@echo "  make PLATFORM=<platform> MCU=<mcu> [F_CPU=...]"
-	@echo "  make PLATFORM=<platform> MCU=<mcu> flash [F_CPU=...]"
-	@echo "  make PLATFORM=<platform> MCU=<mcu> clean"
-	@echo ""
-	@echo "STM32 recovery (needs openocd):"
-	@echo "  make PLATFORM=stm32 MCU=<mcu> erase          Mass-erase under reset"
-	@echo "  make PLATFORM=stm32 MCU=<mcu> flash-recover  Erase + flash a stuck/asleep board"
-	@echo ""
-	@echo "Maintenance:"
-	@echo "  make wipe        Remove ALL build artifacts"
-	@echo "  make clean_logs  Remove all session log files"
-	@echo ""
+	@sed -n '2,3p' Makefile | cut -c3-

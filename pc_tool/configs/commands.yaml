@@ -13,12 +13,14 @@ control_values:
   # Watchpoint control values (DISABLED/ENABLED/RESET shared above)
   MASK: 3
 
+# A "str" param takes only the names in its "values"; the numbers come from control_values above.
+
 commands:
   READ_MEM:
     id: 0x01
     description: "Read n bytes from memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
+      - { name: "control_value", type: "str",    hint: "<RAM|FLASH|EEPROM>", format: "dec", values: [RAM, FLASH, EEPROM] }
       - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
       - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
 
@@ -26,7 +28,7 @@ commands:
     id: 0x02
     description: "Write n bytes to memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<mem_type>", format: "dec" }
+      - { name: "control_value", type: "str",    hint: "<RAM|FLASH|EEPROM|ERASE>", format: "dec", values: [RAM, FLASH, EEPROM, ERASE] }
       - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
       - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
       - { name: "data",          type: "bytes",   hint: "<hex>", format: "hex" }
@@ -57,14 +59,14 @@ commands:
     description: "Trigger a software breakpoint in the MCU firmware"
     params:
       - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
-      - { name: "control_value", type: "str",    hint: "<control>", format: "dec" }
-  
+      - { name: "control_value", type: "str",    hint: "<ENABLED|DISABLED|RESET|NEXT>", format: "dec", values: [DISABLED, ENABLED, RESET, NEXT] }
+
   WATCHPOINT:
     id: 0x08
     description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
       - { name: "address",       type: "uint32",          hint: "<id>",               format: "hex" }
-      - { name: "control_value", type: "str",              hint: "<control>",          format: "dec" }
+      - { name: "control_value", type: "str",              hint: "<ENABLED|DISABLED|RESET|MASK>", format: "dec", values: [DISABLED, ENABLED, RESET, MASK] }
       - { name: "wp_data",       type: "symbol_or_uint32", hint: "<symbol|addr|mask>", format: "hex" }
 
   EXIT:

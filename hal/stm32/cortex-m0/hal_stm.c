@@ -285,7 +285,7 @@ static uint8_t flash_write_word(uint32_t address, uint32_t data)
 
 static uint8_t flash_erase_page(uint32_t address)
 {
-    uint32_t page_base = address & ~(FLASH_PAGE_SIZE - 1UL);
+    uint32_t page_base = address & ~(MDT_FLASH_PAGE_SIZE - 1UL);
 
     flash_unlock();
 
@@ -311,7 +311,7 @@ static uint8_t flash_erase_page(uint32_t address)
     /* Verify the whole page reads back erased. */
     if (ok)
     {
-        for (uint32_t i = 0; i < FLASH_PAGE_SIZE; i += 2)
+        for (uint32_t i = 0; i < MDT_FLASH_PAGE_SIZE; i += 2)
         {
             if (*((volatile uint16_t *)(uintptr_t)(page_base + i)) != 0xFFFFU)
             {

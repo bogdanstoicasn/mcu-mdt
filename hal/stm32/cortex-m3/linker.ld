@@ -1,4 +1,4 @@
-/* Universal STM32F103xx Linker Script */
+/* STM32F103 linker script. memory.ld (regions flash and ram) is generated per part in build/<part>/. */
 
 INCLUDE memory.ld
 
@@ -11,28 +11,28 @@ SECTIONS
     {
         KEEP(*(.vectors))
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     .text :
     {
         *(.text*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     .rodata :
     {
         *(.rodata*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     .ARM.extab :
     {
         *(.ARM.extab*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
     .ARM.exidx :
     {
@@ -40,7 +40,7 @@ SECTIONS
         *(.ARM.exidx*)
         __exidx_end = .;
         . = ALIGN(4);
-    } > rom
+    } > flash
 
     . = ALIGN(4);
     _etext = .;

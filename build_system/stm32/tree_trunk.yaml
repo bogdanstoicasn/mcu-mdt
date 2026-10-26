@@ -1,0 +1,40 @@
+# TRUNK: everything shared by all STM32 parts.
+# A branch or a node may add to any section below: mappings merge key by key, lists are
+# appended, a single value is replaced. Placeholders in flags and commands: see README.md.
+version: 1
+
+type: tree_trunk
+
+platform: stm32
+
+mdt_defaults:
+  f_cpu: 8000000                # HSI after reset, before any PLL setup
+  uart_idle: true
+
+features:
+  uart_idle: true               # USART IDLE interrupt available
+
+toolchain:
+  prefix: arm-none-eabi-
+
+memory:                         # each node adds the sizes; flash also gets its erase page
+  flash: {origin: 0x08000000, access: rx}
+  ram:   {origin: 0x20000000, access: rwx}
+
+build:
+  lib: mcu_mdt_stm32
+  example: examples/stm32/main.c
+  flags:                        # the branch adds -mcpu and the linker script
+    compile: [-mthumb, -Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections, -ffreestanding]
+    link: [-mthumb, -nostdlib, "-L{build_dir}", "-Wl,--gc-sections", "-Wl,--print-memory-usage", "-Wl,-Map={image}.map"]
+    libs: [-lgcc]               # after the objects: -nostdlib drops it, Cortex-M0 needs it
+  outputs:
+    bin: [-O, binary]
+    hex: [-O, ihex]
+
+commands:
+  flash: st-flash write {image}.bin {flash_origin}
+
+dist:
+  files: [inc/mcu_mdt.h, examples/stm32/main.c]
+  makefile: examples/stm32/Makefile

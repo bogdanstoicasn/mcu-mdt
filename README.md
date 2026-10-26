@@ -42,31 +42,28 @@ cd mcu-mdt
 
 2. **Build the firmware**
 
-Build instructions and all build flags (`PLATFORM`, `MCU`, `PORT`, `F_CPU`,
-`MDT_USE_UART_IDLE`) are documented in `docs/how-to-build.md`.
+Build instructions and all build settings (`MCU`, `PORT`, `F_CPU`, `BAUDRATE`,
+`UART_IDLE`, ...) are documented in `docs/how-to-build.md`. What each part is built with
+lives in `build_system/` (YAML).
 
 ```bash
-# AVR
-make PLATFORM=avr MCU=atmega328p PORT=/dev/ttyACM0
-
-# STM32 Cortex-M0
-make PLATFORM=stm32 MCU=F030F4 PORT=/dev/ttyUSB0
-
-# STM32 Cortex-M3
-make PLATFORM=stm32 MCU=F103C8 PORT=/dev/ttyUSB0
+make MCU=atmega328p PORT=/dev/ttyACM0   # AVR
+make MCU=F030F4     PORT=/dev/ttyUSB0   # STM32 Cortex-M0
+make MCU=F030F4     lib                 # the same, without linking the example main
 ```
 
 3. **Flash the firmware**
 
 ```bash
-make PLATFORM=avr   MCU=atmega328p PORT=/dev/ttyACM0 flash  # avrdude
-make PLATFORM=stm32 MCU=F030F4     PORT=/dev/ttyUSB0 flash  # st-flash
+make MCU=atmega328p PORT=/dev/ttyACM0 flash  # avrdude
+make MCU=F030F4 flash                        # st-flash
 ```
 
 4. **Run the host tool**
 
 ```bash
-python3 mcu_mdt.py build/<MCU>/build_info.yaml
+python3 mcu_mdt.py build/<mcu>/build_info.yaml   # <mcu> in lower case, e.g. build/f030f4/
+python3 mcu_mdt.py build/<mcu>/build_info.yaml --elf <your firmware>.elf   # your own project
 ```
 
 5. **Start debugging**
@@ -110,7 +107,7 @@ the PC side handles all complex validation and tooling.
 | Document | Description |
 |---|---|
 | `docs/architecture.md` | System design, HAL contract, protocol rationale, memory safety, breakpoint design rationale, PC-side logger/Terminal split |
-| `docs/how-to-build.md` | Toolchain, build flags (`PLATFORM`, `MCU`, `PORT`, `F_CPU`, `MDT_USE_UART_IDLE`), flashing, library integration |
+| `docs/how-to-build.md` | Toolchain, build settings (`MCU`, `PORT`, `F_CPU`, `BAUDRATE`, `UART_IDLE`, ...), flashing, library integration |
 | `docs/protocol.md` | Packet format, field descriptions, CRC algorithm, event packets |
 | `docs/commands.md` | All commands with parameters, behavior, and platform availability |
 | `docs/avr/info.md` | AVR platform reference — HAL details, supported MCU list, ATDF extension |

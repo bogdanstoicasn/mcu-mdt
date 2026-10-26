@@ -1,0 +1,63 @@
+# BRANCH: STM32F103 (performance line): Cortex-M3, one HAL, startup, linker script and SVD.
+# A node is one supported part, named without the STM32 prefix (matching is case-insensitive).
+# Sizes: STM32F103 datasheets; page: flash erase page, RM0008 (1K up to 128K flash, 2K above).
+# defines: the vector table length of the density (startup_stm32f103xx.c) and, on XL density,
+# the second flash bank (hal_stm.c). Parts of the same density share one entry (&anchor / *alias).
+version: 1
+
+type: tree_branch
+
+platform: stm32
+branch: f1
+
+build:
+  hal_dir: hal/stm32/cortex-m3
+  startup: hal/stm32/cortex-m3/startup_stm32f103xx.c
+  flags:
+    compile: [-mcpu=cortex-m3]
+    link: [-mcpu=cortex-m3, -Thal/stm32/cortex-m3/linker.ld]
+
+commands:                       # erase and flash-recover connect under reset, for a sleeping or locked core
+  erase: openocd -f interface/stlink.cfg -f target/stm32f1x.cfg -c "init; reset halt; stm32f1x mass_erase 0; reset; shutdown"
+  flash-recover: openocd -f interface/stlink.cfg -f target/stm32f1x.cfg -c "init; reset halt; stm32f1x mass_erase 0; flash write_image erase {image}.elf; verify_image {image}.elf; reset run; shutdown"
+
+dist:
+  files: [hal/stm32/cortex-m3/linker.ld, hal/stm32/cortex-m3/startup_stm32f103xx.c]
+
+host:
+  mcu_db: stm32/cortex-m3/STM32F103.svd
+
+nodes:
+  # low density: 59 vectors
+  F103C4: &f103x4 {memory: {flash: {size: 16K, page: 1K}, ram: {size: 6K}}, defines: {MDT_VECTORS_LD: 1}}
+  F103R4: *f103x4
+  F103T4: *f103x4
+  F103C6: &f103x6 {memory: {flash: {size: 32K, page: 1K}, ram: {size: 10K}}, defines: {MDT_VECTORS_LD: 1}}
+  F103R6: *f103x6
+  F103T6: *f103x6
+  # medium density: 59 vectors
+  F103C8: &f103x8 {memory: {flash: {size: 64K, page: 1K}, ram: {size: 20K}}, defines: {MDT_VECTORS_MD: 1}}
+  F103R8: *f103x8
+  F103T8: *f103x8
+  F103V8: *f103x8
+  F103CB: &f103xb {memory: {flash: {size: 128K, page: 1K}, ram: {size: 20K}}, defines: {MDT_VECTORS_MD: 1}}
+  F103RB: *f103xb
+  F103TB: *f103xb
+  F103VB: *f103xb
+  # high density: 76 vectors
+  F103RC: &f103xc {memory: {flash: {size: 256K, page: 2K}, ram: {size: 48K}}, defines: {MDT_VECTORS_HD: 1}}
+  F103VC: *f103xc
+  F103ZC: *f103xc
+  F103RD: &f103xd {memory: {flash: {size: 384K, page: 2K}, ram: {size: 64K}}, defines: {MDT_VECTORS_HD: 1}}
+  F103VD: *f103xd
+  F103ZD: *f103xd
+  F103RE: &f103xe {memory: {flash: {size: 512K, page: 2K}, ram: {size: 64K}}, defines: {MDT_VECTORS_HD: 1}}
+  F103VE: *f103xe
+  F103ZE: *f103xe
+  # XL density: 76 vectors, two flash banks
+  F103RF: &f103xf {memory: {flash: {size: 768K, page: 2K}, ram: {size: 96K}}, defines: {MDT_VECTORS_XL: 1, FLASH_XL_DENSITY: 1}}
+  F103VF: *f103xf
+  F103ZF: *f103xf
+  F103RG: &f103xg {memory: {flash: {size: 1M, page: 2K}, ram: {size: 96K}}, defines: {MDT_VECTORS_XL: 1, FLASH_XL_DENSITY: 1}}
+  F103VG: *f103xg
+  F103ZG: *f103xg

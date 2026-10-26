@@ -2,7 +2,6 @@
 #define RING_BUFFER_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /**
  * @brief Simple ring buffer implementation for UART data.

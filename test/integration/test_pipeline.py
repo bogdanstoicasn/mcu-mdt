@@ -276,13 +276,13 @@ def test_validator_blocks_out_of_range_read():
     assert_eq(uart.pending, 0)   # nothing was written to the wire
 
 def test_validator_blocks_invalid_breakpoint_id():
-    # ID is way out of range (max is MDT_MAX_BREAKPOINTS-1 = 3)
+    # ID is way out of range (the build allows slots 0..3)
     cmd = parse_line("BREAKPOINT 99 ENABLED", COMMANDS, CONTROL_VALUES, {})
     # parse_line treats the address as a hex uint32, so "99" parses as
     # 0x99 = 153 — still well outside the valid 0..3 breakpoint slot range,
     # so validate_breakpoint must reject it.
     from pc_tool.validator import validate_breakpoint
-    assert_eq(validate_breakpoint(cmd), False)
+    assert_eq(validate_breakpoint(cmd, {"limits": {"breakpoints": 4}}), False)
 
 def test_validator_blocks_write_to_nonexistent_register():
     """Validator should reject a WRITE_REG command that targets an unknown register address."""

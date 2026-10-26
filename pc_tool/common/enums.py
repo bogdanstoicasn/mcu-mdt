@@ -1,10 +1,7 @@
 from enum import IntEnum, StrEnum
 
 MDT_PACKET_SIZE = 18
-MDT_MAX_BREAKPOINTS = 4
-MDT_MAX_WATCHPOINTS = 4
 
-DEFAULT_BAUDRATE: int   = 19_200
 COMMUNICATION_TIMEOUT: float = 5.0  # seconds — used by uart_io and serial link
 
 
@@ -85,7 +82,3 @@ class EventType(IntEnum):
     INTERNAL_MDT_EVENT_FAILED_PACKET = 2
     INTERNAL_MDT_EVENT_BREAKPOINT_HIT = 3
     INTERNAL_MDT_EVENT_WATCHPOINT_HIT = 4
-
-class STM32Type(IntEnum):
-    RAM_BASE = 0x20000000
-    FLASH_BASE = 0x08000000

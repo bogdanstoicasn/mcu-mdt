@@ -204,6 +204,19 @@ def test_parse_watchpoint_invalid():
     """Test that invalid WATCHPOINT control returns None."""
     assert_eq(_parse("WATCHPOINT 0 ENABLED"), None)
 
+
+@parametrize("line", [
+    ("BREAKPOINT 0 MASK",),              # MASK == NEXT == 3: used to send NEXT
+    ("BREAKPOINT 0 FLASH",),             # FLASH == ENABLED == 1
+    ("READ_MEM ENABLED 0x08000000 4",),  # used to read FLASH
+    ("READ_MEM ERASE 0x08000000 4",),    # ERASE is a write-only zone
+    ("WATCHPOINT 0 NEXT 0x20000000",),   # used to set the mask
+    ("WATCHPOINT 0 RAM 0x20000000",),
+])
+def test_control_name_of_another_command_is_rejected(line):
+    """A control name is valid only for the command that defines it, even when the numbers match."""
+    assert_eq(_parse(line), None)
+
 def _parse_with_avr_meta(line: str):
     """Helper to parse a line using the AVR metadata fixture for register resolution."""
     return parse_line(line, COMMANDS, CONTROL_VALUES, MCU_METADATA_AVR)

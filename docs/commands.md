@@ -36,6 +36,10 @@ Used with the WATCHPOINT command.
 | RESET    | 2     | Disable and clear the watchpoint slot                    |
 | MASK     | 3     | Set the bit mask for an already-active watchpoint slot   |
 
+A command takes only the names of its own table (READ_MEM: RAM, FLASH, EEPROM). `BREAKPOINT 0 MASK`
+is rejected even though MASK and NEXT are both 3. The names each command accepts are its param's
+`values` in `pc_tool/configs/commands.yaml`.
+
 
 ## Protocol Commands
 
@@ -79,8 +83,8 @@ or erases a flash page (zone `ERASE`).
   the PC validator.
 - **FLASH**: half-word (16-bit) programming on STM32. The target area must be erased
   first using the `ERASE` zone. Flash writes that overlap the running firmware image are
-  rejected by the PC validator to prevent self-corruption. Only addresses at or above
-  `firmware_end_address` (from `build_info.yaml`) are accepted.
+  rejected by the PC validator to prevent self-corruption. Only addresses past the end of
+  the firmware image (read from the ELF) are accepted.
 - **EEPROM**: AVR only. Passed through to `eeprom_write_block()`.
 - **ERASE**: STM32 only. Erases the flash page containing `address`. The page
   boundary is computed on the MCU (`data` and `len` are ignored by the firmware). The PC
@@ -186,7 +190,7 @@ WRITE_REG 0x40013800 000000FF # raw address
 
 | Name    | Type   | Description                                         |
 |---------|--------|-----------------------------------------------------|
-| id      | uint32 | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`)      |
+| id      | uint32 | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`, `breakpoints` in `build_info.yaml`) |
 | control | str    | Control value: DISABLED, ENABLED, RESET, NEXT       |
 
 **Behavior:**
@@ -201,7 +205,7 @@ WRITE_REG 0x40013800 000000FF # raw address
 - `MDT_BREAKPOINT(id)` must be placed in user firmware code.
 - `mcu_mdt_poll()` must be called frequently in the main loop for breakpoints to work in poll mode.
 - Blocking calls like `delay()` temporarily freeze breakpoint handling.
-- Maximum slots: `MDT_MAX_BREAKPOINTS` in `mcu_mdt_config.h` (default 4, max 8).
+- Maximum slots: `MDT_MAX_BREAKPOINTS`, set with `make ... BREAKPOINTS=` (default 4, max 8).
 
 
 ### WATCHPOINT (ID: 0x08)
@@ -213,7 +217,7 @@ monitored bits change value.
 
 | Name    | Type   | Description                                              |
 |---------|--------|----------------------------------------------------------|
-| id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`)           |
+| id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
 | control | str    | Control value: DISABLED, ENABLED, RESET, MASK            |
 | data    | uint32 | ENABLED: address to watch. MASK: 32-bit mask. Others: -  |
 
@@ -233,7 +237,11 @@ monitored bits change value.
   (old = value at the last report, new = latest value).
 - The MCU reads 4 bytes byte-by-byte at the watched address, making it safe at any alignment.
   Unaligned addresses produce a PC-side warning but are not rejected.
-- Maximum slots: `MDT_MAX_WATCHPOINTS` in `mcu_mdt_config.h` (default 4, max 8).
+- The 4 watched bytes must lie in RAM, or the address must be a register of the part (from its
+  ATDF/SVD). Anything else is rejected: the MCU reads the address on every sample, and an
+  unmapped address faults an STM32. A register that changes when read (a USART data register,
+  some status flags) is changed by every sample too: watch those only if that is intended.
+- Maximum slots: `MDT_MAX_WATCHPOINTS`, set with `make ... WATCHPOINTS=` (default 4, max 8).
 
 
 ## CLI-Only Commands
@@ -253,8 +261,7 @@ These commands are handled entirely on the PC side and are never sent over UART.
 - All multi-byte fields (address, length, data) are little-endian.
 - Data payload per packet is 4 bytes maximum. Larger transfers are split automatically by the PC.
 - Flash writes and erases on STM32 are protected: any command that would overwrite the firmware
-  image is rejected by the PC validator before the packet is sent. The protected range is read
-  from `firmware_start_address` and `firmware_end_address` in `build_info.yaml`, which the
-  Makefile computes from the actual linked binary size at build time.
+  image is rejected by the PC validator before the packet is sent. The protected range is the
+  part of the firmware ELF that loads into flash, which the PC tool reads at start-up.
 - Adding a new command requires: adding the ID to `mdt_cmd_t` in `mcu_mdt_protocol.h`, adding a
   handler in `mcu_mdt_protocol.c`, and adding the command definition to `pc_tool/configs/commands.yaml`.

@@ -48,6 +48,10 @@ from test.common.mdtfixtures import (
 )
 from test.pymdtest import parametrize
 
+# The slot counts the firmware was built with; ConfigLoader puts build_info's values here.
+_LIMITS = {"limits": {"breakpoints": 4, "watchpoints": 4}}
+_RAM_AND_REGS = {**_reg_meta(), "memories": _meta_ram()["memories"], **_LIMITS}   # RAM 0x20000000-0x20004FFF
+
 
 def _cmd(id, address=0, mem=None, length=4, data=None):
     return Command(name="TEST", id=id, mem=mem, address=address, length=length, data=data)
@@ -228,13 +232,13 @@ def test_write_reg_write_only_passes():
 def test_breakpoint_valid_ids(bp_id):
     """Test that breakpoint commands with valid IDs are accepted."""
     cmd = _cmd(CommandId.BREAKPOINT, address=bp_id, mem=BreakpointControl.ENABLED)
-    assert_eq(validate_breakpoint(cmd), True)
+    assert_eq(validate_breakpoint(cmd, _LIMITS), True)
 
 @parametrize("bp_id", [(-1,), (4,), (100,)])
 def test_breakpoint_invalid_ids(bp_id):
     """Test that breakpoint commands with invalid IDs are rejected."""
     cmd = _cmd(CommandId.BREAKPOINT, address=bp_id, mem=BreakpointControl.ENABLED)
-    assert_eq(validate_breakpoint(cmd), False)
+    assert_eq(validate_breakpoint(cmd, _LIMITS), False)
 
 @parametrize("ctrl", [
     (BreakpointControl.DISABLED,),
@@ -245,12 +249,12 @@ def test_breakpoint_invalid_ids(bp_id):
 def test_breakpoint_all_control_values(ctrl):
     """Test that breakpoint commands with all valid control values are accepted."""
     cmd = _cmd(CommandId.BREAKPOINT, address=0, mem=ctrl)
-    assert_eq(validate_breakpoint(cmd), True)
+    assert_eq(validate_breakpoint(cmd, _LIMITS), True)
 
 def test_breakpoint_invalid_control_value():
     """Test that a breakpoint command with an invalid control value is rejected."""
     cmd = _cmd(CommandId.BREAKPOINT, address=0, mem=99)
-    assert_eq(validate_breakpoint(cmd), False)
+    assert_eq(validate_breakpoint(cmd, _LIMITS), False)
 
 
 # validate_watchpoint
@@ -258,19 +262,19 @@ def test_breakpoint_invalid_control_value():
 def test_watchpoint_valid_ids(wp_id):
     """Test that watchpoint commands with valid IDs are accepted."""
     cmd = _cmd(CommandId.WATCHPOINT, address=wp_id, mem=WatchpointControl.DISABLED)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
 
 @parametrize("wp_id", [(-1,), (4,), (255,)])
 def test_watchpoint_invalid_ids(wp_id):
     """Test that watchpoint commands with invalid IDs are rejected."""
     cmd = _cmd(CommandId.WATCHPOINT, address=wp_id, mem=WatchpointControl.DISABLED)
-    assert_eq(validate_watchpoint(cmd), False)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), False)
 
 def test_watchpoint_enabled_aligned_address():
     """Test that enabling a watchpoint with a valid 4-byte aligned address is accepted."""
     watched = (0x20000100).to_bytes(4, "little")
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), True)
 
 def test_watchpoint_enabled_unaligned_address_accepted_with_warning():
     """Test that enabling a watchpoint with an unaligned address is accepted
@@ -278,37 +282,50 @@ def test_watchpoint_enabled_unaligned_address_accepted_with_warning():
     that adjacent bytes will be included in the 4-byte read)."""
     watched = (0x20000101).to_bytes(4, "little")  # not 4-byte aligned
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=watched)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), True)
+
+@parametrize("watched,expected", [
+    (0x20004FFC, True),    # last word of RAM
+    (0x20004FFE, False),   # 4-byte read runs past the end of RAM
+    (0x60000000, False),   # unmapped: the MCU would fault on its first poll
+    (0x00000000, False),
+    (0x40013808, True),    # a known register (USART1 BRR)
+])
+def test_watchpoint_enabled_address_must_be_ram_or_register(watched, expected):
+    """The MCU reads the watched 4 bytes on every poll, so they must be mapped."""
+    cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED,
+               data=watched.to_bytes(4, "little"))
+    assert_eq(validate_watchpoint(cmd, _RAM_AND_REGS), expected)
 
 def test_watchpoint_enabled_missing_data_rejected():
     """Test that enabling a watchpoint without providing the required data is rejected."""
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=None)
-    assert_eq(validate_watchpoint(cmd), False)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), False)
 
 def test_watchpoint_enabled_short_data_rejected():
     """Test that enabling a watchpoint with data shorter than 4 bytes is rejected."""
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.ENABLED, data=b'\x00\x00')
-    assert_eq(validate_watchpoint(cmd), False)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), False)
 
 def test_watchpoint_disabled_no_data_needed():
     """Test that disabling a watchpoint does not require data and is accepted."""
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.DISABLED, data=None)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
 
 def test_watchpoint_reset_no_data_needed():
     """Test that resetting a watchpoint does not require data and is accepted."""
     cmd = _cmd(CommandId.WATCHPOINT, address=1, mem=WatchpointControl.RESET, data=None)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
 
 def test_watchpoint_mask_no_data_needed():
     """Test that masking a watchpoint does not require data and is accepted."""
     cmd = _cmd(CommandId.WATCHPOINT, address=2, mem=WatchpointControl.MASK, data=None)
-    assert_eq(validate_watchpoint(cmd), True)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), True)
 
 def test_watchpoint_invalid_control_value():
     """Test that a watchpoint command with an invalid control value is rejected."""
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=99)
-    assert_eq(validate_watchpoint(cmd), False)
+    assert_eq(validate_watchpoint(cmd, _LIMITS), False)
 
 def test_dispatch_read_mem():
     """Test that a READ_MEM command is correctly dispatched to the read_mem validator."""
@@ -338,12 +355,12 @@ def test_dispatch_write_reg():
 def test_dispatch_breakpoint():
     """Test that a BREAKPOINT command is correctly dispatched to the breakpoint validator."""
     cmd = _cmd(CommandId.BREAKPOINT, address=0, mem=BreakpointControl.ENABLED)
-    assert_eq(validate_commands(cmd, {}), True)
+    assert_eq(validate_commands(cmd, _LIMITS), True)
 
 def test_dispatch_watchpoint():
     """Test that a WATCHPOINT command is correctly dispatched to the watchpoint validator."""
     cmd = _cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.DISABLED)
-    assert_eq(validate_commands(cmd, {}), True)
+    assert_eq(validate_commands(cmd, _LIMITS), True)
 
 
 # Firmware protection tests
@@ -414,3 +431,18 @@ def test_erase_first_free_page_accepted():
 def test_erase_page_well_above_firmware_accepted():
     """Erasing a page far above firmware must always be accepted."""
     assert_eq(validate_commands(_erase_cmd(0x08008000), MCU_METADATA_FLASH), True)
+
+
+# Slot limits come from the build (build_info.yaml), not from constants
+def test_slot_limits_follow_the_build():
+    """A firmware built with BREAKPOINTS=8 / WATCHPOINTS=2 accepts slot 7 / 1 and rejects 8 / 2."""
+    meta = {"limits": {"breakpoints": 8, "watchpoints": 2}}
+    assert_eq(validate_breakpoint(_cmd(CommandId.BREAKPOINT, address=7, mem=BreakpointControl.ENABLED), meta), True)
+    assert_eq(validate_breakpoint(_cmd(CommandId.BREAKPOINT, address=8, mem=BreakpointControl.ENABLED), meta), False)
+    assert_eq(validate_watchpoint(_cmd(CommandId.WATCHPOINT, address=1, mem=WatchpointControl.DISABLED), meta), True)
+    assert_eq(validate_watchpoint(_cmd(CommandId.WATCHPOINT, address=2, mem=WatchpointControl.DISABLED), meta), False)
+
+def test_slot_rejected_when_limits_unknown():
+    """Without the build's limits no slot is assumed valid."""
+    assert_eq(validate_breakpoint(_cmd(CommandId.BREAKPOINT, address=0, mem=BreakpointControl.ENABLED), {}), False)
+    assert_eq(validate_watchpoint(_cmd(CommandId.WATCHPOINT, address=0, mem=WatchpointControl.DISABLED), {}), False)

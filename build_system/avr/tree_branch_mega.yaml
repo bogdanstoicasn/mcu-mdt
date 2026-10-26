@@ -1,0 +1,89 @@
+# BRANCH: megaAVR (ATmega parts that have USART0)
+# A node is one supported part, named as Microchip spells it (matching is case-insensitive).
+# Nodes carry no data on purpose: flash, RAM and EEPROM sizes stay in the ATDF files
+# (pc_tool/mcu_db/avr), so there is one source for them. Only parts listed here can be built.
+version: 1
+
+type: tree_branch
+
+platform: avr
+branch: mega
+
+nodes:
+  ATmega128:      {}
+  ATmega1280:     {}
+  ATmega1281:     {}
+  ATmega1284:     {}
+  ATmega1284P:    {}
+  ATmega1284RFR2: {}
+  ATmega128A:     {}
+  ATmega128RFA1:  {}
+  ATmega128RFR2:  {}
+  ATmega164A:     {}
+  ATmega164P:     {}
+  ATmega164PA:    {}
+  ATmega165A:     {}
+  ATmega165PA:    {}
+  ATmega168:      {}
+  ATmega168A:     {}
+  ATmega168P:     {}
+  ATmega168PA:    {}
+  ATmega168PB:    {}
+  ATmega169P:     {}
+  ATmega169PA:    {}
+  ATmega2560:     {}
+  ATmega2561:     {}
+  ATmega2564RFR2: {}
+  ATmega256RFR2:  {}
+  ATmega324A:     {}
+  ATmega324P:     {}
+  ATmega324PA:    {}
+  ATmega325:      {}
+  ATmega3250:     {}
+  ATmega3250A:    {}
+  ATmega3250P:    {}
+  ATmega3250PA:   {}
+  ATmega325A:     {}
+  ATmega325P:     {}
+  ATmega325PA:    {}
+  ATmega328:      {}
+  ATmega328P:     {}
+  ATmega329:      {}
+  ATmega3290:     {}
+  ATmega3290A:    {}
+  ATmega3290P:    {}
+  ATmega3290PA:   {}
+  ATmega329A:     {}
+  ATmega329P:     {}
+  ATmega329PA:    {}
+  ATmega48:       {}
+  ATmega48A:      {}
+  ATmega48P:      {}
+  ATmega48PA:     {}
+  ATmega48PB:     {}
+  ATmega64:       {}
+  ATmega640:      {}
+  ATmega644:      {}
+  ATmega644A:     {}
+  ATmega644P:     {}
+  ATmega644PA:    {}
+  ATmega644RFR2:  {}
+  ATmega645:      {}
+  ATmega6450:     {}
+  ATmega6450A:    {}
+  ATmega6450P:    {}
+  ATmega645A:     {}
+  ATmega645P:     {}
+  ATmega649:      {}
+  ATmega6490:     {}
+  ATmega6490A:    {}
+  ATmega6490P:    {}
+  ATmega649A:     {}
+  ATmega649P:     {}
+  ATmega64A:      {}
+  ATmega64RFR2:   {}
+  ATmega88:       {}
+  ATmega88A:      {}
+  ATmega88P:      {}
+  ATmega88PA:     {}
+  ATmega88PB:     {}

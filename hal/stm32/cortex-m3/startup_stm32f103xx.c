@@ -1,8 +1,8 @@
 #include <stdint.h>
-#include "mcu.h"   /* per-variant facts: it sits next to this file, in the repo and in a user's project */
+#include "mdt_target.h"   /* generated per part (build/<mcu>/): the density define below comes from its node */
 
-/* The vector table size depends on the device density. The variant's mcu.h says
- * which one. Nothing is guessed: a wrong table silently breaks every interrupt
+/* The vector table size depends on the device density. The part's node in
+ * build_system/stm32/tree_branch_f1.yaml says which one. Nothing is guessed: a wrong table silently breaks every interrupt
  * above IRQ42 on high-density parts. */
 #if defined(MDT_VECTORS_LD)
   #define DENSITY_LD
@@ -15,7 +15,7 @@
 #elif defined(MDT_VECTORS_CL)
   #define DENSITY_CL        /* Connectivity line (F105/F107) */
 #else
-  #error "mcu.h must define one of MDT_VECTORS_LD / _MD / _HD / _XL / _CL"
+  #error "mdt_target.h must define one of MDT_VECTORS_LD / _MD / _HD / _XL / _CL (defines: of the part's node)"
 #endif
 
 

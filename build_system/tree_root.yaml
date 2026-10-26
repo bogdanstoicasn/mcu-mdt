@@ -1,0 +1,18 @@
+version: 1
+
+type: tree_root
+
+platform: [avr, stm32]     # each has a <platform>/tree_trunk.yaml
+
+mdt_defaults:
+  port: /dev/ttyACM0
+  baudrate: 19200
+  buffer_size: 64
+  breakpoints: 4
+  watchpoints: 4
+  elf: mcu_mdt_example.elf
+
+files:                     # relative to the repository root (the folder that contains build_system/)
+  src: src
+  inc: inc
+  build: build

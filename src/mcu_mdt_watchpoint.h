@@ -2,7 +2,6 @@
 #define MCU_MDT_WATCHPOINT_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /** @brief Type definition for MDT watchpoint structure */
 typedef struct {

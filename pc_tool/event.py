@@ -114,9 +114,7 @@ class EventHandler:
                 if self._is_event(pkt):
                     self._link.push_back_event_packet(pkt)
                     if self._uart_idle:
-                        # The MCU reports one event per poll: ask again right
-                        # away instead of waiting for the next poll interval.
-                        self._link.send_packet(_POLL_PACKET)
+                        self._link.try_send_packet(_POLL_PACKET)
                 elif self._is_clean_poll_ack(pkt):
                     pass  # discard
                 else:

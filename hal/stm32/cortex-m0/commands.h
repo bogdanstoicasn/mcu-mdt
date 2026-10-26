@@ -2,15 +2,10 @@
 #define COMMANDS_H
 
 #include <stdint.h>
-#include "mcu.h"
-
-/* FLASH_PAGE_SIZE is injected by the build system via -DFLASH_PAGE_SIZE=...
- * in cortex-m0/Makefile. Values per RM0360:
- *   0x400UL (1 KB) — F030x4, F030x6, F030x8, F070x6
- *   0x800UL (2 KB) — F030xC, F070xB
- * A missing define is a hard build error, not a silent wrong value. */
-#ifndef FLASH_PAGE_SIZE
-#  error "FLASH_PAGE_SIZE not defined — pass -DFLASH_PAGE_SIZE=<size> from the Makefile"
+/* MDT_FLASH_PAGE_SIZE (the erase page: 1 KB or 2 KB on F0) comes from the part's node in
+ * build_system/, through the force-included mdt_target.h. */
+#ifndef MDT_FLASH_PAGE_SIZE
+#  error "MDT_FLASH_PAGE_SIZE not defined: build through the Makefile (it force-includes mdt_target.h)"
 #endif
 
 /* Flash zone */

@@ -2,7 +2,6 @@
 #define MCU_MDT_BREAKPOINTS_H
 
 #include <stdint.h>
-#include "mcu_mdt_config.h"
 
 /**
  * @brief Structure representing a single breakpoint.

@@ -103,7 +103,7 @@ def test_event_types():
 
 
 def test_memory_zones():
-    c = _c_members("inc/mcu_mdt_config.h", "MDT_MEM_ZONE_", {"SRAM": "RAM"})
+    c = _c_members("inc/mcu_mdt_hal.h", "MDT_MEM_ZONE_", {"SRAM": "RAM"})
     _assert_same(c, _py(enums.MemType), "MDT_MEM_ZONE_*")
 
 
@@ -121,3 +121,17 @@ def test_commands_yaml_control_values():
             assert_eq(expected.setdefault(name, value), value, conflicting_name=name)
     yaml_values = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["control_values"]
     _assert_same(dict(yaml_values), expected, "commands.yaml control_values")
+
+
+def test_commands_yaml_control_names_belong_to_their_command():
+    """Each command takes only its own control names, and each name sends that command's value."""
+    own = {"READ_MEM": enums.MemType, "WRITE_MEM": enums.MemType,
+           "BREAKPOINT": enums.BreakpointControl, "WATCHPOINT": enums.WatchpointControl}
+    data = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))
+    for name, spec in data["commands"].items():
+        for param in spec.get("params", []):
+            if param["type"] != "str":
+                continue
+            enum_cls = own[name]
+            for word in param["values"]:
+                assert_eq(data["control_values"][word], enum_cls[word].value, command=name, name=word)

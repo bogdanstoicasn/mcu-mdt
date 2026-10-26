@@ -8,7 +8,7 @@ machine LoadPlatformDescription @platforms/cpus/stm32f0.repl
 machine LoadPlatformDescriptionFromString "flash: Memory.MappedMemory @ sysbus 0x08000000 { size: 0x4000 }"
 machine LoadPlatformDescriptionFromString "sram: Memory.MappedMemory @ sysbus 0x20000000 { size: 0x1000 }"
 
-sysbus LoadELF @build/F030F4/mcu_mdt_example.elf
+sysbus LoadELF @build/f030f4/mcu_mdt_example.elf
 
 # Expose USART1 as a raw TCP socket on port 3456
 # 'false' disables the telnet negotiation bytes(important for binary protocols)

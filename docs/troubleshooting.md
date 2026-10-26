@@ -14,7 +14,7 @@ and the steps taken to resolve them.
 **Check in order:**
 
 1. Baud rate mismatch. The firmware baud rate is set at compile time via
-   `MDT_UART_BAUDRATE` in `mcu_mdt_config.h` (default 19200).
+   `MDT_UART_BAUDRATE` in `build/<MCU>/mdt_target.h` (default 19200, `make ... BAUDRATE=`).
 
 2. Wrong port. Check which port the MCU is on:
    ```bash
@@ -29,7 +29,7 @@ and the steps taken to resolve them.
    `F_CPU` does not match the actual clock (e.g. PLL not configured, external
    crystal missing), the baud rate will be wrong. Pass the correct frequency:
    ```bash
-   make PLATFORM=stm32 MCU=F030F4 PORT=... F_CPU=8000000UL
+   make MCU=F030F4 PORT=... F_CPU=8000000UL
    ```
 
 5. USART not enabled. On STM32, check that `RCC_APB2ENR_USART1EN` is set in
@@ -79,10 +79,11 @@ connection does not re-open automatically, exit and restart `mcu_mdt.py` after a
 you bypass the validator the MCU returns an error.
 
 **Cause 2. Address inside firmware.** The PC validator rejects any write or erase
-that would touch the firmware image. Check `firmware_end_address` in `build_info.yaml`
-and ensure your target address is above it:
-```yaml
-firmware_end_address: 0x080034a0   # must write above this
+that would touch the firmware image. The PC tool reads that range from the ELF at start-up;
+the end of the image is the end of the `.bin`:
+```bash
+arm-none-eabi-size -A build/f030f4/mcu_mdt_example.elf   # or: stat -c %s build/f030f4/mcu_mdt_example.bin
+# free flash starts at 0x08000000 + size of the .bin
 ```
 
 **Cause 3. HSI not running.** RM0360 and RM0008 require the HSI oscillator to be
@@ -98,12 +99,12 @@ MCU returns an error response. Always run `WRITE_MEM ERASE` on the page first.
 ### ERASE command rejected by the PC validator
 
 The PC validator computes the full page that would be erased from the given address and
-`flash_page_size` (from `build_info.yaml`). If any part of that page falls within
-`[firmware_start_address, firmware_end_address)` the command is rejected.
+the flash page size (`memory.flash.page` in `build_info.yaml`). If any part of that page
+falls within the firmware image (read from the ELF) the command is rejected.
 
-Free flash starts at `firmware_end_address`. The first erasable page is the one whose
-base address is at or above `firmware_end_address`. Page size is 1 KB or 2 KB depending
-on the MCU density, see `flash_page_size` in `build_info.yaml`.
+Free flash starts at the end of the image. The first erasable page is the one whose
+base address is at or above it. Page size is 1 KB or 2 KB depending on the part, see
+`memory.flash.page` in `build_info.yaml`.
 
 ```
 # Example: firmware_end = 0x08003000, page_size = 0x400
@@ -185,12 +186,12 @@ behavior: the address changed. Use `WATCHPOINT <id> RESET` followed by
 ## Build System
 
 
-### Linker script not found or wrong memory sizes
+### Wrong memory sizes or `unsupported part`
 
-The STM32 linker script is preprocessed by the Makefile before linking to resolve
-`#ifdef MCU_<name>` guards. The preprocessed output is `build/<MCU>/linker_pp.ld`.
-If you see wrong flash or RAM sizes, check that the `MCU` variable matches an entry
-in the `ifeq` chain in `hal/stm32/cortex-m0/Makefile` or `hal/stm32/cortex-m3/Makefile`.
+STM32 flash and RAM sizes come from the part's node in `build_system/stm32/tree_branch_*.yaml`.
+The build writes them to `build/<mcu>/memory.ld` (included by the core's `linker.ld`),
+`mdt_target.h` and `build_info.yaml`. If a size is wrong, fix the node; if the build says
+`unsupported part`, the part has no node yet (see `docs/stm32/info.md`, "Adding a part").
 
 
 ### `Reset_Handler` crashes immediately

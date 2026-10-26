@@ -2,12 +2,13 @@
 #define COMMANDS_H
 
 #include <stdint.h>
-#include "mcu.h"
 
 #define FLASH_BASE  0x40022000UL
 
-#ifndef FLASH_PAGE_SIZE
-#  error "FLASH_PAGE_SIZE not defined — pass -DFLASH_PAGE_SIZE=<size> from the Makefile"
+/* MDT_FLASH_PAGE_SIZE (1 KB up to 128 KB flash, 2 KB above) and FLASH_XL_DENSITY (second flash
+ * bank) come from the part's node in build_system/, through the force-included mdt_target.h. */
+#ifndef MDT_FLASH_PAGE_SIZE
+#  error "MDT_FLASH_PAGE_SIZE not defined: build through the Makefile (it force-includes mdt_target.h)"
 #endif
 
 /**

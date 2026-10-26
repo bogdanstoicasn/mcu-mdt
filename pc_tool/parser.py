@@ -87,6 +87,13 @@ def parse_args():
         help="Path to build_info.yaml file",
     )
     parser.add_argument(
+        "--elf",
+        type=str,
+        default=None,
+        help="The firmware you flashed (default: the elf named in build_info.yaml, e.g. your "
+             "project's mcu_mdt_user.elf instead of the example)",
+    )
+    parser.add_argument(
         "--script",
         type=str,
         required=False,
@@ -267,12 +274,16 @@ def _parse_bytes(ctx: _ParseContext) -> bytes:
 
 
 def _parse_control_str(ctx: _ParseContext) -> int:
-    """Named control value (RAM, FLASH, ENABLED, ...) looked up in control_values."""
+    """Named control value, one of the param's own ``values`` (RAM, FLASH, ENABLED, ...).
+
+    The names of all commands share one number table, so a name is checked against its
+    command first: otherwise BREAKPOINT 0 MASK would send NEXT (both are 3).
+    """
+    allowed = ctx.param["values"]
     key = ctx.pvalue.lower()
-    if key not in ctx.control_values_normalized:
+    if key not in (name.lower() for name in allowed):
         MDTLogger.error(
-            f"Invalid control value '{ctx.pvalue}'. "
-            f"Expected one of: {', '.join(ctx.control_values_normalized.keys())}",
+            f"Invalid control value '{ctx.pvalue}'. Expected one of: {', '.join(allowed)}",
             code=2,
         )
         raise ValueError(f"unknown control value '{ctx.pvalue}'")

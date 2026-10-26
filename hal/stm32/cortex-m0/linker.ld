@@ -1,4 +1,4 @@
-/* Universal STM32F030xx Linker Script */
+/* STM32F0 linker script. memory.ld (regions flash and ram) is generated per part in build/<part>/. */
 
 INCLUDE memory.ld
 
@@ -14,7 +14,7 @@ SECTIONS
     {
         KEEP(*(.vectors))
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     /* Program code */
@@ -22,7 +22,7 @@ SECTIONS
     {
         *(.text*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     /* Read-only data */
@@ -30,14 +30,14 @@ SECTIONS
     {
         *(.rodata*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     .ARM.extab :
     {
         *(.ARM.extab*)
         . = ALIGN(4);
-    } > rom
+    } > flash
 
     .ARM.exidx :
     {
@@ -45,7 +45,7 @@ SECTIONS
         *(.ARM.exidx*)
         __exidx_end = .;
         . = ALIGN(4);
-    } > rom
+    } > flash
 
 
     /* End of code marker (used by startup to copy .data) */
