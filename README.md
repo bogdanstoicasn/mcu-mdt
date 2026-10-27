@@ -24,7 +24,8 @@ exposed debug header or with the SWD pins unavailable.
 - Software breakpoints (`MDT_BREAKPOINT(id)`) — MCU pauses and stays responsive
 - Memory watchpoints with bit masking — fires an event when watched bits change
 - EEPROM read/write (AVR)
-- Firmware self-protection — PC validator rejects any command that would overwrite the running firmware
+- Firmware self-protection — the PC tool rejects any command that would overwrite the running firmware
+- Any part with an SVD or ATDF file: register names come from the description file, read by the CMSIS-SVD rules
 
 **What you need:**
 - A USB-UART adapter (€2–5) connected to the MCU's TX/RX pins
@@ -62,9 +63,14 @@ make MCU=F030F4 flash                        # st-flash
 4. **Run the host tool**
 
 ```bash
-python3 mcu_mdt.py build/<mcu>/build_info.yaml   # <mcu> in lower case, e.g. build/f030f4/
-python3 mcu_mdt.py build/<mcu>/build_info.yaml --elf <your firmware>.elf   # your own project
+pip install .                                         # once; or run python3 mcu_mdt.py from the checkout
+mcu-mdt build/<mcu>/build_info.yaml                   # <mcu> in lower case, e.g. build/f030f4/
+mcu-mdt build/<mcu>/build_info.yaml --elf <your firmware>.elf   # your own project
+mcu-mdt build/<mcu>/build_info.yaml --script commands.txt       # run a file of commands, exit 1 on error
 ```
+
+Every session is logged to `logs/`. The port can be anything pyserial opens: `/dev/ttyUSB0`,
+`COM3`, or `socket://localhost:3456` for Renode.
 
 5. **Start debugging**
 
@@ -106,13 +112,13 @@ the PC side handles all complex validation and tooling.
 
 | Document | Description |
 |---|---|
-| `docs/architecture.md` | System design, HAL contract, protocol rationale, memory safety, breakpoint design rationale, PC-side logger/Terminal split |
+| `docs/architecture.md` | System design, HAL contract, protocol rationale, memory safety, breakpoint design rationale, the PC tool's modules |
 | `docs/how-to-build.md` | Toolchain, build settings (`MCU`, `PORT`, `F_CPU`, `BAUDRATE`, `UART_IDLE`, ...), flashing, library integration |
 | `docs/protocol.md` | Packet format, field descriptions, CRC algorithm, event packets |
 | `docs/commands.md` | All commands with parameters, behavior, and platform availability |
 | `docs/avr/info.md` | AVR platform reference — HAL details, supported MCU list, ATDF extension |
 | `docs/stm32/info.md` | STM32 platform reference — supported cores, interrupt vs poll mode, XL-density, flash semantics |
-| `docs/testing.md` | Test suite structure, how to run, what is and isn't covered |
+| `docs/testing.md` | The test categories (unit, integration, golden, hardware), how to run them, Renode |
 | `docs/troubleshooting.md` | Common problems and recovery steps |
 
 

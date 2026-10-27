@@ -66,7 +66,7 @@ RX ring buffer can overflow and corrupt the byte stream. The MCU sends a
 
 The RESET command triggers `AIRCR` on STM32 or a watchdog-based reset on AVR. The MCU
 reinitializes completely. Wait ~100 ms before sending the next packet. The PC tool's
-connection does not re-open automatically, exit and restart `mcu_mdt.py` after a reset.
+connection does not re-open automatically: exit and start `mcu-mdt` again after a reset.
 
 
 ## Flash Operations
@@ -75,10 +75,10 @@ connection does not re-open automatically, exit and restart `mcu_mdt.py` after a
 ### FLASH write returns error even after ERASE
 
 **Cause 1. Halfword alignment.** On STM32, flash writes must be halfword-aligned
-(address must be divisible by 2). The PC validator rejects unaligned writes, but if
-you bypass the validator the MCU returns an error.
+(address must be divisible by 2). The PC tool doesn't check this; the MCU answers an
+unaligned write with an error reply.
 
-**Cause 2. Address inside firmware.** The PC validator rejects any write or erase
+**Cause 2. Address inside firmware.** The PC tool rejects any write or erase
 that would touch the firmware image. The PC tool reads that range from the ELF at start-up;
 the end of the image is the end of the `.bin`:
 ```bash
@@ -96,9 +96,9 @@ with PGERR. Re-enable HSI or restructure the clock configuration.
 MCU returns an error response. Always run `WRITE_MEM ERASE` on the page first.
 
 
-### ERASE command rejected by the PC validator
+### ERASE command rejected by the PC tool
 
-The PC validator computes the full page that would be erased from the given address and
+The PC tool computes the full page that would be erased from the given address and
 the flash page size (`memory.flash.page` in `build_info.yaml`). If any part of that page
 falls within the firmware image (read from the ELF) the command is rejected.
 

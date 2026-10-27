@@ -1,6 +1,17 @@
 # MCU MDT Commands Reference
 
-This document describes all supported MCU MDT commands, their parameters, and expected behavior.
+Every command, its parameters, and what it does. Names are case-insensitive. Numbers are hex
+unless the parameter says decimal: `10` as a slot id is slot 16, `10` as a length is ten bytes.
+`0x` works on both.
+
+| Parameter type | Accepts |
+|---|---|
+| hex | `1F` or `0x1F` |
+| decimal | `10`, or hex with `0x` |
+| address | a hex address, or a RAM variable of the ELF (`rx_buffer`; a local static `count` matches `count.0`) |
+| register | a hex address, or a register name (see READ_REG) |
+| bytes | a hex string: `DEADBEEF` or `0xDEADBEEF` |
+| choice | one of the names in the tables below |
 
 
 ## Memory Zones
@@ -37,8 +48,8 @@ Used with the WATCHPOINT command.
 | MASK     | 3     | Set the bit mask for an already-active watchpoint slot   |
 
 A command takes only the names of its own table (READ_MEM: RAM, FLASH, EEPROM). `BREAKPOINT 0 MASK`
-is rejected even though MASK and NEXT are both 3. The names each command accepts are its param's
-`values` in `pc_tool/configs/commands.yaml`.
+is rejected even though MASK and NEXT are both 3. Each parameter's `values` in
+`pc_tool/configs/commands.yaml` are the names it takes and the numbers sent.
 
 
 ## Protocol Commands
@@ -52,15 +63,14 @@ These commands are serialized and sent over UART to the MCU.
 
 **Parameters:**
 
-| Name    | Type   | Description                              |
-|---------|--------|------------------------------------------|
-| zone    | str    | Memory zone: RAM, FLASH, EEPROM          |
-| address | uint32 | Start address to read from               |
-| len     | uint16 | Number of bytes to read (1–4)            |
+| Name    | Type    | Description                              |
+|---------|---------|------------------------------------------|
+| zone    | choice  | Memory zone: RAM, FLASH, EEPROM          |
+| address | address | Start address, or a RAM variable         |
+| len     | decimal | Number of bytes to read                  |
 
-**Behavior:** Returns the requested bytes in the DATA field of the response. Transfers larger than
-4 bytes are split into multiple packets automatically. Reading outside valid memory ranges returns
-an error response.
+**Behavior:** Each reply carries 4 bytes in DATA. More than 4 bytes are read one word per packet,
+and every reply is shown. The PC tool refuses a range that leaves the part's memory of that zone.
 
 
 ### WRITE_MEM (ID: 0x02)
@@ -70,25 +80,25 @@ or erases a flash page (zone `ERASE`).
 
 **Parameters:**
 
-| Name    | Type   | Description                              |
-|---------|--------|------------------------------------------|
-| zone    | str    | Memory zone: RAM, FLASH, EEPROM, ERASE   |
-| address | uint32 | Start address to write to                |
-| len     | uint16 | Number of bytes to write (1–4)           |
-| data    | bytes  | Data to write (ignored for ERASE)        |
+| Name    | Type    | Description                              |
+|---------|---------|------------------------------------------|
+| zone    | choice  | Memory zone: RAM, FLASH, EEPROM, ERASE   |
+| address | address | Start address, or a RAM variable         |
+| len     | decimal | Number of bytes to write (the data's length) |
+| data    | bytes   | Data to write (ignored for ERASE)        |
 
 **Behavior by zone:**
 
 - **RAM**: direct SRAM write, always allowed. Out-of-range addresses are rejected by
-  the PC validator.
+  the PC tool.
 - **FLASH**: half-word (16-bit) programming on STM32. The target area must be erased
   first using the `ERASE` zone. Flash writes that overlap the running firmware image are
-  rejected by the PC validator to prevent self-corruption. Only addresses past the end of
+  rejected by the PC tool to prevent self-corruption. Only addresses past the end of
   the firmware image (read from the ELF) are accepted.
 - **EEPROM**: AVR only. Passed through to `eeprom_write_block()`.
 - **ERASE**: STM32 only. Erases the flash page containing `address`. The page
   boundary is computed on the MCU (`data` and `len` are ignored by the firmware). The PC
-  validator rejects the command if the page overlaps the running firmware image. Always
+  tool rejects the command if the page overlaps the running firmware image. Always
   erase before writing to flash.
 
 **STM32 flash erase and write sequence:**
@@ -114,9 +124,9 @@ READ_MEM  FLASH 0x08004000 4            # verify
 
 **Parameters:**
 
-| Name    | Type          | Description                                |
-|---------|---------------|--------------------------------------------|
-| address | uint32 or str | Register address (hex) or name (see below) |
+| Name    | Type     | Description                                |
+|---------|----------|--------------------------------------------|
+| address | register | Register address (hex) or name (see below) |
 
 **Register names:**
 
@@ -138,6 +148,9 @@ Two formats are accepted:
 - **Bare**: register name only. Searches all peripherals in order; first match
   wins. Useful on AVR where register names are globally unique.
 
+Array registers take either spelling: `DMA_CH[3]` is `DMA_CH3`. SVD cluster registers are
+joined with `_`, as the vendor headers join them (`CTIMER0_MR0`, `CH0_CTRL`).
+
   ```
   READ_REG UDR0          # AVR: USART0 data register (no underscore → bare search)
   READ_REG SPDR          # AVR: SPI data register
@@ -154,12 +167,13 @@ Two formats are accepted:
 
 **Parameters:**
 
-| Name    | Type          | Description                                    |
-|---------|---------------|------------------------------------------------|
-| address | uint32 or str | Register address (hex) or name (see READ_REG)  |
-| data    | bytes         | Value to write                                 |
+| Name    | Type     | Description                                    |
+|---------|----------|------------------------------------------------|
+| address | register | Register address (hex) or name (see READ_REG)  |
+| data    | bytes    | Value to write                                 |
 
-**Behavior:** Accepts the same name formats as READ_REG.
+**Behavior:** Accepts the same name formats as READ_REG. A register the description file marks
+read-only is refused.
 
 ```
 WRITE_REG RCC_CR   00000081   # STM32: by qualified name
@@ -190,8 +204,8 @@ WRITE_REG 0x40013800 000000FF # raw address
 
 | Name    | Type   | Description                                         |
 |---------|--------|-----------------------------------------------------|
-| id      | uint32 | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`, `breakpoints` in `build_info.yaml`) |
-| control | str    | Control value: DISABLED, ENABLED, RESET, NEXT       |
+| id      | hex    | Breakpoint slot (0 to `MDT_MAX_BREAKPOINTS-1`, `breakpoints` in `build_info.yaml`) |
+| control | choice | Control value: DISABLED, ENABLED, RESET, NEXT       |
 
 **Behavior:**
 
@@ -217,9 +231,15 @@ monitored bits change value.
 
 | Name    | Type   | Description                                              |
 |---------|--------|----------------------------------------------------------|
-| id      | uint32 | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
-| control | str    | Control value: DISABLED, ENABLED, RESET, MASK            |
-| data    | uint32 | ENABLED: address to watch. MASK: 32-bit mask. Others: -  |
+| id      | hex     | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
+| control | choice  | Control value: DISABLED, ENABLED, RESET, MASK            |
+| value   | address | ENABLED: the address or RAM variable to watch. MASK: the 32-bit mask. Optional for DISABLED and RESET |
+
+```
+WATCHPOINT 0 ENABLED rx_count     # watch a variable of the ELF
+WATCHPOINT 0 MASK 000000FF        # only its low byte
+WATCHPOINT 0 RESET                # done; the value can be left out
+```
 
 **Behavior:**
 
@@ -236,7 +256,8 @@ monitored bits change value.
   every PC poll in interrupt mode. Several changes between two samples collapse into one event
   (old = value at the last report, new = latest value).
 - The MCU reads 4 bytes byte-by-byte at the watched address, making it safe at any alignment.
-  Unaligned addresses produce a PC-side warning but are not rejected.
+  Unaligned addresses produce a PC-side warning but are not rejected. Watching a variable
+  narrower than 4 bytes warns too, with the MASK that keeps only its bytes.
 - The 4 watched bytes must lie in RAM, or the address must be a register of the part (from its
   ATDF/SVD). Anything else is rejected: the MCU reads the address on every sample, and an
   unmapped address faults an STM32. A register that changes when read (a USART data register,
@@ -253,7 +274,20 @@ These commands are handled entirely on the PC side and are never sent over UART.
 | HELP    | Print available commands       |
 | EXIT    | Close the serial link and quit |
 | CLEAR   | Clear the console screen       |
-| HISTORY | Show command history           |
+
+The prompt keeps a history (arrow keys) in `~/.mcu_mdt_history`, and TAB completes command
+names. In a script, these three are skipped with a warning.
+
+
+## Scripts
+
+```bash
+mcu-mdt build/f030f4/build_info.yaml --script commands.txt
+```
+
+One command per line; blank lines and `#` comments are skipped. The script stops at the first
+line that fails (parse error, refused by the rules, no reply), and the tool exits with status 1.
+Nothing is printed while it runs: the log file in `logs/` has the whole session.
 
 
 ## Notes
@@ -261,7 +295,10 @@ These commands are handled entirely on the PC side and are never sent over UART.
 - All multi-byte fields (address, length, data) are little-endian.
 - Data payload per packet is 4 bytes maximum. Larger transfers are split automatically by the PC.
 - Flash writes and erases on STM32 are protected: any command that would overwrite the firmware
-  image is rejected by the PC validator before the packet is sent. The protected range is the
+  image is rejected by the PC tool before the packet is sent. The protected range is the
   part of the firmware ELF that loads into flash, which the PC tool reads at start-up.
-- Adding a new command requires: adding the ID to `mdt_cmd_t` in `mcu_mdt_protocol.h`, adding a
-  handler in `mcu_mdt_protocol.c`, and adding the command definition to `pc_tool/configs/commands.yaml`.
+- Adding a new command: add its id to `mdt_cmd_t` in `mcu_mdt_protocol.h` and to `CommandId` in
+  `pc_tool/wire_protocol.py`, a handler in `mcu_mdt_protocol.c`, and an entry in
+  `pc_tool/configs/commands.yaml` (each parameter names its `type`, the packet `field` it fills,
+  and a choice's `values`). A rule in `pc_tool/command_rules.py` if it needs one.
+  `test_wire_contract.py` checks the ids match on both sides.
