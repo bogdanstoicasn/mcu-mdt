@@ -2,9 +2,6 @@ import argparse
 import atexit
 from pathlib import Path
 
-from pc_tool.common.terminal import Terminal
-from pc_tool.wire_protocol import decode
-
 try:
     import readline
 except ImportError:
@@ -95,10 +92,3 @@ def parse_args():
         help="Path to a script file with commands to execute (exits after completion)",
     )
     return parser.parse_args()
-
-
-
-def parse_packet(packet: bytes) -> None:
-    """Print the contents of a received packet in human-readable form."""
-    cmd = decode(packet)
-    Terminal.packet(cmd, raw=packet)

@@ -8,7 +8,7 @@ Multi-byte fields are little-endian. The CRC (CRC-CCITT, poly 0x1021, init 0xFFF
 through DATA. test/unit/test_wire_contract.py checks these values against the C headers.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import IntEnum, IntFlag
 
 from pc_tool import MdtError
@@ -108,6 +108,7 @@ class Packet:
     length: int
     data: bytes
     crc: int
+    raw: bytes = field(default=b"", repr=False)   # the 18 bytes it was decoded from
 
     @property
     def is_ack(self) -> bool:
@@ -120,6 +121,38 @@ class Packet:
     @property
     def is_event(self) -> bool:
         return bool(self.flags & Flag.EVENT_PACKET)
+
+    @property
+    def is_nack(self) -> bool:
+        """The MCU rejected a malformed packet: CMD_ID 0 with ACK and ERROR set."""
+        return self.cmd_id == 0 and self.is_ack and self.is_error
+
+    @property
+    def is_poll_ack(self) -> bool:
+        """The answer to an event poll (CMD_ID 0) with nothing to report."""
+        return self.cmd_id == 0 and self.is_ack and not self.is_error and not self.is_event
+
+
+@dataclass(frozen=True, slots=True)
+class Event:
+    """An event the MCU reported. What the numbers mean depends on the kind (see describe())."""
+    kind: EventType
+    slot: int                       # breakpoint or watchpoint slot
+    address: int                    # watchpoint: the old value
+    length: int                     # watchpoint: the width in bytes
+    data: int                       # breakpoint: hit count; watchpoint: new value; errors: count
+
+    def describe(self) -> str:
+        name = self.kind.name
+        if self.kind == EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT:
+            return f"[Event] {name} (slot={self.slot}, hit_count={self.data})"
+        if self.kind == EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT:
+            return (f"[Event] {name} (slot={self.slot}, old=0x{self.address:08X}, new=0x{self.data:08X}, "
+                    f"width={self.length})")
+        if self.kind in (EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, EventType.INTERNAL_MDT_EVENT_FAILED_PACKET):
+            return f"[Event] {name} (count={self.data})"
+        return (f"[Event] {name} (slot={self.slot}, address=0x{self.address:08X}, length={self.length}, "
+                f"data=0x{self.data:08X})")
 
 
 def crc16(data: bytes) -> int:
@@ -177,7 +210,19 @@ def decode(raw: bytes) -> Packet:
         length=int.from_bytes(raw[Offset.LENGTH:Offset.LENGTH + 2], "little"),
         data=raw[Offset.DATA:Offset.DATA + WORD_SIZE],
         crc=received,
+        raw=bytes(raw),
     )
+
+
+def decode_event(packet: Packet) -> Event:
+    """The event an event packet carries; its type is in the MEM_ID byte, its slot in SEQ."""
+    kind = packet.raw[Offset.MEM_ID]
+    try:
+        kind = EventType(kind)
+    except ValueError:
+        raise PacketError(f"Unknown event type: {kind}.") from None
+    return Event(kind=kind, slot=packet.seq, address=packet.address, length=packet.length,
+                 data=int.from_bytes(packet.data, "little"))
 
 
 def is_nack(raw: bytes) -> bool:

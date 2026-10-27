@@ -32,12 +32,16 @@ from pc_tool.wire_protocol import (
     WORD_SIZE,
     Command,
     CommandId,
+    Event,
+    EventType,
     Flag,
     MemType,
     Offset,
+    Packet,
     PacketError,
     crc16,
     decode,
+    decode_event,
     encode,
     is_nack,
 )
@@ -327,3 +331,50 @@ def test_crc_different_data_different_result():
     a = crc16(b'\xAA\xBB\xCC\xDD')
     b = crc16(b'\xAA\xBB\xCC\xDE')   # last byte differs by 1
     assert_eq(a == b, False)
+
+
+# Events: decoding and the line shown for each kind
+def _event_packet(kind, slot=0, address=0, length=0, data=0) -> Packet:
+    pkt = bytearray(PACKET_SIZE)
+    pkt[Offset.START], pkt[Offset.END] = 0xAA, 0x55
+    pkt[Offset.FLAGS], pkt[Offset.SEQ], pkt[Offset.MEM_ID] = Flag.EVENT_PACKET, slot, kind
+    pkt[Offset.ADDRESS:Offset.ADDRESS + 4] = address.to_bytes(4, "little")
+    pkt[Offset.LENGTH:Offset.LENGTH + 2] = length.to_bytes(2, "little")
+    pkt[Offset.DATA:Offset.DATA + 4] = data.to_bytes(4, "little")
+    pkt[Offset.CRC:Offset.CRC + 2] = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC])).to_bytes(2, "little")
+    return decode(bytes(pkt))
+
+
+def test_event_decodes_kind_slot_and_values():
+    event = decode_event(_event_packet(EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 1, 0x11, 4, 0x22))
+    assert_eq(event, Event(EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 1, 0x11, 4, 0x22))
+    assert_eq(event.describe(),
+              "[Event] INTERNAL_MDT_EVENT_WATCHPOINT_HIT (slot=1, old=0x00000011, new=0x00000022, width=4)")
+
+
+@parametrize("kind,data,expected", [
+    (EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT, 5, "[Event] INTERNAL_MDT_EVENT_BREAKPOINT_HIT (slot=2, hit_count=5)"),
+    (EventType.INTERNAL_MDT_EVENT_FAILED_PACKET, 3, "[Event] INTERNAL_MDT_EVENT_FAILED_PACKET (count=3)"),
+    (EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, 255, "[Event] INTERNAL_MDT_EVENT_BUFFER_OVERFLOW (count=255)"),
+])
+def test_event_lines(kind, data, expected):
+    assert_eq(decode_event(_event_packet(kind, slot=2, data=data)).describe(), expected)
+
+
+def test_unknown_event_type_is_a_packet_error():
+    try:
+        decode_event(_event_packet(99))
+    except PacketError as exc:
+        assert_eq(str(exc), "Unknown event type: 99.")
+    else:
+        raise AssertionError("no PacketError")
+
+
+def test_packet_keeps_its_raw_bytes_and_knows_nacks():
+    raw = bytearray(PACKET_SIZE)
+    raw[Offset.START], raw[Offset.END] = 0xAA, 0x55
+    raw[Offset.FLAGS] = Flag.ACK_NACK | Flag.STATUS_ERROR
+    raw[Offset.CRC:Offset.CRC + 2] = crc16(bytes(raw[Offset.CMD_ID:Offset.CRC])).to_bytes(2, "little")
+    packet = decode(bytes(raw))
+    assert_eq((packet.raw, packet.is_nack, packet.is_poll_ack), (bytes(raw), True, False))
+    assert "raw" not in repr(packet)

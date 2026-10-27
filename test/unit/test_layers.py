@@ -24,6 +24,9 @@ LAYERS = {
     "target_model": 2,
     "command_parser": 3,
     "command_rules": 4,
+    "serial_link": 5,
+    "command_client": 6,
+    "event_pump": 6,
 }
 
 

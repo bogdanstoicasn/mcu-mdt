@@ -43,25 +43,24 @@ Assumptions:
 """
 
 import os
-import threading
 import time
 from dataclasses import dataclass
 
 import yaml
 
-from pc_tool import target_model
-from pc_tool.commander import Commander
-from pc_tool.common.uart_io import MCUSerialLink
-from pc_tool.event import EventHandler
+from pc_tool import command_client, event_pump, target_model
+from pc_tool.serial_link import SerialLink
 from pc_tool.wire_protocol import (
     PACKET_SIZE,
     WORD_SIZE,
     BreakpointControl,
     Command,
     CommandId,
+    EventType,
     Flag,
     MemType,
     Offset,
+    PacketError,
     WatchpointControl,
     crc16,
     decode,
@@ -207,14 +206,9 @@ def _skip(msg="MDT_PORT not set — connect a MCU and re-run"):
     return True
 
 
-def _link() -> MCUSerialLink:
+def _link() -> SerialLink:
     """Open a serial link with a short reset delay."""
-    link = MCUSerialLink(
-        port=HW.port,
-        baudrate=HW.baud,
-        timeout=HW.timeout,
-        reset_delay=2.0,
-    )
+    link = SerialLink(HW.port, HW.baud, reset_delay=2.0)
     link.open()
     return link
 
@@ -231,22 +225,22 @@ def _cmd(cmd_id, *, mem=None, address=0, length=0, data=None) -> Command:
     )
 
 
-def _send(link: MCUSerialLink, cmd: Command,
+def _send(link: SerialLink, cmd: Command,
           seq=0, multi=False, last=False) -> bytes | None:
     """Serialize, transmit, and return the raw 18-byte response (or None)."""
     pkt = encode(cmd, seq=seq, multi=multi, last=last)
-    link.send_packet(pkt)
+    link.send(pkt)
     return link.read_packet(timeout=HW.timeout)
 
 
-def _send_parsed(link: MCUSerialLink, cmd: Command, **kw):
+def _send_parsed(link: SerialLink, cmd: Command, **kw):
     """Like _send but returns a deserialized Packet or None."""
     raw = _send(link, cmd, **kw)
     if raw is None:
         return None
     try:
         return decode(raw)
-    except ValueError:
+    except PacketError:
         return None
 
 # CMD_ID=0 packet — identical to what _event_poll_worker sends every 500 ms.
@@ -256,7 +250,7 @@ _POLL_PKT = encode(
 )
 
 
-def _read_event(link: MCUSerialLink) -> bytes | None:
+def _read_event(link: SerialLink) -> bytes | None:
     """Read the next event packet from the MCU, handling both processing modes.
 
     - **Poll mode** (uart_idle=False, AVR default): mcu_mdt_poll() flushes
@@ -267,16 +261,14 @@ def _read_event(link: MCUSerialLink) -> bytes | None:
       production _event_poll_worker does every 500 ms. Send the poll first.
     """
     if HW.uart_idle:
-        link.send_packet(_POLL_PKT)
+        link.send(_POLL_PKT)
     return link.read_packet(timeout=HW.timeout)
 
 
-def _flush(link: MCUSerialLink, ms=300):
+def _flush(link: SerialLink, ms=300):
     """Drain stale bytes so the next test starts clean."""
     time.sleep(ms / 1000)
-    if link.ser and link.ser.in_waiting:
-        link.ser.read(link.ser.in_waiting)
-    link._rx_buf.clear()
+    link.drop_input()
 
 
 def _assert_clean_ack(raw: bytes, cmd_id: int):
@@ -590,7 +582,7 @@ def test_hw_bad_crc_triggers_nack():
         pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         pkt[Offset.DATA] ^= 0xFF          # corrupt without re-patching CRC
-        link.send_packet(bytes(pkt))
+        link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
         assert_eq(is_nack(raw), True)
@@ -605,7 +597,7 @@ def test_hw_nack_carries_valid_crc():
         pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         pkt[Offset.DATA] ^= 0xFF
-        link.send_packet(bytes(pkt))
+        link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
         crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
@@ -620,7 +612,7 @@ def test_hw_mcu_recovers_after_bad_packet():
     link = _link()
     try:
         # Send all-zeros (no valid START byte - MCU ignores it)
-        link.send_packet(bytes(PACKET_SIZE))
+        link.send(bytes(PACKET_SIZE))
         link.read_packet(timeout=HW.timeout)   # may be None; we don't care
         _flush(link)
         # Valid PING must get a clean ACK
@@ -640,7 +632,7 @@ def test_hw_resync_after_truncated_send():
     try:
         half = encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False)[:9]
-        link.send_packet(half)
+        link.send(half)
         time.sleep(0.5)     # let the MCU notice nothing more is coming
         _flush(link)
         raw = _send(link, _cmd(CommandId.PING))
@@ -658,7 +650,7 @@ def test_hw_nack_seq_mirrors_request_seq():
         pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=TEST_SEQ, multi=True, last=False))
         pkt[Offset.DATA] ^= 0xFF          # corrupt data, keep seq
-        link.send_packet(bytes(pkt))
+        link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
         assert_eq(is_nack(raw), True)
@@ -683,7 +675,7 @@ def test_hw_unknown_cmd_id_triggers_error_response():
         crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
         pkt[Offset.CRC]     = crc & 0xFF
         pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
-        link.send_packet(bytes(pkt))
+        link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
         # Firmware NACKs unknown commands
@@ -881,7 +873,7 @@ def test_hw_failed_packet_event_has_event_flag():
         bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
-        link.send_packet(bytes(bad))
+        link.send(bytes(bad))
 
         nack = link.read_packet(timeout=HW.timeout)
         assert_eq(nack is not None, True)
@@ -902,7 +894,7 @@ def test_hw_event_packet_framing_is_valid():
         bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
-        link.send_packet(bytes(bad))
+        link.send(bytes(bad))
 
         nack  = link.read_packet(timeout=HW.timeout)
         event = _read_event(link)
@@ -918,83 +910,81 @@ def test_hw_event_packet_framing_is_valid():
     finally:
         link.close()
 
-def test_hw_rx_worker_routes_event_to_event_queue():
+def test_hw_event_pump_routes_nack_and_event():
     """
-    Start the rx_worker thread, trigger an event via a bad packet,
-    and verify the event ends up in serial_link.event_queue.
+    Start the event pump, trigger an event via a bad packet, and verify the NACK
+    reaches the replies and the event (if the firmware sends one) reaches on_event.
     """
     if not HW.available: return _skip()
     link = _link()
+    events = []
+    pump = event_pump.EventPump(link, HW.uart_idle, on_event=events.append)
     try:
-        # Start the background worker
-        t = threading.Thread(target=EventHandler(link).rx_worker, daemon=True)
-        t.start()
+        pump.start()
 
         # Send a bad packet to provoke NACK + FAILED_PACKET event
         bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
-        link.send_packet(bytes(bad))
+        link.send(bytes(bad))
 
-        # The worker should have routed the NACK to response_queue
-        nack = link.get_response_packet(timeout=HW.timeout)
+        # The pump should have routed the NACK to the replies
+        nack = link.next_reply(timeout=HW.timeout)
         assert_eq(nack is not None, True)
-        assert_eq(is_nack(nack), True)
+        assert_eq(nack.is_nack, True)
 
-        # Event packet (if firmware emits it) goes to event_queue
-        evt = link.get_event_packet(timeout=HW.timeout)
-        if evt is not None:
-            assert_eq(bool(evt[Offset.FLAGS] & Flag.EVENT_PACKET), True)
+        # The FAILED_PACKET event (if the firmware emits it) goes to on_event
+        deadline = time.monotonic() + HW.timeout
+        while not events and time.monotonic() < deadline:
+            time.sleep(0.05)
+        if events:
+            assert_eq(events[0].kind, EventType.INTERNAL_MDT_EVENT_FAILED_PACKET)
     finally:
-        link.running = False
+        pump.stop()
         link.close()
 
 
 # Chunked transfers
-def _start_rx_worker(link: MCUSerialLink) -> threading.Thread:
-    t = threading.Thread(target=EventHandler(link).rx_worker, daemon=True)
-    t.start()
-    return t
+def _start_pump(link: SerialLink) -> event_pump.EventPump:
+    pump = event_pump.EventPump(link, uart_idle=False, on_event=lambda event: None)
+    pump.start()
+    return pump
 
 def test_hw_chunked_16_byte_write_all_acked():
     """
-    Commander.execute() splits a 16-byte write into 4 × 4-byte packets.
+    CommandClient.run() splits a 16-byte write into 4 × 4-byte packets.
     Every chunk must receive an ACK from the real MCU.
     """
     if not HW.available: return _skip()
     link = _link()
-    t = _start_rx_worker(link)
+    pump = _start_pump(link)
     try:
         payload = bytes(range(16))
         cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                    address=HW.scratch(16),
                    length=16, data=payload)
-        Commander(link).execute(cmd)
+        replies = command_client.CommandClient(link).run(cmd)
+        assert_eq(len(replies), 4)
+        assert_eq(any(r.is_error for r in replies), False)
     finally:
-        link.running = False
+        pump.stop()
         link.close()
-        t.join(timeout=2.0)
 
 def test_hw_chunked_write_then_read_back():
     """
-    Write 8 bytes in two chunks via Commander.execute(), then read each
+    Write 8 bytes in two chunks via CommandClient.run(), then read each
     4-byte word individually and verify the payload was stored correctly.
     """
     if not HW.available: return _skip()
     link = _link()
-    t = _start_rx_worker(link)
+    pump = _start_pump(link)
     try:
         base = HW.scratch(20)
         payload = b'\x10\x20\x30\x40\x50\x60\x70\x80'
 
         write_cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
                          address=base, length=8, data=payload)
-        Commander(link).execute(write_cmd)
-        time.sleep(0.1)
-
-        # Read first word
-        r0 = link.get_response_packet(timeout=HW.timeout)
-        # Drain anything else the worker queued
+        command_client.CommandClient(link).run(write_cmd)
         time.sleep(0.2)
 
         # Now do a direct single-word read for verification
@@ -1002,15 +992,13 @@ def test_hw_chunked_write_then_read_back():
             _cmd(CommandId.READ_MEM, mem=MemType.RAM,
                  address=base, length=4),
             seq=0, multi=False, last=False))
-        link.send_packet(bytes(pkt))
-        resp = link.get_response_packet(timeout=HW.timeout)
+        link.send(bytes(pkt))
+        resp = link.next_reply(timeout=HW.timeout)
         assert_eq(resp is not None, True)
-        parsed = decode(resp)
-        assert_eq(parsed.data, payload[:4])
+        assert_eq(resp.data, payload[:4])
     finally:
-        link.running = False
+        pump.stop()
         link.close()
-        t.join(timeout=2.0)
 
 
 # Stress tests

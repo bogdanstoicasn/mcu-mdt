@@ -1,7 +1,7 @@
 """A firmware stand-in that answers MDT packets the way src/mcu_mdt.c does.
 
 Used by the golden tests (on a TCP socket, reached as socket://localhost:<port>) to run the real
-PC tool end to end without hardware. It imports nothing from pc_tool on purpose: it is the other
+PC tool end to end without hardware, and in process through FakeSerialPort by the unit tests. It imports nothing from pc_tool on purpose: it is the other
 side of the wire, so it must not change when the tool does.
 
     bad frame or CRC   -> NACK (cmd 0, ACK|ERROR, seq echoed)
@@ -88,6 +88,65 @@ class FakeMcu:
                 reply[9:11] = (4).to_bytes(2, "little")
                 reply[11:15] = now.to_bytes(4, "little")
                 return
+
+
+class FakeSerialPort:
+    """A pyserial-like port wired to a FakeMcu in this process: no socket, no reset delay.
+
+    *answer(request) -> bytes* replaces the MCU's reply (b"" = silence), to script failures.
+    """
+
+    def __init__(self, mcu: FakeMcu | None = None, answer=None, timeout: float = 0.05) -> None:
+        self.mcu = mcu or FakeMcu()
+        self.answer = answer or self.mcu.handle
+        self.timeout = timeout
+        self.is_open = True
+        self.written: list[bytes] = []                    # every request, in order
+        self._pending, self._rx = b"", bytearray()
+        self._ready = threading.Condition()
+
+    def write(self, data: bytes) -> int:
+        self._pending += data
+        replies = b""
+        while (start := self._pending.find(bytes([START]))) >= 0 and len(self._pending) - start >= PACKET_SIZE:
+            request = self._pending[start:start + PACKET_SIZE]
+            self._pending = self._pending[start + PACKET_SIZE:]
+            self.written.append(request)
+            replies += self.answer(request)
+        self.inject(replies)
+        return len(data)
+
+    def inject(self, data: bytes) -> None:
+        """Bytes arriving from the MCU on their own (events, noise)."""
+        with self._ready:
+            self._rx += data
+            self._ready.notify_all()
+
+    def read(self, size: int = 1) -> bytes:
+        with self._ready:
+            self._ready.wait_for(lambda: self._rx or not self.is_open, timeout=self.timeout)
+            data = bytes(self._rx[:size])
+            del self._rx[:size]
+            return data
+
+    @property
+    def in_waiting(self) -> int:
+        return len(self._rx)
+
+    def flush(self) -> None:
+        pass
+
+    def reset_input_buffer(self) -> None:
+        with self._ready:
+            self._rx.clear()
+
+    def reset_output_buffer(self) -> None:
+        pass
+
+    def close(self) -> None:
+        with self._ready:
+            self.is_open = False
+            self._ready.notify_all()
 
 
 def serve(port: int = 0) -> tuple[socket.socket, int]:
