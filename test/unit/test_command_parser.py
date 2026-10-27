@@ -114,6 +114,25 @@ def test_bad_numbers(line, error):
     assert_eq(_error(line), (error, 2))
 
 
+@parametrize("line,error", [
+    ("WATCHPOINT 0 MASK -1",          "Invalid value '-1' for wp_data"),      # used to crash the tool
+    ("WATCHPOINT 1 ENABLED -1",       "Invalid value '-1' for wp_data"),
+    ("WATCHPOINT 0 MASK 1FFFFFFFF",   "Invalid value '1FFFFFFFF' for wp_data"),
+    ("READ_MEM RAM -1 4",             "Invalid value '-1' for address"),
+    ("READ_MEM RAM 1FFFFFFFF 4",      "Invalid value '1FFFFFFFF' for address"),
+    ("READ_MEM RAM 0x20000000 -4",    "Invalid value '-4' for len"),          # used to send nothing, silently
+    ("BREAKPOINT -1 ENABLED",         "Invalid value '-1' for address"),
+    ("READ_REG 1FFFFFFFF",            "Invalid value '1FFFFFFFF' for address"),
+])
+def test_numbers_must_fit_a_32_bit_field(line, error):
+    assert_eq(_error(line), (error, 2))
+
+
+def test_the_largest_values_fit():
+    assert_eq(_parse("WATCHPOINT 0 MASK FFFFFFFF").data, b"\xff\xff\xff\xff")
+    assert_eq(_parse("READ_MEM RAM FFFFFFFF 4").address, 0xFFFFFFFF)
+
+
 def test_slot_ids_are_hex():
     assert_eq(_parse("BREAKPOINT 10 ENABLED").address, 0x10)
 

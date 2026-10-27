@@ -73,8 +73,13 @@ def parse(line: str, specs: dict[str, CommandSpec], target: target_model.Target)
         expected = len(spec.params) if required == len(spec.params) else f"{required} to {len(spec.params)}"
         raise CommandError(f"{name} expects {expected} parameter(s), got {len(args)}", code=2)
 
-    given = zip(spec.params, args, strict=False)   # optional parameters left out are absent
-    fields = {param.field: _READERS[param.type](text, param, target) for param, text in given}
+    fields = {}
+    for param, text in zip(spec.params, args, strict=False):    # optional parameters left out are absent
+        value = _READERS[param.type](text, param, target)
+        # every number goes into a 32-bit packet field (a slot, an address, a length, a word)
+        if isinstance(value, int) and not 0 <= value <= 0xFFFFFFFF:
+            raise CommandError(f"Invalid value '{text}' for {param.name}", code=2)
+        fields[param.field] = value
     data = fields.get("data")
     if isinstance(data, int):
         data = data.to_bytes(wire_protocol.WORD_SIZE, "little")
