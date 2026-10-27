@@ -1,11 +1,5 @@
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import (
-    BreakpointControl,
-    CommandId,
-    MemType,
-    WatchpointControl,
-)
 from pc_tool.common.logger import MDTLogger
+from pc_tool.wire_protocol import BreakpointControl, Command, CommandId, MemType, WatchpointControl
 
 # Map MemType enum - ATDF/SVD type string used in metadata
 _MEM_TYPE_STR = {

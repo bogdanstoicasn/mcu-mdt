@@ -11,10 +11,8 @@ MCU's replies arrive through one queue. These tests pin down what keeps them apa
 import threading
 
 from pc_tool.commander import Commander
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import CommandId, MDTFlags, MDTOffset, MemType
-from pc_tool.common.protocol import calculate_crc16, serialize_command_packet
 from pc_tool.common.uart_io import MCUSerialLink
+from pc_tool.wire_protocol import Command, CommandId, Flag, MemType, Offset, crc16, encode
 from test.common.asserts import assert_eq
 
 _READ = Command(name="READ_MEM", id=CommandId.READ_MEM, mem=MemType.RAM, address=0x20000000, length=4)
@@ -23,10 +21,10 @@ _READ = Command(name="READ_MEM", id=CommandId.READ_MEM, mem=MemType.RAM, address
 def _ack(request: bytes, address: int | None = None) -> bytes:
     """The MCU's ACK: the request echoed with the ACK flag (and, for tests, another address)."""
     pkt = bytearray(request)
-    pkt[MDTOffset.FLAGS] |= MDTFlags.ACK_NACK
+    pkt[Offset.FLAGS] |= Flag.ACK_NACK
     if address is not None:
-        pkt[MDTOffset.ADDRESS:MDTOffset.ADDRESS + 4] = address.to_bytes(4, "little")
-    pkt[MDTOffset.CRC:MDTOffset.CRC + 2] = calculate_crc16(pkt[MDTOffset.CMD_ID:MDTOffset.CRC]).to_bytes(2, "little")
+        pkt[Offset.ADDRESS:Offset.ADDRESS + 4] = address.to_bytes(4, "little")
+    pkt[Offset.CRC:Offset.CRC + 2] = crc16(pkt[Offset.CMD_ID:Offset.CRC]).to_bytes(2, "little")
     return bytes(pkt)
 
 
@@ -60,7 +58,7 @@ def test_own_reply_is_found_behind_another_one():
 
 
 def test_reply_of_an_earlier_timed_out_command_is_dropped():
-    late = _ack(serialize_command_packet(_READ, seq=0, multi=False, last=False))
+    late = _ack(encode(_READ, seq=0, multi=False, last=False))
     link = _ScriptedLink(lambda req: [], queued=[late])  # the MCU stays silent this time
     assert_eq(Commander(link).execute(_READ), False)
 

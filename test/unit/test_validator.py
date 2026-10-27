@@ -22,13 +22,6 @@ Ensure that the command validation logic correctly identifies valid and invalid 
 potentially harmful operations and ensuring correct usage of the protocol.
 """
 
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import (
-    BreakpointControl,
-    CommandId,
-    MemType,
-    WatchpointControl,
-)
 from pc_tool.validator import (
     validate_breakpoint,
     validate_commands,
@@ -38,6 +31,7 @@ from pc_tool.validator import (
     validate_write_mem,
     validate_write_reg,
 )
+from pc_tool.wire_protocol import BreakpointControl, Command, CommandId, MemType, WatchpointControl
 from test.common.asserts import assert_eq
 from test.common.mdtfixtures import (
     MCU_METADATA_FLASH,

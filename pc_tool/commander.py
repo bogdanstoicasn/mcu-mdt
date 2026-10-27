@@ -1,28 +1,32 @@
 import shutil
 import time
 
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import MDTFlags, MDTOffset, UtilEnum
 from pc_tool.common.logger import MDTLogger
-from pc_tool.common.protocol import (
-    is_nack_packet,
-    serialize_command_packet,
-    validate_command_packet,
-)
 from pc_tool.common.terminal import Terminal
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.parser import parse_packet
+from pc_tool.wire_protocol import (
+    WORD_SIZE,
+    Command,
+    Flag,
+    Offset,
+    PacketError,
+    decode,
+    encode,
+    is_nack,
+)
 
 _REPLY_TIMEOUT = 1.0  # seconds per attempt
+MAX_ATTEMPTS = 3      # sends per packet before giving up
 
 
 def _is_reply_to(reply: bytes, request: bytes) -> bool:
     """An ACK echoes the request's command id, sequence and address. A NACK carries none of
     them, but it can only be ours: nothing else is sent while a command holds the link."""
-    if is_nack_packet(reply):
+    if is_nack(reply):
         return True
-    echoed = (MDTOffset.CMD_ID, MDTOffset.SEQ, *range(MDTOffset.ADDRESS, MDTOffset.ADDRESS + 4))
-    return bool(reply[MDTOffset.FLAGS] & MDTFlags.ACK_NACK) and all(reply[i] == request[i] for i in echoed)
+    echoed = (Offset.CMD_ID, Offset.SEQ, *range(Offset.ADDRESS, Offset.ADDRESS + 4))
+    return bool(reply[Offset.FLAGS] & Flag.ACK_NACK) and all(reply[i] == request[i] for i in echoed)
 
 
 class Commander:
@@ -58,7 +62,7 @@ class Commander:
         Returns the ACK packet on success, or None if all attempts fail.
         """
         with self._link.lock:
-            for attempt in range(1, UtilEnum.MDT_MAX_RETRIES + 1):
+            for attempt in range(1, MAX_ATTEMPTS + 1):
                 self._link.drop_responses()
                 self._link.send_packet(packet)
                 ack = self._await_reply(packet)
@@ -66,14 +70,14 @@ class Commander:
                 if ack is None:
                     MDTLogger.warning(
                         f"No response from MCU for seq={seq} "
-                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES})."
+                        f"(attempt {attempt}/{MAX_ATTEMPTS})."
                     )
                     continue
 
-                if is_nack_packet(ack):
+                if is_nack(ack):
                     MDTLogger.warning(
-                        f"NACK received for seq={ack[MDTOffset.SEQ]} "
-                        f"(attempt {attempt}/{UtilEnum.MDT_MAX_RETRIES}), retrying..."
+                        f"NACK received for seq={ack[Offset.SEQ]} "
+                        f"(attempt {attempt}/{MAX_ATTEMPTS}), retrying..."
                     )
                     continue
 
@@ -86,17 +90,24 @@ class Commander:
         """Log the received ACK packet and validate it."""
         MDTLogger.info(f"Received ACK: {ack.hex()}")
         parse_packet(ack)
-        if validate_command_packet(ack):
-            MDTLogger.info("Command packet validation successful.")
+        try:
+            reply = decode(ack)
+        except PacketError as exc:
+            MDTLogger.error(str(exc), code=3)
+            return
+        if reply.is_error:
+            MDTLogger.error("Command execution error indicated by status flag.", code=3)
+            return
+        MDTLogger.info("Command packet validation successful.")
 
     def ping(self, command: Command) -> None:
         """Send a ping command to the MCU."""
-        packet = serialize_command_packet(command, seq=0, multi=False, last=False)
+        packet = encode(command, seq=0, multi=False, last=False)
         MDTLogger.info(f"Serialized Ping Command Packet: {packet.hex()}")
 
         ack = self._send_with_retry(packet, seq=0)
         if ack is None:
-            MDTLogger.error(f"Ping failed after {UtilEnum.MDT_MAX_RETRIES} attempts.", code=4)
+            MDTLogger.error(f"Ping failed after {MAX_ATTEMPTS} attempts.", code=4)
             return
 
         self._log_ack(ack)
@@ -104,16 +115,16 @@ class Commander:
     def execute(self, command: Command) -> bool:
         """Send a command, splitting into word-sized chunks if needed. True when every chunk was ACKed."""
         is_write = command.data is not None
-        length   = command.length if command.length is not None else UtilEnum.WORD_SIZE
+        length   = command.length if command.length is not None else WORD_SIZE
         seq      = 0
 
-        for offset in range(0, length, UtilEnum.WORD_SIZE):
-            chunk_length = min(UtilEnum.WORD_SIZE, length - offset)
+        for offset in range(0, length, WORD_SIZE):
+            chunk_length = min(WORD_SIZE, length - offset)
 
             if is_write:
                 chunk = command.data[offset : offset + chunk_length]
-                if len(chunk) != UtilEnum.WORD_SIZE:
-                    chunk = chunk.ljust(UtilEnum.WORD_SIZE, b'\x00')
+                if len(chunk) != WORD_SIZE:
+                    chunk = chunk.ljust(WORD_SIZE, b'\x00')
             else:
                 chunk = None
 
@@ -126,11 +137,11 @@ class Commander:
                 data    = chunk,
             )
 
-            packet = serialize_command_packet(
+            packet = encode(
                 chunk_cmd,
                 seq   = seq,
-                multi = length > UtilEnum.WORD_SIZE,
-                last  = offset + UtilEnum.WORD_SIZE >= length,
+                multi = length > WORD_SIZE,
+                last  = offset + WORD_SIZE >= length,
             )
 
             MDTLogger.info(f"Serialized Command Packet: {packet.hex()}")
@@ -138,7 +149,7 @@ class Commander:
             ack = self._send_with_retry(packet, seq=seq)
             if ack is None:
                 MDTLogger.error(
-                    f"Command failed after {UtilEnum.MDT_MAX_RETRIES} attempts "
+                    f"Command failed after {MAX_ATTEMPTS} attempts "
                     f"(seq={seq}). Aborting.",
                     code=4,
                 )
@@ -207,7 +218,7 @@ def clear_command() -> None:
 # Lifecycle helpers — used by main.py
 def serial_link_command(port: str, baudrate: int = 19200, ping_command_id: int = 0x05) -> MCUSerialLink:
     """Initialize the serial link and perform a startup ping to verify connectivity."""
-    startup_ping = serialize_command_packet(
+    startup_ping = encode(
         Command(name="PING", id=ping_command_id, mem=None, address=0, data=None),
         seq=0, multi=False, last=False,
     )

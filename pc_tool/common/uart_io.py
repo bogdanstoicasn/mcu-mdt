@@ -5,10 +5,10 @@ import time
 
 import serial
 
-from pc_tool.common.enums import MDT_PACKET_SIZE, FenceType
 from pc_tool.common.logger import MDTLogger
+from pc_tool.wire_protocol import PACKET_SIZE, START_BYTE
 
-_START_BYTE = FenceType.START_BYTE.to_bytes(1, "little")
+_START_BYTE = bytes([START_BYTE])
 
 
 class MCUSerialLink:
@@ -108,13 +108,13 @@ class MCUSerialLink:
         echoed   = bytearray()
         deadline = time.monotonic() + 5.0
 
-        while len(echoed) < MDT_PACKET_SIZE and time.monotonic() < deadline:
+        while len(echoed) < PACKET_SIZE and time.monotonic() < deadline:
             if self.ser.in_waiting:
                 echoed += self.ser.read(self.ser.in_waiting)
 
-        if len(echoed) < MDT_PACKET_SIZE:
+        if len(echoed) < PACKET_SIZE:
             MDTLogger.warning(
-                f"Startup ping echo mismatch: expected {MDT_PACKET_SIZE}, got {len(echoed)}."
+                f"Startup ping echo mismatch: expected {PACKET_SIZE}, got {len(echoed)}."
             )
             return
 
@@ -157,9 +157,9 @@ class MCUSerialLink:
             if idx > 0:
                 self._rx_buf = self._rx_buf[idx:]
 
-            if len(self._rx_buf) >= MDT_PACKET_SIZE:
-                pkt          = bytes(self._rx_buf[:MDT_PACKET_SIZE])
-                self._rx_buf = self._rx_buf[MDT_PACKET_SIZE:]
+            if len(self._rx_buf) >= PACKET_SIZE:
+                pkt          = bytes(self._rx_buf[:PACKET_SIZE])
+                self._rx_buf = self._rx_buf[PACKET_SIZE:]
                 return pkt
 
         return None

@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 
-from pc_tool.common.enums import MCUPlatforms
 from pc_tool.common.logger import MDTLogger
 
 try:
@@ -28,7 +27,7 @@ def _mcu_address(raw_addr: int, platform: str) -> int | None:
     AVR is the one exception to "ELF address == MCU address": its data space is offset in the
     ELF, and anything below the offset is flash (a PROGMEM constant at 0x150 is not RAM 0x150).
     """
-    if platform == MCUPlatforms.AVR:
+    if platform == "avr":
         return raw_addr - AVR_SRAM_OFFSET if raw_addr >= AVR_SRAM_OFFSET else None
     return raw_addr
 

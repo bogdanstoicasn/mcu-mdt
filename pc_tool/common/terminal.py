@@ -19,6 +19,8 @@ import os
 import sys
 import time
 
+from pc_tool.wire_protocol import CommandId, Flag
+
 # Optional: lets ``event()`` recover the user's half-typed line so an
 # async event print can restore it.  Mirrors the fallback in parser.py.
 try:
@@ -157,9 +159,6 @@ class _TerminalPrinter:
         The whole output is built once and written in a single
         ``sys.stdout.write`` call to minimise syscalls.
         """
-        # Imported lazily to keep this module dependency-light
-        from pc_tool.common.enums import CommandId, MDTFlags
-
         # Decode the command id
         try:
             cmd_field = f"{CommandId(cmd_packet.cmd_id).name} (0x{cmd_packet.cmd_id:02X})"
@@ -167,16 +166,16 @@ class _TerminalPrinter:
             cmd_field = f"<unknown> (0x{cmd_packet.cmd_id:02X})"
 
         # Decode flags
-        flag_names = [f.name for f in MDTFlags if cmd_packet.flags & f]
+        flag_names = [f.name for f in Flag if cmd_packet.flags & f]
         flags_field = (
             f"0x{cmd_packet.flags:02X}  "
             + (" | ".join(flag_names) if flag_names else "<none>")
         )
 
         # Status badge: pure ASCII, no colour
-        is_ack   = bool(cmd_packet.flags & MDTFlags.ACK_NACK)
-        is_err   = bool(cmd_packet.flags & MDTFlags.STATUS_ERROR)
-        is_event = bool(cmd_packet.flags & MDTFlags.EVENT_PACKET)
+        is_ack   = bool(cmd_packet.flags & Flag.ACK_NACK)
+        is_err   = bool(cmd_packet.flags & Flag.STATUS_ERROR)
+        is_event = bool(cmd_packet.flags & Flag.EVENT_PACKET)
 
         if is_event:
             badge = "[EVENT]"

@@ -1,5 +1,5 @@
 # Fixtures
-from pc_tool.common.enums import MDT_PACKET_SIZE
+from pc_tool.wire_protocol import PACKET_SIZE
 
 COMMANDS = {
     "PING":       {"id": 0x05, "params": []},
@@ -201,7 +201,7 @@ class MockUART:
         return chunk
 
     def read_packet(self) -> bytes:
-        return self.read(MDT_PACKET_SIZE)
+        return self.read(PACKET_SIZE)
 
     @property
     def pending(self) -> int:

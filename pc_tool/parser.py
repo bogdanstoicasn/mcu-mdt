@@ -5,11 +5,10 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 
-from pc_tool.common.dataclasses import Command
 from pc_tool.common.elf_symbols import check_watchpoint_alignment, resolve_symbol
 from pc_tool.common.logger import MDTLogger
-from pc_tool.common.protocol import deserialize_command_packet
 from pc_tool.common.terminal import Terminal
+from pc_tool.wire_protocol import Command, decode
 
 try:
     import readline
@@ -397,5 +396,5 @@ def parse_line(
 
 def parse_packet(packet: bytes) -> None:
     """Print the contents of a received packet in human-readable form."""
-    cmd = deserialize_command_packet(packet)
+    cmd = decode(packet)
     Terminal.packet(cmd, raw=packet)

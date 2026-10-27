@@ -26,8 +26,8 @@ Goal:
 Ensure that the command parser correctly translates user input into structured command objects with proper types and values.
 """
 
-from pc_tool.common.enums import BreakpointControl, CommandId, MemType, WatchpointControl
 from pc_tool.parser import parse_line, resolve_register_address
+from pc_tool.wire_protocol import BreakpointControl, CommandId, MemType, WatchpointControl
 from test.common.asserts import assert_eq
 from test.common.mdtfixtures import COMMANDS, CONTROL_VALUES, MCU_METADATA_AVR, _reg_meta
 from test.pymdtest import parametrize
@@ -70,7 +70,7 @@ def test_parse_invalid_returns_none(input):
     ("EEPROM", MemType.EEPROM),
 ])
 def test_parse_read_mem_memtypes(mem_str, expected):
-    """Test that memory type strings are correctly parsed to MemType enums."""
+    """Test that memory type strings are correctly parsed to MemType wire_protocol."""
     cmd = _parse(f"READ_MEM {mem_str} 0x20000000 4")
     assert_eq(cmd.mem, expected)
 
@@ -172,7 +172,7 @@ def test_resolve_register_address_directly():
     ("NEXT", BreakpointControl.NEXT),
 ])
 def test_parse_breakpoint(ctrl, expected):
-    """Test that BREAKPOINT control strings are correctly parsed to BreakpointControl enums."""
+    """Test that BREAKPOINT control strings are correctly parsed to BreakpointControl wire_protocol."""
     cmd = _parse(f"BREAKPOINT 0 {ctrl}")
     assert_eq(cmd.mem, expected)
 
@@ -189,7 +189,7 @@ def test_parse_breakpoint_invalid():
     ("MASK", WatchpointControl.MASK),
 ])
 def test_parse_watchpoint(ctrl, expected):
-    """Test that WATCHPOINT control strings are correctly parsed to WatchpointControl enums."""
+    """Test that WATCHPOINT control strings are correctly parsed to WatchpointControl wire_protocol."""
     cmd = _parse(f"WATCHPOINT 0 {ctrl} 000000FF")
     assert_eq(cmd.mem, expected)
 

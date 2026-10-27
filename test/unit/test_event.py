@@ -7,8 +7,8 @@ Covers how the PC shows events from the state-based MCU event system:
 3. Draining stale events at startup covers a full burst
 """
 
-from pc_tool.common.enums import MDT_PACKET_SIZE, EventType, MDTFlags, MDTOffset
 from pc_tool.event import EventHandler
+from pc_tool.wire_protocol import PACKET_SIZE, EventType, Flag, Offset
 from test.common.asserts import assert_eq
 
 
@@ -40,8 +40,8 @@ class _FakeLink:
         if self.remaining == 0:
             return None
         self.remaining -= 1
-        pkt = bytearray(MDT_PACKET_SIZE)
-        pkt[MDTOffset.FLAGS] = MDTFlags.EVENT_PACKET
+        pkt = bytearray(PACKET_SIZE)
+        pkt[Offset.FLAGS] = Flag.EVENT_PACKET
         return bytes(pkt)
 
 

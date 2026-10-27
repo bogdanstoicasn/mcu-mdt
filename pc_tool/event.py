@@ -2,11 +2,9 @@ import os
 import threading
 import time
 
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import EventType, MDTFlags, MDTOffset
 from pc_tool.common.logger import MDTLogger
-from pc_tool.common.protocol import serialize_command_packet
 from pc_tool.common.terminal import Terminal
+from pc_tool.wire_protocol import Command, EventType, Flag, Offset, encode
 
 EVENT_POLL_INTERVAL = 0.5  # seconds
 
@@ -14,7 +12,7 @@ _RX_ERROR_BACKOFF          = 0.5   # seconds to wait after a recoverable RX erro
 _RX_MAX_CONSECUTIVE_ERRORS = 10    # stop the reader after this many errors in a row
 
 _POLL_COMMAND = Command(name="POLL", id=0x00, mem=None, address=0, data=None)
-_POLL_PACKET  = serialize_command_packet(_POLL_COMMAND, seq=0, multi=False, last=False)
+_POLL_PACKET  = encode(_POLL_COMMAND, seq=0, multi=False, last=False)
 
 
 class EventHandler:
@@ -37,29 +35,29 @@ class EventHandler:
     def _is_event(pkt: bytes) -> bool:
         """Identify if a packet is an event packet based on CMD_ID and FLAGS."""
         return (
-            pkt[MDTOffset.CMD_ID] == 0
-            and bool(pkt[MDTOffset.FLAGS] & MDTFlags.EVENT_PACKET)
+            pkt[Offset.CMD_ID] == 0
+            and bool(pkt[Offset.FLAGS] & Flag.EVENT_PACKET)
         )
 
     @staticmethod
     def _is_clean_poll_ack(pkt: bytes) -> bool:
         """Identify if a packet is a clean ACK to the poll command, with no events."""
-        flags = pkt[MDTOffset.FLAGS]
+        flags = pkt[Offset.FLAGS]
         return (
-            pkt[MDTOffset.CMD_ID] == 0
-            and bool(flags & MDTFlags.ACK_NACK)
-            and not bool(flags & MDTFlags.STATUS_ERROR)
+            pkt[Offset.CMD_ID] == 0
+            and bool(flags & Flag.ACK_NACK)
+            and not bool(flags & Flag.STATUS_ERROR)
         )
 
     # Formatting event packets
     @staticmethod
     def _parse_event_fields(pkt: bytes) -> tuple[int, int, int, int, int]:
         """Return (event_type, slot_id, address, length, data)."""
-        event_type = pkt[MDTOffset.MEM_ID]
-        slot_id    = pkt[MDTOffset.SEQ]
-        address    = int.from_bytes(pkt[MDTOffset.ADDRESS : MDTOffset.ADDRESS + 4], "little")
-        length     = int.from_bytes(pkt[MDTOffset.LENGTH  : MDTOffset.LENGTH  + 2], "little")
-        data       = int.from_bytes(pkt[MDTOffset.DATA    : MDTOffset.DATA    + 4], "little")
+        event_type = pkt[Offset.MEM_ID]
+        slot_id    = pkt[Offset.SEQ]
+        address    = int.from_bytes(pkt[Offset.ADDRESS : Offset.ADDRESS + 4], "little")
+        length     = int.from_bytes(pkt[Offset.LENGTH  : Offset.LENGTH  + 2], "little")
+        data       = int.from_bytes(pkt[Offset.DATA    : Offset.DATA    + 4], "little")
         return event_type, slot_id, address, length, data
 
     @staticmethod

@@ -23,27 +23,26 @@ Validate that the complete PC-side pipeline correctly processes user commands, p
 responses, making sure all components work together as intended.
 """
 
-from pc_tool.common.dataclasses import Command, CommandPacket
-from pc_tool.common.enums import (
-    MDT_PACKET_SIZE,
-    BreakpointControl,
-    CommandId,
-    EventType,
-    MDTFlags,
-    MDTOffset,
-    MemType,
-    UtilEnum,
-    WatchpointControl,
-)
-from pc_tool.common.protocol import (
-    calculate_crc16,
-    deserialize_command_packet,
-    is_nack_packet,
-    serialize_command_packet,
-    validate_command_packet,
-)
 from pc_tool.parser import parse_line
 from pc_tool.validator import validate_commands
+from pc_tool.wire_protocol import (
+    PACKET_SIZE,
+    WORD_SIZE,
+    BreakpointControl,
+    Command,
+    CommandId,
+    EventType,
+    Flag,
+    MemType,
+    Offset,
+    Packet,
+    PacketError,
+    WatchpointControl,
+    crc16,
+    decode,
+    encode,
+    is_nack,
+)
 from test.common.asserts import assert_eq
 from test.common.mdtfixtures import (
     COMMANDS,
@@ -56,56 +55,64 @@ from test.common.mdtfixtures import (
 from test.pymdtest import parametrize
 
 
+def _is_valid_reply(raw: bytes) -> bool:
+    """A reply the tool accepts: it decodes (size, fences, CRC) and carries no STATUS_ERROR."""
+    try:
+        return not decode(raw).is_error
+    except PacketError:
+        return False
+
+
 def _make_ack_packet(for_cmd_id: int) -> bytes:
     """Build a minimal ACK response the MCU would send back."""
-    pkt = bytearray(MDT_PACKET_SIZE)
-    pkt[MDTOffset.START]  = 0xAA
-    pkt[MDTOffset.CMD_ID] = for_cmd_id
-    pkt[MDTOffset.FLAGS]  = MDTFlags.ACK_NACK   # ACK bit set, ERROR bit clear
-    pkt[MDTOffset.END]    = 0x55
-    crc = calculate_crc16(bytes(pkt[MDTOffset.CMD_ID:MDTOffset.CRC]))
-    pkt[MDTOffset.CRC]     = crc & 0xFF
-    pkt[MDTOffset.CRC + 1] = (crc >> 8) & 0xFF
+    pkt = bytearray(PACKET_SIZE)
+    pkt[Offset.START]  = 0xAA
+    pkt[Offset.CMD_ID] = for_cmd_id
+    pkt[Offset.FLAGS]  = Flag.ACK_NACK   # ACK bit set, ERROR bit clear
+    pkt[Offset.END]    = 0x55
+    crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
+    pkt[Offset.CRC]     = crc & 0xFF
+    pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
     return bytes(pkt)
 
 
 def _make_nack_packet() -> bytes:
     """Build a NACK response (cmd_id=0, ACK+ERROR flags set)."""
-    pkt = bytearray(MDT_PACKET_SIZE)
-    pkt[MDTOffset.START]  = 0xAA
-    pkt[MDTOffset.CMD_ID] = 0x00
-    pkt[MDTOffset.FLAGS]  = MDTFlags.ACK_NACK | MDTFlags.STATUS_ERROR
-    pkt[MDTOffset.END]    = 0x55
-    crc = calculate_crc16(bytes(pkt[MDTOffset.CMD_ID:MDTOffset.CRC]))
-    pkt[MDTOffset.CRC]     = crc & 0xFF
-    pkt[MDTOffset.CRC + 1] = (crc >> 8) & 0xFF
+    pkt = bytearray(PACKET_SIZE)
+    pkt[Offset.START]  = 0xAA
+    pkt[Offset.CMD_ID] = 0x00
+    pkt[Offset.FLAGS]  = Flag.ACK_NACK | Flag.STATUS_ERROR
+    pkt[Offset.END]    = 0x55
+    crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
+    pkt[Offset.CRC]     = crc & 0xFF
+    pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
     return bytes(pkt)
 
 
 def _make_event_packet(event_type: EventType, bp_id: int = 0) -> bytes:
     """Build an unsolicited breakpoint event packet."""
-    pkt = bytearray(MDT_PACKET_SIZE)
-    pkt[MDTOffset.START]  = 0xAA
-    pkt[MDTOffset.CMD_ID] = 0x00
-    pkt[MDTOffset.FLAGS]  = MDTFlags.EVENT_PACKET
-    pkt[MDTOffset.SEQ]    = bp_id
+    pkt = bytearray(PACKET_SIZE)
+    pkt[Offset.START]  = 0xAA
+    pkt[Offset.CMD_ID] = 0x00
+    pkt[Offset.FLAGS]  = Flag.EVENT_PACKET
+    pkt[Offset.SEQ]    = bp_id
     # Pack event type into data field
     event_bytes = event_type.to_bytes(4, "little")
-    pkt[MDTOffset.DATA:MDTOffset.DATA + 4] = event_bytes
-    pkt[MDTOffset.END]    = 0x55
-    crc = calculate_crc16(bytes(pkt[MDTOffset.CMD_ID:MDTOffset.CRC]))
-    pkt[MDTOffset.CRC]     = crc & 0xFF
-    pkt[MDTOffset.CRC + 1] = (crc >> 8) & 0xFF
+    pkt[Offset.DATA:Offset.DATA + 4] = event_bytes
+    pkt[Offset.END]    = 0x55
+    crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
+    pkt[Offset.CRC]     = crc & 0xFF
+    pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
     return bytes(pkt)
 
 
 def _full_pipeline(line: str, meta: dict, uart: MockUART,
-                   seq=0, multi=False, last=False) -> CommandPacket | None:
+                   seq=0, multi=False, last=False) -> Packet | None:
     """
     Run the complete PC-side pipeline for a single CLI line:
       parse -> validate -> serialize -> write to UART -> read back -> deserialize.
 
-    Returns the deserialized CommandPacket, or None if any stage rejects.
+    Returns the deserialized Packet, or None if any stage rejects.
     """
     cmd = parse_line(line, COMMANDS, CONTROL_VALUES, meta)
     if cmd is None:
@@ -114,18 +121,18 @@ def _full_pipeline(line: str, meta: dict, uart: MockUART,
     if not validate_commands(cmd, meta):
         return None
 
-    pkt = serialize_command_packet(cmd, seq=seq, multi=multi, last=last)
+    pkt = encode(cmd, seq=seq, multi=multi, last=last)
     uart.write(pkt)
 
     raw = uart.read_packet()
-    return deserialize_command_packet(raw)
+    return decode(raw)
 
-def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[CommandPacket]:
+def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[Packet]:
     """
     Split a payload into 4-byte chunks and serialize each as a
     multi-packet sequence. Returns a list of deserialized packets.
     """
-    chunk_size = UtilEnum.WORD_SIZE
+    chunk_size = WORD_SIZE
     chunks = [payload[i:i + chunk_size] for i in range(0, len(payload), chunk_size)]
     received = []
 
@@ -140,9 +147,9 @@ def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[Comman
             data=padded,
             length=len(chunk),
         )
-        pkt = serialize_command_packet(cmd, seq=i, multi=True, last=is_last)
+        pkt = encode(cmd, seq=i, multi=True, last=is_last)
         uart.write(pkt)
-        received.append(deserialize_command_packet(uart.read_packet()))
+        received.append(decode(uart.read_packet()))
 
     return received
 
@@ -152,9 +159,9 @@ def test_e2e_ping():
     """PING should serialize and deserialize correctly with no parameters."""
     uart = MockUART()
     cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
-    pkt = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
-    received = deserialize_command_packet(uart.read_packet())
+    received = decode(uart.read_packet())
     assert_eq(received.cmd_id, CommandId.PING)
 
 def test_e2e_read_mem():
@@ -193,9 +200,9 @@ def test_e2e_breakpoint_enable():
     """BREAKPOINT should serialize with the correct ID and control value."""
     uart = MockUART()
     cmd = parse_line("BREAKPOINT 0 ENABLED", COMMANDS, CONTROL_VALUES, {})
-    pkt = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
-    received = deserialize_command_packet(uart.read_packet())
+    received = decode(uart.read_packet())
     assert_eq(received.cmd_id, CommandId.BREAKPOINT)
     assert_eq(received.address, 0)
     assert_eq(received.mem_id,  BreakpointControl.ENABLED)
@@ -204,9 +211,9 @@ def test_e2e_watchpoint_enable():
     """WATCHPOINT should serialize with the correct ID, control value, and address."""
     uart = MockUART()
     cmd = parse_line("WATCHPOINT 0 ENABLED 0x20000100", COMMANDS, CONTROL_VALUES, {})
-    pkt = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
-    received = deserialize_command_packet(uart.read_packet())
+    received = decode(uart.read_packet())
     assert_eq(received.cmd_id, CommandId.WATCHPOINT)
     assert_eq(received.address, 0)
     assert_eq(received.mem_id,  WatchpointControl.ENABLED)
@@ -215,10 +222,10 @@ def test_e2e_packet_is_validated_after_loopback():
     """After writing a packet to the UART and reading it back, it should still validate correctly."""
     uart = MockUART()
     cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
-    pkt = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     raw = uart.read_packet()
-    assert_eq(validate_command_packet(raw), True)
+    assert_eq(_is_valid_reply(raw), True)
 
 
 # Multi-packet sequences
@@ -240,16 +247,16 @@ def test_chunked_transfer_16_bytes():
         cmd = Command(name="WRITE_MEM", id=CommandId.WRITE_MEM,
                       mem=MemType.RAM, address=0x20000000,
                       data=b'\x00\x00\x00\x00', length=4)
-        raw = serialize_command_packet(cmd, seq=pkt.seq, multi=True,
+        raw = encode(cmd, seq=pkt.seq, multi=True,
                                        last=(pkt.seq == 3))
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.SEQ_PRESENT), True)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.SEQ_PRESENT), True)
 
-    last_raw = serialize_command_packet(
+    last_raw = encode(
         Command(name="X", id=CommandId.WRITE_MEM, mem=MemType.RAM,
                 address=0x2000000C, data=bytes(range(12, 16)), length=4),
         seq=3, multi=True, last=True
     )
-    assert_eq(bool(last_raw[MDTOffset.FLAGS] & MDTFlags.LAST_PACKET), True)
+    assert_eq(bool(last_raw[Offset.FLAGS] & Flag.LAST_PACKET), True)
 
 def test_chunked_transfer_single_chunk_is_last():
     """A payload that fits in one chunk should have the LAST_PACKET flag set."""
@@ -302,38 +309,38 @@ def test_validator_passes_valid_command_through():
 def test_ack_from_mcu_is_valid_packet():
     """An ACK packet from the MCU should pass validation."""
     ack = _make_ack_packet(CommandId.PING)
-    assert_eq(validate_command_packet(ack), True)
+    assert_eq(_is_valid_reply(ack), True)
 
 def test_nack_from_mcu_is_recognised():
     """A NACK packet from the MCU should be recognised as a NACK and fail validation."""
     nack = _make_nack_packet()
-    assert_eq(is_nack_packet(nack), True)
-    assert_eq(validate_command_packet(nack), False)  # STATUS_ERROR invalid
+    assert_eq(is_nack(nack), True)
+    assert_eq(_is_valid_reply(nack), False)  # STATUS_ERROR invalid
 
 def test_corrupted_mcu_response_fails_validation():
     """If the MCU response is corrupted (e.g. data byte flipped), validation should fail."""
     ack = bytearray(_make_ack_packet(CommandId.READ_MEM))
-    ack[MDTOffset.DATA] ^= 0xFF   # corrupt data without patching CRC
-    assert_eq(validate_command_packet(bytes(ack)), False)
+    ack[Offset.DATA] ^= 0xFF   # corrupt data without patching CRC
+    assert_eq(_is_valid_reply(bytes(ack)), False)
 
 def test_truncated_mcu_response_fails_validation():
     """If the MCU response is truncated (e.g. missing last byte), validation should fail."""
     ack = _make_ack_packet(CommandId.PING)[:-1]   # drop last byte
-    assert_eq(validate_command_packet(ack), False)
+    assert_eq(_is_valid_reply(ack), False)
 
 def test_mcu_response_with_wrong_start_byte_fails():
     """If the MCU response has an invalid start byte, validation should fail."""
     ack = bytearray(_make_ack_packet(CommandId.PING))
-    ack[MDTOffset.START] = 0x00
-    assert_eq(validate_command_packet(bytes(ack)), False)
+    ack[Offset.START] = 0x00
+    assert_eq(_is_valid_reply(bytes(ack)), False)
 
 def test_pipeline_sends_exactly_one_packet_per_command():
     """For a simple command like PING, the pipeline should produce exactly one packet on the wire."""
     uart = MockUART()
     cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
-    pkt = serialize_command_packet(cmd, seq=0, multi=False, last=False)
+    pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
-    assert_eq(uart.pending, MDT_PACKET_SIZE)
+    assert_eq(uart.pending, PACKET_SIZE)
     uart.read_packet()
     assert_eq(uart.pending, 0)
 
@@ -342,42 +349,42 @@ def test_pipeline_sends_exactly_one_packet_per_command():
 def test_event_packet_has_event_flag_set():
     """An event packet from the MCU should have the EVENT_PACKET flag set."""
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT, bp_id=2)
-    flags = evt[MDTOffset.FLAGS]
-    assert_eq(bool(flags & MDTFlags.EVENT_PACKET), True)
+    flags = evt[Offset.FLAGS]
+    assert_eq(bool(flags & Flag.EVENT_PACKET), True)
 
 def test_event_packet_does_not_look_like_nack():
     """An event packet should not be misinterpreted as a NACK (i.e. it should not have the ERROR bit set)."""
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT)
-    assert_eq(is_nack_packet(evt), False)
+    assert_eq(is_nack(evt), False)
 
 def test_event_packet_carries_breakpoint_id():
     """For a breakpoint hit event, the SEQ field should carry the breakpoint ID."""
     bp_id = 3
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_BREAKPOINT_HIT, bp_id=bp_id)
-    assert_eq(evt[MDTOffset.SEQ], bp_id)
+    assert_eq(evt[Offset.SEQ], bp_id)
 
 def test_event_packet_carries_event_type_in_data():
     """The event type should be encoded in the DATA field of the event packet."""
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT)
     event_type_raw = int.from_bytes(
-        evt[MDTOffset.DATA:MDTOffset.DATA + 4], byteorder="little"
+        evt[Offset.DATA:Offset.DATA + 4], byteorder="little"
     )
     assert_eq(event_type_raw, EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT)
 
 def test_event_packet_crc_is_valid():
     """The CRC field of the event packet should be correct for the given contents."""
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW)
-    crc_recv = int.from_bytes(evt[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-    crc_calc  = calculate_crc16(evt[MDTOffset.CMD_ID:MDTOffset.CRC])
+    crc_recv = int.from_bytes(evt[Offset.CRC:Offset.CRC + 2], "little")
+    crc_calc  = crc16(evt[Offset.CMD_ID:Offset.CRC])
     assert_eq(crc_recv, crc_calc)
 
 def test_buffer_overflow_event_is_recognised():
     """An INTERNAL_MDT_EVENT_BUFFER_OVERFLOW event should be correctly identified by its event type in the data field."""
     evt = _make_event_packet(EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW)
-    flags = evt[MDTOffset.FLAGS]
-    assert_eq(bool(flags & MDTFlags.EVENT_PACKET), True)
+    flags = evt[Offset.FLAGS]
+    assert_eq(bool(flags & Flag.EVENT_PACKET), True)
     event_type_raw = int.from_bytes(
-        evt[MDTOffset.DATA:MDTOffset.DATA + 4], byteorder="little"
+        evt[Offset.DATA:Offset.DATA + 4], byteorder="little"
     )
     assert_eq(event_type_raw, EventType.INTERNAL_MDT_EVENT_BUFFER_OVERFLOW)
 
@@ -393,11 +400,11 @@ def test_field_fidelity_address_mem_length(address, mem, length):
     """The address, mem_id, and length fields should round-trip through serialization and deserialization."""
     cmd = Command(name="READ_MEM", id=CommandId.READ_MEM,
                   mem=mem, address=address, data=None, length=length)
-    pkt  = serialize_command_packet(cmd, seq=0, multi=False, last=False)
-    back = deserialize_command_packet(pkt)
+    pkt  = encode(cmd, seq=0, multi=False, last=False)
+    back = decode(pkt)
     assert_eq(back.address, address)
     assert_eq(back.mem_id,  mem)
-    assert_eq(back.length,  min(length, UtilEnum.WORD_SIZE))
+    assert_eq(back.length,  min(length, WORD_SIZE))
 
 @parametrize("data", [
     (b'\x00\x00\x00\x00',),
@@ -410,8 +417,8 @@ def test_field_fidelity_data(data):
     """The data field should round-trip through serialization and deserialization without alteration."""
     cmd  = Command(name="WRITE_MEM", id=CommandId.WRITE_MEM,
                    mem=MemType.RAM, address=0x20000000, data=data, length=4)
-    pkt  = serialize_command_packet(cmd, seq=0, multi=False, last=False)
-    back = deserialize_command_packet(pkt)
+    pkt  = encode(cmd, seq=0, multi=False, last=False)
+    back = decode(pkt)
     assert_eq(back.data, data)
 
 @parametrize("seq", [(0,), (1,), (127,), (255,)])
@@ -419,8 +426,8 @@ def test_field_fidelity_seq(seq):
     """The sequence number should round-trip through serialization and deserialization without alteration."""
     cmd  = Command(name="PING", id=CommandId.PING,
                    mem=None, address=0, data=None, length=0)
-    pkt  = serialize_command_packet(cmd, seq=seq, multi=True, last=False)
-    back = deserialize_command_packet(pkt)
+    pkt  = encode(cmd, seq=seq, multi=True, last=False)
+    back = decode(pkt)
     assert_eq(back.seq, seq)
 
 
@@ -455,7 +462,7 @@ def test_erase_packet_mem_id_is_3():
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
         mem=MemType.ERASE, address=0x08004000, data=b'\x00\x00\x00\x00', length=1,
     )
-    pkt  = serialize_command_packet(cmd, seq=0, multi=False, last=False)
-    back = deserialize_command_packet(pkt)
+    pkt  = encode(cmd, seq=0, multi=False, last=False)
+    back = decode(pkt)
     assert_eq(back.mem_id,  MemType.ERASE)
     assert_eq(back.address, 0x08004000)

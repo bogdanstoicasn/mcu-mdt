@@ -50,26 +50,24 @@ from dataclasses import dataclass
 import yaml
 
 from pc_tool.commander import Commander
-from pc_tool.common.dataclasses import Command
-from pc_tool.common.enums import (
-    MDT_PACKET_SIZE,
-    BreakpointControl,
-    CommandId,
-    MDTFlags,
-    MDTOffset,
-    MemType,
-    UtilEnum,
-    WatchpointControl,
-)
-from pc_tool.common.protocol import (
-    calculate_crc16,
-    deserialize_command_packet,
-    is_nack_packet,
-    serialize_command_packet,
-)
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.event import EventHandler
 from pc_tool.loader import ConfigLoader
+from pc_tool.wire_protocol import (
+    PACKET_SIZE,
+    WORD_SIZE,
+    BreakpointControl,
+    Command,
+    CommandId,
+    Flag,
+    MemType,
+    Offset,
+    WatchpointControl,
+    crc16,
+    decode,
+    encode,
+    is_nack,
+)
 from test.common.asserts import assert_eq
 from test.pymdtest import parametrize
 
@@ -237,23 +235,23 @@ def _cmd(cmd_id, *, mem=None, address=0, length=0, data=None) -> Command:
 def _send(link: MCUSerialLink, cmd: Command,
           seq=0, multi=False, last=False) -> bytes | None:
     """Serialize, transmit, and return the raw 18-byte response (or None)."""
-    pkt = serialize_command_packet(cmd, seq=seq, multi=multi, last=last)
+    pkt = encode(cmd, seq=seq, multi=multi, last=last)
     link.send_packet(pkt)
     return link.read_packet(timeout=HW.timeout)
 
 
 def _send_parsed(link: MCUSerialLink, cmd: Command, **kw):
-    """Like _send but returns a deserialized CommandPacket or None."""
+    """Like _send but returns a deserialized Packet or None."""
     raw = _send(link, cmd, **kw)
     if raw is None:
         return None
     try:
-        return deserialize_command_packet(raw)
+        return decode(raw)
     except ValueError:
         return None
 
 # CMD_ID=0 packet — identical to what _event_poll_worker sends every 500 ms.
-_POLL_PKT = serialize_command_packet(
+_POLL_PKT = encode(
     Command(name="POLL", id=0x00, mem=None, address=0, data=None),
     seq=0, multi=False, last=False,
 )
@@ -285,16 +283,16 @@ def _flush(link: MCUSerialLink, ms=300):
 def _assert_clean_ack(raw: bytes, cmd_id: int):
     """Assert raw is a valid, non-error ACK for cmd_id."""
     assert_eq(raw is not None, True)
-    assert_eq(len(raw), MDT_PACKET_SIZE)
+    assert_eq(len(raw), PACKET_SIZE)
     # CRC must be correct
-    crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-    crc_calc  = calculate_crc16(raw[MDTOffset.CMD_ID:MDTOffset.CRC])
+    crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
+    crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
     assert_eq(crc_recv, crc_calc)
     # ACK flag set, error flag clear, correct command echoed back
-    flags = raw[MDTOffset.FLAGS]
-    assert_eq(bool(flags & MDTFlags.ACK_NACK),      True)
-    assert_eq(bool(flags & MDTFlags.STATUS_ERROR),  False)
-    assert_eq(raw[MDTOffset.CMD_ID], cmd_id)
+    flags = raw[Offset.FLAGS]
+    assert_eq(bool(flags & Flag.ACK_NACK),      True)
+    assert_eq(bool(flags & Flag.STATUS_ERROR),  False)
+    assert_eq(raw[Offset.CMD_ID], cmd_id)
 
 
 # Health check
@@ -315,7 +313,7 @@ def test_hw_ping_response_is_exactly_18_bytes():
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        assert_eq(len(raw), MDT_PACKET_SIZE)
+        assert_eq(len(raw), PACKET_SIZE)
     finally:
         link.close()
 
@@ -326,8 +324,8 @@ def test_hw_ping_start_end_framing():
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        assert_eq(raw[MDTOffset.START], 0xAA)
-        assert_eq(raw[MDTOffset.END],   0x55)
+        assert_eq(raw[Offset.START], 0xAA)
+        assert_eq(raw[Offset.END],   0x55)
     finally:
         link.close()
 
@@ -338,8 +336,8 @@ def test_hw_ping_response_crc_valid():
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-        crc_calc  = calculate_crc16(raw[MDTOffset.CMD_ID:MDTOffset.CRC])
+        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
+        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
@@ -362,7 +360,7 @@ def test_hw_ping_ack_flag_set():
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.ACK_NACK), True)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.ACK_NACK), True)
     finally:
         link.close()
 
@@ -373,7 +371,7 @@ def test_hw_ping_no_error_flag():
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), False)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), False)
     finally:
         link.close()
 
@@ -400,7 +398,7 @@ def test_hw_read_sram_data_is_four_bytes():
                    address=HW.scratch(0), length=4)
         pkt = _send_parsed(link, cmd)
         assert_eq(pkt is not None, True)
-        assert_eq(len(pkt.data), UtilEnum.WORD_SIZE)
+        assert_eq(len(pkt.data), WORD_SIZE)
     finally:
         link.close()
 
@@ -416,11 +414,11 @@ def test_hw_read_flash_returns_valid_packet():
                    address=HW.flash_base, length=4)
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
-        assert_eq(len(raw), MDT_PACKET_SIZE)
-        assert_eq(raw[MDTOffset.START], 0xAA)
-        assert_eq(raw[MDTOffset.END],   0x55)
-        crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-        crc_calc  = calculate_crc16(raw[MDTOffset.CMD_ID:MDTOffset.CRC])
+        assert_eq(len(raw), PACKET_SIZE)
+        assert_eq(raw[Offset.START], 0xAA)
+        assert_eq(raw[Offset.END],   0x55)
+        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
+        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
@@ -556,9 +554,9 @@ def test_hw_read_reg_at_sram_returns_packet():
     try:
         raw = _send(link, _cmd(CommandId.READ_REG, address=HW.scratch(0)))
         assert_eq(raw is not None, True)
-        assert_eq(len(raw), MDT_PACKET_SIZE)
-        crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-        assert_eq(crc_recv, calculate_crc16(raw[MDTOffset.CMD_ID:MDTOffset.CRC]))
+        assert_eq(len(raw), PACKET_SIZE)
+        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
+        assert_eq(crc_recv, crc16(raw[Offset.CMD_ID:Offset.CRC]))
     finally:
         link.close()
 
@@ -590,13 +588,13 @@ def test_hw_bad_crc_triggers_nack():
     if not HW.available: return _skip()
     link = _link()
     try:
-        pkt = bytearray(serialize_command_packet(
+        pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        pkt[MDTOffset.DATA] ^= 0xFF          # corrupt without re-patching CRC
+        pkt[Offset.DATA] ^= 0xFF          # corrupt without re-patching CRC
         link.send_packet(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
-        assert_eq(is_nack_packet(raw), True)
+        assert_eq(is_nack(raw), True)
     finally:
         link.close()
 
@@ -605,14 +603,14 @@ def test_hw_nack_carries_valid_crc():
     if not HW.available: return _skip()
     link = _link()
     try:
-        pkt = bytearray(serialize_command_packet(
+        pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        pkt[MDTOffset.DATA] ^= 0xFF
+        pkt[Offset.DATA] ^= 0xFF
         link.send_packet(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
-        crc_recv = int.from_bytes(raw[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-        crc_calc  = calculate_crc16(raw[MDTOffset.CMD_ID:MDTOffset.CRC])
+        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
+        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
@@ -623,7 +621,7 @@ def test_hw_mcu_recovers_after_bad_packet():
     link = _link()
     try:
         # Send all-zeros (no valid START byte - MCU ignores it)
-        link.send_packet(bytes(MDT_PACKET_SIZE))
+        link.send_packet(bytes(PACKET_SIZE))
         link.read_packet(timeout=HW.timeout)   # may be None; we don't care
         _flush(link)
         # Valid PING must get a clean ACK
@@ -641,14 +639,14 @@ def test_hw_resync_after_truncated_send():
     if not HW.available: return _skip()
     link = _link()
     try:
-        half = serialize_command_packet(
+        half = encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False)[:9]
         link.send_packet(half)
         time.sleep(0.5)     # let the MCU notice nothing more is coming
         _flush(link)
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        assert_eq(len(raw), MDT_PACKET_SIZE)
+        assert_eq(len(raw), PACKET_SIZE)
     finally:
         link.close()
 
@@ -658,14 +656,14 @@ def test_hw_nack_seq_mirrors_request_seq():
     link = _link()
     try:
         TEST_SEQ = 0x2A
-        pkt = bytearray(serialize_command_packet(
+        pkt = bytearray(encode(
             _cmd(CommandId.PING), seq=TEST_SEQ, multi=True, last=False))
-        pkt[MDTOffset.DATA] ^= 0xFF          # corrupt data, keep seq
+        pkt[Offset.DATA] ^= 0xFF          # corrupt data, keep seq
         link.send_packet(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
-        assert_eq(is_nack_packet(raw), True)
-        assert_eq(raw[MDTOffset.SEQ], TEST_SEQ)
+        assert_eq(is_nack(raw), True)
+        assert_eq(raw[Offset.SEQ], TEST_SEQ)
     finally:
         link.close()
 
@@ -679,19 +677,19 @@ def test_hw_unknown_cmd_id_triggers_error_response():
     link = _link()
     try:
         # Build a hand-crafted packet with cmd_id = 0xFF
-        pkt = bytearray(MDT_PACKET_SIZE)
-        pkt[MDTOffset.START]  = 0xAA
-        pkt[MDTOffset.CMD_ID] = 0xFF
-        pkt[MDTOffset.END]    = 0x55
-        crc = calculate_crc16(bytes(pkt[MDTOffset.CMD_ID:MDTOffset.CRC]))
-        pkt[MDTOffset.CRC]     = crc & 0xFF
-        pkt[MDTOffset.CRC + 1] = (crc >> 8) & 0xFF
+        pkt = bytearray(PACKET_SIZE)
+        pkt[Offset.START]  = 0xAA
+        pkt[Offset.CMD_ID] = 0xFF
+        pkt[Offset.END]    = 0x55
+        crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
+        pkt[Offset.CRC]     = crc & 0xFF
+        pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
         link.send_packet(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
         # Firmware NACKs unknown commands
-        flags = raw[MDTOffset.FLAGS]
-        assert_eq(bool(flags & MDTFlags.STATUS_ERROR), True)
+        flags = raw[Offset.FLAGS]
+        assert_eq(bool(flags & Flag.STATUS_ERROR), True)
     finally:
         link.close()
 
@@ -726,7 +724,7 @@ def test_hw_breakpoint_invalid_slot_nacked():
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
         # Firmware returns status=0 for invalid slot - STATUS_ERROR set
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), True)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), True)
     finally:
         link.close()
 
@@ -850,7 +848,7 @@ def test_hw_watchpoint_mask_on_inactive_slot_nacked():
                                address=3,
                                data=(0xFF).to_bytes(4, "little")))
         assert_eq(raw is not None, True)
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), True)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), True)
     finally:
         link.close()
 
@@ -863,7 +861,7 @@ def test_hw_watchpoint_invalid_slot_nacked():
                    address=99, data=b'\x00\x00\x00\x00')
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
-        assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), True)
+        assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), True)
     finally:
         link.close()
 
@@ -881,19 +879,19 @@ def test_hw_failed_packet_event_has_event_flag():
     if not HW.available: return _skip()
     link = _link()
     try:
-        bad = bytearray(serialize_command_packet(
+        bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        bad[MDTOffset.DATA] ^= 0xFF
+        bad[Offset.DATA] ^= 0xFF
         link.send_packet(bytes(bad))
 
         nack = link.read_packet(timeout=HW.timeout)
         assert_eq(nack is not None, True)
-        assert_eq(is_nack_packet(nack), True)
+        assert_eq(is_nack(nack), True)
 
         event = _read_event(link)
         assert_eq(event is not None, True)
-        assert_eq(bool(event[MDTOffset.FLAGS] & MDTFlags.EVENT_PACKET), True)
-        assert_eq(event[MDTOffset.CMD_ID], 0x00)
+        assert_eq(bool(event[Offset.FLAGS] & Flag.EVENT_PACKET), True)
+        assert_eq(event[Offset.CMD_ID], 0x00)
     finally:
         link.close()
 
@@ -902,9 +900,9 @@ def test_hw_event_packet_framing_is_valid():
     if not HW.available: return _skip()
     link = _link()
     try:
-        bad = bytearray(serialize_command_packet(
+        bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        bad[MDTOffset.DATA] ^= 0xFF
+        bad[Offset.DATA] ^= 0xFF
         link.send_packet(bytes(bad))
 
         nack  = link.read_packet(timeout=HW.timeout)
@@ -912,11 +910,11 @@ def test_hw_event_packet_framing_is_valid():
 
         for p in (nack, event):
             assert_eq(p is not None, True)
-            assert_eq(len(p), MDT_PACKET_SIZE)
-            assert_eq(p[MDTOffset.START], 0xAA)
-            assert_eq(p[MDTOffset.END],   0x55)
-            crc_recv = int.from_bytes(p[MDTOffset.CRC:MDTOffset.CRC + 2], "little")
-            crc_calc  = calculate_crc16(p[MDTOffset.CMD_ID:MDTOffset.CRC])
+            assert_eq(len(p), PACKET_SIZE)
+            assert_eq(p[Offset.START], 0xAA)
+            assert_eq(p[Offset.END],   0x55)
+            crc_recv = int.from_bytes(p[Offset.CRC:Offset.CRC + 2], "little")
+            crc_calc  = crc16(p[Offset.CMD_ID:Offset.CRC])
             assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
@@ -934,20 +932,20 @@ def test_hw_rx_worker_routes_event_to_event_queue():
         t.start()
 
         # Send a bad packet to provoke NACK + FAILED_PACKET event
-        bad = bytearray(serialize_command_packet(
+        bad = bytearray(encode(
             _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        bad[MDTOffset.DATA] ^= 0xFF
+        bad[Offset.DATA] ^= 0xFF
         link.send_packet(bytes(bad))
 
         # The worker should have routed the NACK to response_queue
         nack = link.get_response_packet(timeout=HW.timeout)
         assert_eq(nack is not None, True)
-        assert_eq(is_nack_packet(nack), True)
+        assert_eq(is_nack(nack), True)
 
         # Event packet (if firmware emits it) goes to event_queue
         evt = link.get_event_packet(timeout=HW.timeout)
         if evt is not None:
-            assert_eq(bool(evt[MDTOffset.FLAGS] & MDTFlags.EVENT_PACKET), True)
+            assert_eq(bool(evt[Offset.FLAGS] & Flag.EVENT_PACKET), True)
     finally:
         link.running = False
         link.close()
@@ -1001,14 +999,14 @@ def test_hw_chunked_write_then_read_back():
         time.sleep(0.2)
 
         # Now do a direct single-word read for verification
-        pkt = bytearray(serialize_command_packet(
+        pkt = bytearray(encode(
             _cmd(CommandId.READ_MEM, mem=MemType.RAM,
                  address=base, length=4),
             seq=0, multi=False, last=False))
         link.send_packet(bytes(pkt))
         resp = link.get_response_packet(timeout=HW.timeout)
         assert_eq(resp is not None, True)
-        parsed = deserialize_command_packet(resp)
+        parsed = decode(resp)
         assert_eq(parsed.data, payload[:4])
     finally:
         link.running = False
@@ -1026,9 +1024,9 @@ def test_hw_20_pings_all_acked():
             raw = _send(link, _cmd(CommandId.PING))
             assert_eq(raw is not None, True,
                       **{"iteration": i})
-            assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.ACK_NACK), True,
+            assert_eq(bool(raw[Offset.FLAGS] & Flag.ACK_NACK), True,
                       **{"iteration": i})
-            assert_eq(bool(raw[MDTOffset.FLAGS] & MDTFlags.STATUS_ERROR), False,
+            assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), False,
                       **{"iteration": i})
     finally:
         link.close()
