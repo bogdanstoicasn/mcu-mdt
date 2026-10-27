@@ -1,3 +1,6 @@
+from pathlib import Path
+
+from pc_tool import MdtError, command_parser, command_rules, target_model
 from pc_tool.commander import (
     Commander,
     clear_command,
@@ -9,16 +12,15 @@ from pc_tool.commander import (
 from pc_tool.common.logger import MDTLogger
 from pc_tool.common.terminal import Terminal
 from pc_tool.event import EventHandler
-from pc_tool.loader import ConfigLoader
-from pc_tool.parser import CLIHistory, parse_args, parse_line
-from pc_tool.validator import validate_commands
+from pc_tool.parser import CLIHistory, parse_args
+from pc_tool.wire_protocol import CommandId
 
 
-def build_dispatch(loader, serial_link, commander, threads):
+def build_dispatch(specs, serial_link, commander, threads):
     """Build a dispatch dict mapping command names to handler functions."""
     return {
         "EXIT":  lambda cmd: exit_command(serial_link, threads=threads),
-        "HELP":  lambda cmd: help_command(loader.yaml_command_data),
+        "HELP":  lambda cmd: help_command(specs),
         "CLEAR": lambda cmd: clear_command(),
         "PING":  lambda cmd: commander.ping(cmd),
     }
@@ -26,19 +28,15 @@ def build_dispatch(loader, serial_link, commander, threads):
 def setup(build_info_path: str, elf_path: str | None = None):
     """Perform initial setup: load configs, initialize logger, open serial link, start event handlers."""
     try:
-        loader = ConfigLoader(build_info_path, elf_path=elf_path)
-    except (ValueError, FileNotFoundError) as e:
+        target = target_model.load_target(Path(build_info_path), Path(elf_path) if elf_path else None)
+    except MdtError as e:
         MDTLogger.error(f"Cannot load the build: {e}", code=1)
         exit(1)
 
-    MDTLogger.enable_file_logging(mcu=loader.yaml_build_data.get('mcu', 'unknown'))
-    MDTLogger.session_start(loader.yaml_build_data)
+    MDTLogger.enable_file_logging(mcu=target.mcu)
+    MDTLogger.session_start(target.build_info)
 
-    serial_link = serial_link_command(
-        port=loader.yaml_build_data['port'],
-        baudrate=loader.yaml_build_data['baudrate'],
-        ping_command_id=loader.yaml_command_data['commands']['PING']['id']
-    )
+    serial_link = serial_link_command(port=target.port, baudrate=target.baudrate, ping_command_id=CommandId.PING)
 
     try:
         serial_link.open()
@@ -46,9 +44,7 @@ def setup(build_info_path: str, elf_path: str | None = None):
         MDTLogger.error(f"Failed to open serial link: {e}", code=1)
         exit(1)
 
-    uart_idle = bool(loader.yaml_build_data['uart_idle'])
-
-    events = EventHandler(serial_link, uart_idle=uart_idle)
+    events = EventHandler(serial_link, uart_idle=target.uart_idle)
 
     # Drain any stale events that may have accumulated before the event handlers are started.
     events.drain_stale_events()
@@ -57,20 +53,17 @@ def setup(build_info_path: str, elf_path: str | None = None):
 
     commander = Commander(serial_link)
 
-    return loader, serial_link, commander, threads
+    return target, serial_link, commander, threads
 
 
-def run_script(script_path: str, loader, serial_link, commander, threads):
+def run_script(script_path: str, target, serial_link, commander, threads):
     """Execute commands from a script file line by line, then exit.
 
     Blank lines and lines starting with # are skipped.
     Stops on the first command that fails validation or parsing.
     """
-    commands = loader.yaml_command_data['commands']
-    control  = loader.yaml_command_data['control_values']
-    metadata = loader.mcu_metadata
-    symbols  = loader.elf_symbols
-    dispatch = build_dispatch(loader, serial_link, commander, threads)
+    specs    = command_parser.load_specs()
+    dispatch = build_dispatch(specs, serial_link, commander, threads)
 
     MDTLogger.suppress_console()
 
@@ -93,12 +86,14 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
 
         MDTLogger.info(f"[{lineno}] {line}")
 
-        command = parse_line(line, commands, control, metadata, symbols)
-        if not command:
+        try:
+            command = command_parser.parse(line, specs, target)
+        except command_parser.CommandError as e:
+            MDTLogger.error(str(e), code=e.code)
             MDTLogger.error(f"Script aborted: parse error at line {lineno}: {line!r}", code=2)
             break
 
-        if command.name in ('EXIT', 'HELP', 'CLEAR'):
+        if specs[command.name].local:
             MDTLogger.warning(f"Skipping PC-only command at line {lineno}: {command.name}")
             continue
 
@@ -106,7 +101,10 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
             dispatch[command.name](command)
             continue
 
-        if not validate_commands(command, metadata):
+        try:
+            command_rules.check(command, target)
+        except command_parser.CommandError as e:
+            MDTLogger.error(str(e), code=e.code)
             MDTLogger.error(f"Script aborted: validation failed at line {lineno}: {line!r}", code=3)
             break
 
@@ -117,16 +115,11 @@ def run_script(script_path: str, loader, serial_link, commander, threads):
     MDTLogger.session_end()
 
 
-def run_loop(loader, serial_link, commander, threads):
+def run_loop(target, serial_link, commander, threads):
     """Main interactive loop: read user input, parse commands, execute them, and print events asynchronously."""
-    commands = loader.yaml_command_data['commands']
-    control  = loader.yaml_command_data['control_values']
-    metadata = loader.mcu_metadata
-    symbols  = loader.elf_symbols
-    dispatch = build_dispatch(loader, serial_link, commander, threads)
-
-    # TAB-complete YAML command names plus the built-in meta-commands.
-    cli = CLIHistory(completions=list(commands.keys()) + ["HELP", "EXIT", "CLEAR"])
+    specs    = command_parser.load_specs()
+    dispatch = build_dispatch(specs, serial_link, commander, threads)
+    cli      = CLIHistory(completions=list(specs))
 
     Terminal.intro(intro_text())
 
@@ -136,13 +129,7 @@ def run_loop(loader, serial_link, commander, threads):
             if not line:
                 continue
 
-            command = parse_line(line, commands, control, metadata, symbols)
-            if not command:
-                # parse_line already surfaced the precise reason via the
-                # Terminal handler; nothing more to say to the user here.
-                MDTLogger.debug("Invalid command or parsing error.", code=2)
-                continue
-
+            command = command_parser.parse(line, specs, target)
             if command.name in dispatch:
                 dispatch[command.name](command)
                 if command.name == "EXIT":
@@ -150,13 +137,11 @@ def run_loop(loader, serial_link, commander, threads):
                 continue
 
             MDTLogger.info(f"Parsed Command: {command}")
-
-            if not validate_commands(command, metadata):
-                # validate_commands already surfaced the specific failure.
-                MDTLogger.debug("Command validation failed.", code=3)
-                continue
-
+            command_rules.check(command, target)
             commander.execute(command)
+
+        except command_parser.CommandError as e:
+            MDTLogger.error(str(e), code=e.code)
 
         except (EOFError, KeyboardInterrupt):
             Terminal.info("Exiting...")
@@ -167,12 +152,12 @@ def run_loop(loader, serial_link, commander, threads):
 def main(args=None):
     if args is None:              # console-script entry (mcu-mdt): parse argv here
         args = parse_args()
-    loader, serial_link, commander, threads = setup(args.build_info, args.elf)
+    target, serial_link, commander, threads = setup(args.build_info, args.elf)
 
     if args.script:
-        run_script(args.script, loader, serial_link, commander, threads)
+        run_script(args.script, target, serial_link, commander, threads)
     else:
-        run_loop(loader, serial_link, commander, threads)
+        run_loop(target, serial_link, commander, threads)
 
 
 if __name__ == "__main__":

@@ -118,7 +118,8 @@ def test_multi_seq_zero_is_valid():
     (CommandId.READ_REG,   None,           0x40013800, None),
     (CommandId.WRITE_REG,  None,           0x40013800, b'\x00\x00\x00\xFF'),
     (CommandId.RESET,      None,           0,          None),
-    (CommandId.EXIT,       None,           0,          None),
+    (CommandId.BREAKPOINT, 1,              2,          None),
+    (CommandId.WATCHPOINT, 1,              0,          b'\x00\x01\x00\x20'),
 ])
 def test_roundtrip_all_command_ids(cmd_id, mem, address, data):
     """Test that serializing and then deserializing a command yields the original command fields."""

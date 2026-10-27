@@ -1,4 +1,3 @@
 [ERROR](2): Symbol 'zz' not found in ELF symbol table. Tip: only static/global variables are watchable. Local variables live on the stack and have no fixed address.
-[ERROR](2): Failed to parse line: READ_MEM RAM zz 4 (symbol 'zz' not found)
 [ERROR](2): Script aborted: parse error at line 1: 'READ_MEM RAM zz 4'
 [INFO]: Script complete.

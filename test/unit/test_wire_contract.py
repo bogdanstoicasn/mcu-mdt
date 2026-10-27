@@ -11,7 +11,7 @@ Coverage:
 2. Flag bits
 3. Command ids (C vs Python vs commands.yaml)
 4. Event types
-5. Control values: memory zones, breakpoint and watchpoint controls
+5. Control values: memory zones, breakpoint and watchpoint controls, and their commands.yaml names
 """
 
 import re
@@ -27,8 +27,6 @@ _ROOT = Path(__file__).resolve().parents[2]
 # C name -> Python name, where the two sides spell a member differently.
 _FLAG_ALIASES = {"EVENT": "EVENT_PACKET"}
 _CONTROL_ALIASES = {"DISABLE": "DISABLED", "ENABLE": "ENABLED"}
-# Commands that exist only on the PC and are never sent to the MCU.
-_PC_ONLY_COMMANDS = {"EXIT", "HELP", "CLEAR"}
 
 
 def _text(rel_path: str) -> str:
@@ -82,15 +80,14 @@ def test_flags():
 def test_command_ids_c_vs_python():
     c = _c_members("src/mcu_mdt_protocol.h", "INTERNAL_MDT_CMD_")
     assert_eq(c.pop("NONE"), 0)                       # id 0 is reserved for CMD_ID=0 polls/events
-    _assert_same(c, _py(wire_protocol.CommandId, skip=_PC_ONLY_COMMANDS), "INTERNAL_MDT_CMD_*")
-    pc_only_ids = {wire_protocol.CommandId[n].value for n in _PC_ONLY_COMMANDS}
-    assert pc_only_ids.isdisjoint(c.values()), "a PC-only command reuses an MCU command id"
+    _assert_same(c, _py(wire_protocol.CommandId), "INTERNAL_MDT_CMD_*")
 
 
 def test_command_ids_yaml_vs_python():
-    yaml_ids = {name: spec["id"] for name, spec in
-                yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["commands"].items()}
+    commands = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["commands"]
+    yaml_ids = {name: spec["id"] for name, spec in commands.items() if not spec.get("local")}
     _assert_same(yaml_ids, _py(wire_protocol.CommandId), "commands.yaml ids")
+    assert all("id" not in spec for spec in commands.values() if spec.get("local")), "a local command has an id"
 
 
 def test_event_types():
@@ -111,24 +108,15 @@ def test_breakpoint_and_watchpoint_controls():
     _assert_same(wp, _py(wire_protocol.WatchpointControl), "INTERNAL_MDT_WP_*")
 
 
-def test_commands_yaml_control_values():
-    expected = {}
-    for enum_cls in (wire_protocol.MemType, wire_protocol.BreakpointControl, wire_protocol.WatchpointControl):
-        for name, value in _py(enum_cls).items():
-            assert_eq(expected.setdefault(name, value), value, conflicting_name=name)
-    yaml_values = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["control_values"]
-    _assert_same(dict(yaml_values), expected, "commands.yaml control_values")
-
-
-def test_commands_yaml_control_names_belong_to_their_command():
+def test_commands_yaml_choices_send_their_commands_values():
     """Each command takes only its own control names, and each name sends that command's value."""
     own = {"READ_MEM": wire_protocol.MemType, "WRITE_MEM": wire_protocol.MemType,
            "BREAKPOINT": wire_protocol.BreakpointControl, "WATCHPOINT": wire_protocol.WatchpointControl}
-    data = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))
-    for name, spec in data["commands"].items():
-        for param in spec.get("params", []):
-            if param["type"] != "str":
-                continue
-            enum_cls = own[name]
-            for word in param["values"]:
-                assert_eq(data["control_values"][word], enum_cls[word].value, command=name, name=word)
+    commands = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["commands"]
+    choices = [(name, param["values"]) for name, spec in commands.items()
+               for param in spec.get("params", []) if param["type"] == "choice"]
+    assert_eq(sorted({name for name, _ in choices}), sorted(own))
+    for name, values in choices:
+        assert_eq(values, {word: own[name][word].value for word in values}, command=name)
+    assert_eq(set(commands["WATCHPOINT"]["params"][1]["values"]), set(_py(wire_protocol.WatchpointControl)))
+    assert_eq(set(commands["BREAKPOINT"]["params"][1]["values"]), set(_py(wire_protocol.BreakpointControl)))

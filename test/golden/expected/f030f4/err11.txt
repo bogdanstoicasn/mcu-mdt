@@ -1,4 +1,3 @@
 [ERROR](2): Invalid control value 'MASK'. Expected one of: DISABLED, ENABLED, RESET, NEXT
-[ERROR](2): Failed to parse line: BREAKPOINT 0 MASK (unknown control value 'MASK')
 [ERROR](2): Script aborted: parse error at line 1: 'BREAKPOINT 0 MASK'
 [INFO]: Script complete.

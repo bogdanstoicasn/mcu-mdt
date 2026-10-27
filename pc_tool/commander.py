@@ -172,40 +172,19 @@ def intro_text() -> str:
     return "\n" + "\n".join(line.center(width) for line in lines) + "\n"
 
 
-def help_command(command_data: dict = None) -> None:
+def help_command(specs: dict) -> None:
     """Display available commands and their descriptions, formatted based on terminal width."""
     width = shutil.get_terminal_size().columns
     col1  = 32
 
-    type_hints = {
-        "uint32":        "<addr>",
-        "uint32_or_str": "<addr|reg>",
-        "uint16":        "<value>",
-        "uint8":         "<value>",
-        "str":           "<control>",
-        "bytes":         "<hex>",
-    }
-
     lines = ["─" * min(width, 72), "  MCU-MDT — Available Commands", "─" * min(width, 72)]
-
-    if command_data:
-        for name, info in command_data.get("commands", {}).items():
-            params      = info.get("params", [])
-            description = info.get("description", "")
-            param_str   = " ".join(
-                p.get("hint") or type_hints.get(p["type"], f"<{p['name']}>")
-                for p in params
-            )
-            usage = f"  {name}" + (f" {param_str}" if param_str else "")
-
-            if len(usage) < col1:
-                lines.append(f"{usage.ljust(col1)}{description}")
-            else:
-                lines.append(usage)
-                lines.append(f"{''.ljust(col1)}{description}")
-    else:
-        lines.append("  No command data available.")
-
+    for spec in specs.values():
+        usage = f"  {spec.usage}"
+        if len(usage) < col1:
+            lines.append(f"{usage.ljust(col1)}{spec.description}")
+        else:
+            lines.append(usage)
+            lines.append(f"{''.ljust(col1)}{spec.description}")
     lines.append("─" * min(width, 72))
     Terminal.help_table(lines)
 

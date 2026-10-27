@@ -22,6 +22,8 @@ LAYERS = {
     "device_description": 1,
     "elf_symbols": 1,
     "target_model": 2,
+    "command_parser": 3,
+    "command_rules": 4,
 }
 
 

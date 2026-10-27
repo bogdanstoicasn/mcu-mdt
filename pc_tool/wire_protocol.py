@@ -51,9 +51,6 @@ class CommandId(IntEnum):
     RESET      = 0x06
     BREAKPOINT = 0x07
     WATCHPOINT = 0x08
-    EXIT       = 0x09             # EXIT, HELP, CLEAR never leave the PC
-    HELP       = 0x0A
-    CLEAR      = 0x0B
 
 
 class MemType(IntEnum):           # MEM_ID of READ_MEM / WRITE_MEM

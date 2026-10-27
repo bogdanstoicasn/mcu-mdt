@@ -49,10 +49,10 @@ from dataclasses import dataclass
 
 import yaml
 
+from pc_tool import target_model
 from pc_tool.commander import Commander
 from pc_tool.common.uart_io import MCUSerialLink
 from pc_tool.event import EventHandler
-from pc_tool.loader import ConfigLoader
 from pc_tool.wire_protocol import (
     PACKET_SIZE,
     WORD_SIZE,
@@ -80,7 +80,7 @@ class HWConfig:
     platform:   str
     sram_base:  int      # first safe scratch word inside SRAM
     flash_base: int      # start of flash region
-    meta:       dict     # full MCU metadata as the PC tool loads it (ConfigLoader)
+    target:     object   # the Target as the PC tool loads it, None without MCU
     registers:  dict     # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
     uart_idle:  bool = False  # True when MDT_FEATURE_UART_IDLE=1 (STM32 interrupt mode)
 
@@ -117,7 +117,7 @@ class HWConfig:
         3. Sensible defaults when MCU is absent
 
         sram_base and flash_base are resolved from the MCU metadata
-        (meta['memories']) when MCU is provided, avoiding any hardcoded
+        (target.segments) when MCU is provided, avoiding any hardcoded
         addresses in this file.  A safe 0x200-byte guard is added to
         sram_base so test writes never collide with firmware variables at
         the bottom of SRAM.
@@ -146,16 +146,16 @@ class HWConfig:
         baud    = int(os.environ.get("MDT_BAUD",    data.get("baudrate", 19200)))
         timeout = float(os.environ.get("MDT_TIMEOUT", "2.0"))
 
-        # Load MCU metadata when we have an MCU identifier; fall back to
-        # empty meta (and hardcoded bases) when running without one.
-        meta      = {}
+        # Load the target when we have an MCU identifier; fall back to
+        # hardcoded bases when running without one.
+        target = None
         if mcu:
             try:
-                meta      = ConfigLoader(path).mcu_metadata
+                target = target_model.load_target(path)
             except Exception as exc:
-                print(f"  [WARN] Could not load MCU metadata: {exc}")
+                print(f"  [WARN] Could not load the target: {exc}")
 
-        sram_base, flash_base = _resolve_memory_bases(meta, platform)
+        sram_base, flash_base = _resolve_memory_bases(target, platform)
 
         uart_idle = bool(int(data.get("uart_idle", 0)))
 
@@ -166,33 +166,32 @@ class HWConfig:
             platform=platform,
             sram_base=sram_base,
             flash_base=flash_base,
-            meta=meta,
+            target=target,
             registers=None,
             uart_idle=uart_idle,
         )
 
 
-def _resolve_memory_bases(meta: dict, platform: str) -> tuple[int, int]:
+def _resolve_memory_bases(target, platform: str) -> tuple[int, int]:
     """
-    Derive sram_base and flash_base from the metadata memory map.
-    Falls back to well-known constants when meta is absent.
+    Derive sram_base and flash_base from the target's memory segments.
+    Falls back to well-known constants when there is no target.
     The 0x200 guard on sram_base keeps test writes away from firmware
     variables that live at the bottom of SRAM.
     """
-    memories = meta.get("memories", {})
-
-    ram_seg   = next((v for v in memories.values() if v.get("type") == "ram"),   None)
-    flash_seg = next((v for v in memories.values() if v.get("type") == "flash"), None)
+    segments  = target.segments if target else ()
+    ram_seg   = next((s for s in segments if s.kind == "ram"),   None)
+    flash_seg = next((s for s in segments if s.kind == "flash"), None)
 
     stm32 = "stm32" in platform
 
     if ram_seg:
-        sram_base = int(ram_seg["start"]) + 0x200
+        sram_base = ram_seg.start + 0x200
     else:
         sram_base = 0x20000200 if stm32 else 0x0200
 
     if flash_seg:
-        flash_base = int(flash_seg["start"])
+        flash_base = flash_seg.start
     else:
         flash_base = 0x08000000 if stm32 else 0x0000
 

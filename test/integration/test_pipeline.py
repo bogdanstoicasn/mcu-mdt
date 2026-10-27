@@ -14,17 +14,16 @@ Coverage:
 7. Event packet handling (flags, event type, breakpoint ID)
 
 Assumptions:
-1. Command definitions and control value mappings are as per parser.py fixtures.
+1. Commands are parsed by the shipped commands.yaml, against Targets from target_fixtures.
 2. MockUART simulates a perfect loopback for testing.
-3. CRC16 implementation is correct (validated separately in test_crc.py).
+3. CRC16 implementation is correct (validated separately in test_wire_protocol.py).
 
 Goal:
 Validate that the complete PC-side pipeline correctly processes user commands, produces valid packets, and handles MCU
 responses, making sure all components work together as intended.
 """
 
-from pc_tool.parser import parse_line
-from pc_tool.validator import validate_commands
+from pc_tool import command_parser, command_rules
 from pc_tool.wire_protocol import (
     PACKET_SIZE,
     WORD_SIZE,
@@ -44,15 +43,48 @@ from pc_tool.wire_protocol import (
     is_nack,
 )
 from test.common.asserts import assert_eq
-from test.common.mdtfixtures import (
-    COMMANDS,
-    CONTROL_VALUES,
-    MCU_METADATA_FLASH,
-    MockUART,
-    _meta_ram,
-    _reg_meta,
-)
+from test.common.target_fixtures import firmware, flash, make_target, ram, usart1
 from test.pymdtest import parametrize
+
+SPECS = command_parser.load_specs()
+EMPTY = make_target()
+RAM_ONLY = make_target(segments=[ram()])
+REGISTERS = make_target(peripherals=[usart1()])
+FLASHED = make_target(segments=[ram(), flash()], firmware=firmware())   # image in 0x08000000-0x08002FFF
+
+
+class MockUART:
+    """Perfect byte-level loopback, bytes written are instantly readable."""
+
+    def __init__(self):
+        self._buf = bytearray()
+
+    def write(self, data: bytes):
+        self._buf.extend(data)
+
+    def read(self, n: int) -> bytes:
+        chunk = bytes(self._buf[:n])
+        self._buf = self._buf[n:]
+        return chunk
+
+    def read_packet(self) -> bytes:
+        return self.read(PACKET_SIZE)
+
+    @property
+    def pending(self) -> int:
+        return len(self._buf)
+
+
+def _parse(line: str, target=EMPTY):
+    return command_parser.parse(line, SPECS, target)
+
+
+def _accepted(command, target) -> bool:
+    try:
+        command_rules.check(command, target)
+    except command_parser.CommandError:
+        return False
+    return True
 
 
 def _is_valid_reply(raw: bytes) -> bool:
@@ -106,7 +138,7 @@ def _make_event_packet(event_type: EventType, bp_id: int = 0) -> bytes:
     return bytes(pkt)
 
 
-def _full_pipeline(line: str, meta: dict, uart: MockUART,
+def _full_pipeline(line: str, target, uart: MockUART,
                    seq=0, multi=False, last=False) -> Packet | None:
     """
     Run the complete PC-side pipeline for a single CLI line:
@@ -114,11 +146,10 @@ def _full_pipeline(line: str, meta: dict, uart: MockUART,
 
     Returns the deserialized Packet, or None if any stage rejects.
     """
-    cmd = parse_line(line, COMMANDS, CONTROL_VALUES, meta)
-    if cmd is None:
-        return None
-
-    if not validate_commands(cmd, meta):
+    try:
+        cmd = _parse(line, target)
+        command_rules.check(cmd, target)
+    except command_parser.CommandError:
         return None
 
     pkt = encode(cmd, seq=seq, multi=multi, last=last)
@@ -158,7 +189,7 @@ def _chunk_transfer(address: int, payload: bytes, uart: MockUART) -> list[Packet
 def test_e2e_ping():
     """PING should serialize and deserialize correctly with no parameters."""
     uart = MockUART()
-    cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
+    cmd = _parse("PING")
     pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     received = decode(uart.read_packet())
@@ -167,7 +198,7 @@ def test_e2e_ping():
 def test_e2e_read_mem():
     """READ_MEM should serialize with the correct mem_id, address, and length."""
     uart = MockUART()
-    result = _full_pipeline("READ_MEM RAM 0x20000000 4", _meta_ram(), uart)
+    result = _full_pipeline("READ_MEM RAM 0x20000000 4", RAM_ONLY, uart)
     assert_eq(result.cmd_id, CommandId.READ_MEM)
     assert_eq(result.address, 0x20000000)
     assert_eq(result.length,  4)
@@ -176,7 +207,7 @@ def test_e2e_read_mem():
 def test_e2e_write_mem():
     """WRITE_MEM should serialize with the correct mem_id, address, length, and data."""
     uart = MockUART()
-    result = _full_pipeline("WRITE_MEM RAM 0x20000010 4 DEADBEEF", _meta_ram(), uart)
+    result = _full_pipeline("WRITE_MEM RAM 0x20000010 4 DEADBEEF", RAM_ONLY, uart)
     assert_eq(result.cmd_id, CommandId.WRITE_MEM)
     assert_eq(result.address, 0x20000010)
     assert_eq(result.data,    b'\xDE\xAD\xBE\xEF')
@@ -184,14 +215,14 @@ def test_e2e_write_mem():
 def test_e2e_read_reg_by_address():
     """READ_REG should serialize with the correct address."""
     uart = MockUART()
-    result = _full_pipeline("READ_REG 0x40013800", _reg_meta(), uart)
+    result = _full_pipeline("READ_REG 0x40013800", REGISTERS, uart)
     assert_eq(result.cmd_id, CommandId.READ_REG)
     assert_eq(result.address, 0x40013800)
 
 def test_e2e_write_reg_by_address():
     """WRITE_REG should serialize with the correct address and data."""
     uart = MockUART()
-    result = _full_pipeline("WRITE_REG 0x40013804 000000FF", _reg_meta(), uart)
+    result = _full_pipeline("WRITE_REG 0x40013804 000000FF", REGISTERS, uart)
     assert_eq(result.cmd_id, CommandId.WRITE_REG)
     assert_eq(result.address, 0x40013804)
     assert_eq(result.data,    b'\x00\x00\x00\xFF')
@@ -199,7 +230,7 @@ def test_e2e_write_reg_by_address():
 def test_e2e_breakpoint_enable():
     """BREAKPOINT should serialize with the correct ID and control value."""
     uart = MockUART()
-    cmd = parse_line("BREAKPOINT 0 ENABLED", COMMANDS, CONTROL_VALUES, {})
+    cmd = _parse("BREAKPOINT 0 ENABLED")
     pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     received = decode(uart.read_packet())
@@ -210,7 +241,7 @@ def test_e2e_breakpoint_enable():
 def test_e2e_watchpoint_enable():
     """WATCHPOINT should serialize with the correct ID, control value, and address."""
     uart = MockUART()
-    cmd = parse_line("WATCHPOINT 0 ENABLED 0x20000100", COMMANDS, CONTROL_VALUES, {})
+    cmd = _parse("WATCHPOINT 0 ENABLED 0x20000100")
     pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     received = decode(uart.read_packet())
@@ -221,7 +252,7 @@ def test_e2e_watchpoint_enable():
 def test_e2e_packet_is_validated_after_loopback():
     """After writing a packet to the UART and reading it back, it should still validate correctly."""
     uart = MockUART()
-    cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
+    cmd = _parse("PING")
     pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     raw = uart.read_packet()
@@ -278,29 +309,28 @@ def test_validator_blocks_out_of_range_read():
     """Validator should reject a READ_MEM command that targets an address outside known segments."""
     uart = MockUART()
     # 0xDEADBEEF is not in any known memory segment
-    result = _full_pipeline("READ_MEM RAM 0xDEADBEEF 4", _meta_ram(), uart)
+    result = _full_pipeline("READ_MEM RAM 0xDEADBEEF 4", RAM_ONLY, uart)
     assert_eq(result, None)
     assert_eq(uart.pending, 0)   # nothing was written to the wire
 
 def test_validator_blocks_invalid_breakpoint_id():
     # ID is way out of range (the build allows slots 0..3)
-    cmd = parse_line("BREAKPOINT 99 ENABLED", COMMANDS, CONTROL_VALUES, {})
-    # parse_line treats the address as a hex uint32, so "99" parses as
+    cmd = _parse("BREAKPOINT 99 ENABLED")
+    # slot ids are hex, so "99" parses as
     # 0x99 = 153 — still well outside the valid 0..3 breakpoint slot range,
-    # so validate_breakpoint must reject it.
-    from pc_tool.validator import validate_breakpoint
-    assert_eq(validate_breakpoint(cmd, {"limits": {"breakpoints": 4}}), False)
+    # so the rules must reject it.
+    assert_eq(_accepted(cmd, make_target(breakpoints=4)), False)
 
 def test_validator_blocks_write_to_nonexistent_register():
     """Validator should reject a WRITE_REG command that targets an unknown register address."""
     cmd = Command(name="WRITE_REG", id=CommandId.WRITE_REG,
                   address=0xDEADBEEF, data=b'\x00\x00\x00\x00', length=4)
-    assert_eq(validate_commands(cmd, _reg_meta()), False)
+    assert_eq(_accepted(cmd, REGISTERS), False)
 
 def test_validator_passes_valid_command_through():
     """A valid command should make it through the full pipeline and produce a valid packet."""
     uart = MockUART()
-    result = _full_pipeline("READ_MEM RAM 0x20001000 4", _meta_ram(), uart)
+    result = _full_pipeline("READ_MEM RAM 0x20001000 4", RAM_ONLY, uart)
     assert_eq(result is not None, True)
     assert_eq(uart.pending, 0)   # packet was consumed
 
@@ -337,7 +367,7 @@ def test_mcu_response_with_wrong_start_byte_fails():
 def test_pipeline_sends_exactly_one_packet_per_command():
     """For a simple command like PING, the pipeline should produce exactly one packet on the wire."""
     uart = MockUART()
-    cmd = parse_line("PING", COMMANDS, CONTROL_VALUES, {})
+    cmd = _parse("PING")
     pkt = encode(cmd, seq=0, multi=False, last=False)
     uart.write(pkt)
     assert_eq(uart.pending, PACKET_SIZE)
@@ -435,7 +465,7 @@ def test_field_fidelity_seq(seq):
 def test_e2e_erase_flash_page():
     """WRITE_MEM ERASE should serialize with mem_id=3 and the correct address."""
     uart = MockUART()
-    result = _full_pipeline("WRITE_MEM ERASE 0x08004000 4 00000000", MCU_METADATA_FLASH, uart)
+    result = _full_pipeline("WRITE_MEM ERASE 0x08004000 4 00000000", FLASHED, uart)
     assert_eq(result.cmd_id, CommandId.WRITE_MEM)
     assert_eq(result.mem_id,  MemType.ERASE)
     assert_eq(result.address, 0x08004000)
@@ -446,7 +476,7 @@ def test_validator_accepts_erase_inside_flash():
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
         mem=MemType.ERASE, address=0x08004000, data=b'\x00\x00\x00\x00', length=1,
     )
-    assert_eq(validate_commands(cmd, MCU_METADATA_FLASH), True)
+    assert_eq(_accepted(cmd, FLASHED), True)
 
 def test_validator_rejects_erase_outside_flash():
     """Validator blocks an erase whose address is in RAM, not flash."""
@@ -454,7 +484,7 @@ def test_validator_rejects_erase_outside_flash():
         name="WRITE_MEM", id=CommandId.WRITE_MEM,
         mem=MemType.ERASE, address=0x20000000, data=b'\x00\x00\x00\x00', length=1,
     )
-    assert_eq(validate_commands(cmd, MCU_METADATA_FLASH), False)
+    assert_eq(_accepted(cmd, FLASHED), False)
 
 def test_erase_packet_mem_id_is_3():
     """Serialized erase packet must carry mem_id=3 in the MEM_ID field."""

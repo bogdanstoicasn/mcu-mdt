@@ -1,50 +1,49 @@
-control_values:
-  RAM: 0
-  FLASH: 1
-  EEPROM: 2
-  ERASE: 3
-
-  # Breakpoint control values
-  DISABLED: 0
-  ENABLED: 1
-  RESET: 2
-  NEXT: 3
-
-  # Watchpoint control values (DISABLED/ENABLED/RESET shared above)
-  MASK: 3
-
-# A "str" param takes only the names in its "values"; the numbers come from control_values above.
+# The commands the PC tool accepts. The ids and the choice numbers are the firmware's
+#
+# Each parameter fills one field of the packet and says how its text is read:
+#
+#   field     mem | address | length | data
+#   type      hex        a hex number: 1F or 0x1F
+#             decimal    a decimal number: 10, or hex with 0x: 0x0A
+#             address    a hex number, else a RAM symbol of the ELF (name.N statics too)
+#             register   a hex number, else a register name: USART1_BRR, UDR0, CH[2]
+#             bytes      a hex string: DEADBEEF or 0xDEADBEEF
+#             choice     one of the parameter's values, any case
+#   optional  true when the parameter may be left out (last parameters only)
+#
+# A number given for the data field is sent as 4 little-endian bytes.
+# A local command never leaves the PC.
 
 commands:
   READ_MEM:
     id: 0x01
     description: "Read n bytes from memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<RAM|FLASH|EEPROM>", format: "dec", values: [RAM, FLASH, EEPROM] }
-      - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
-      - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
+      - {name: control_value, type: choice,  field: mem,     hint: "<RAM|FLASH|EEPROM>", values: {RAM: 0, FLASH: 1, EEPROM: 2}}
+      - {name: address,       type: address, field: address, hint: "<addr>"}
+      - {name: len,           type: decimal, field: length,  hint: "<length>"}
 
   WRITE_MEM:
     id: 0x02
     description: "Write n bytes to memory (RAM, FLASH, EEPROM, etc.)"
     params:
-      - { name: "control_value", type: "str",    hint: "<RAM|FLASH|EEPROM|ERASE>", format: "dec", values: [RAM, FLASH, EEPROM, ERASE] }
-      - { name: "address",       type: "symbol_or_uint32",  hint: "<addr>", format: "hex" }
-      - { name: "len",           type: "uint32",  hint: "<length>", format: "dec" }
-      - { name: "data",          type: "bytes",   hint: "<hex>", format: "hex" }
+      - {name: control_value, type: choice,  field: mem,     hint: "<RAM|FLASH|EEPROM|ERASE>", values: {RAM: 0, FLASH: 1, EEPROM: 2, ERASE: 3}}
+      - {name: address,       type: address, field: address, hint: "<addr>"}
+      - {name: len,           type: decimal, field: length,  hint: "<length>"}
+      - {name: data,          type: bytes,   field: data,    hint: "<hex>"}
 
   READ_REG:
     id: 0x03
     description: "Read MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>", format: "hex" }
+      - {name: address, type: register, field: address, hint: "<addr|reg>"}
 
   WRITE_REG:
     id: 0x04
     description: "Write value to MCU register at given address"
     params:
-      - { name: "address", type: "uint32_or_str", hint: "<addr|reg>", format: "hex" }
-      - { name: "data",    type: "bytes",          hint: "<hex>", format: "hex" }
+      - {name: address, type: register, field: address, hint: "<addr|reg>"}
+      - {name: data,    type: bytes,    field: data,    hint: "<hex>"}
 
   PING:
     id: 0x05
@@ -58,25 +57,25 @@ commands:
     id: 0x07
     description: "Trigger a software breakpoint in the MCU firmware"
     params:
-      - { name: "address",       type: "uint32", hint: "<id>", format: "hex" }
-      - { name: "control_value", type: "str",    hint: "<ENABLED|DISABLED|RESET|NEXT>", format: "dec", values: [DISABLED, ENABLED, RESET, NEXT] }
+      - {name: address,       type: hex,    field: address, hint: "<id>"}
+      - {name: control_value, type: choice, field: mem,     hint: "<ENABLED|DISABLED|RESET|NEXT>", values: {DISABLED: 0, ENABLED: 1, RESET: 2, NEXT: 3}}
 
   WATCHPOINT:
     id: 0x08
     description: "Set or clear a memory watchpoint. Fires an event when watched bits change."
     params:
-      - { name: "address",       type: "uint32",          hint: "<id>",               format: "hex" }
-      - { name: "control_value", type: "str",              hint: "<ENABLED|DISABLED|RESET|MASK>", format: "dec", values: [DISABLED, ENABLED, RESET, MASK] }
-      - { name: "wp_data",       type: "symbol_or_uint32", hint: "<symbol|addr|mask>", format: "hex" }
+      - {name: address,       type: hex,     field: address, hint: "<id>"}
+      - {name: control_value, type: choice,  field: mem,     hint: "<ENABLED|DISABLED|RESET|MASK>", values: {DISABLED: 0, ENABLED: 1, RESET: 2, MASK: 3}}
+      - {name: wp_data,       type: address, field: data,    hint: "<symbol|addr|mask>", optional: true}
 
   EXIT:
-    id: 0x09
+    local: true
     description: "Exit the program (PC-side only)"
 
   HELP:
-    id: 0x0A
+    local: true
     description: "Show this help message (PC-side only)"
 
   CLEAR:
-    id: 0x0B
+    local: true
     description: "Clear the console screen (PC-side only)"

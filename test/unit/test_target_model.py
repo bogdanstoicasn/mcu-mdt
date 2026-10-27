@@ -133,6 +133,7 @@ def test_register_names_qualified_bare_and_indexed():
     assert_eq(regs.by_name("ODR").address, 0x48000014)                        # bare: first in file order
     assert_eq(regs.by_name("GPIOB_ODR").address, 0x48000414)
     assert_eq(regs.by_name("DMA_CH[3]").address, 0x40020030)                  # NAME[i] spelling
+    assert_eq(regs.by_name("DMA_CH[9]"), None)                                # no such element
     assert_eq(regs.by_name("NOPE"), None)
 
 
