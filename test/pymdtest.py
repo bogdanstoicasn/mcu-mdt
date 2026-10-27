@@ -11,7 +11,7 @@ RESET  = "\033[0m"
 
 # Logger control
 def _silence_logger():
-    logging.getLogger("MCU-MDT").setLevel(logging.CRITICAL)
+    logging.getLogger("pc_tool").setLevel(logging.CRITICAL)
     # Also silence direct Terminal.* calls (packet, event, intro, ...).
     # Warning/error routing is already muted by the logger level above.
     try:
@@ -21,7 +21,7 @@ def _silence_logger():
         pass
 
 def _restore_logger():
-    logging.getLogger("MCU-MDT").setLevel(logging.DEBUG)
+    logging.getLogger("pc_tool").setLevel(logging.DEBUG)
     try:
         from pc_tool.common.terminal import Terminal
         Terminal.set_quiet(False)

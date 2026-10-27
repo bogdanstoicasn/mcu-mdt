@@ -12,28 +12,16 @@ Coverage:
 4. Watchable symbols: inside the part's RAM on every platform; AVR's ELF data-space offset stripped
 """
 
-import struct
 import tempfile
 from pathlib import Path
 
 from pc_tool.common.elf_symbols import load_elf_symbols, load_image_extent
 from pc_tool.loader import ConfigLoader, load_mcu_metadata
 from test.common.asserts import assert_eq
+from test.common.tiny_elf import elf_with_segments as _elf32
+from test.common.tiny_elf import elf_with_symbols as _elf32_symbols
 
 _F0 = {"flash": {"origin": 0x08000000, "size": 16384, "page": 1024}, "ram": {"origin": 0x20000000, "size": 4096}}
-
-
-def _elf32(segments: list) -> bytes:
-    """Minimal little-endian ELF32 (ARM) with only program headers: [(vaddr, paddr, filesz, memsz)]."""
-    ehsize, phentsize = 52, 32
-    header = struct.pack("<4sBBBBB7sHHIIIIIHHHHHH", b"\x7fELF", 1, 1, 1, 0, 0, b"\0" * 7,
-                         2, 40, 1, 0, ehsize, 0, 0x05000000, ehsize, phentsize, len(segments), 40, 0, 0)
-    data_offset = ehsize + phentsize * len(segments)
-    phdrs, payload = b"", b""
-    for vaddr, paddr, filesz, memsz in segments:
-        phdrs += struct.pack("<IIIIIIII", 1, data_offset + len(payload), vaddr, paddr, filesz, memsz, 5, 4)
-        payload += b"\xAA" * filesz
-    return header + phdrs + payload
 
 
 def _build_dir(tmp: Path, info: dict, segments: list) -> str:
@@ -150,30 +138,6 @@ def test_image_extent_spans_code_and_data_initialisers_in_flash():
 
 
 # ---------------------------------------------------------------- 4. watchable symbols
-
-def _elf32_symbols(symbols: list) -> bytes:
-    """Minimal ELF32 with only a symbol table: [(name, value, size)] as global data objects."""
-    shstrtab = b"\0.shstrtab\0.strtab\0.symtab\0"
-    strtab, entries = b"\0", struct.pack("<IIIBBH", 0, 0, 0, 0, 0, 0)
-    for name, value, size in symbols:
-        entries += struct.pack("<IIIBBH", len(strtab), value, size, 0x11, 0, 0xFFF1)   # GLOBAL OBJECT, ABS
-        strtab += name.encode() + b"\0"
-    blobs, offset, layout = [shstrtab, strtab, entries], 52, []
-    for blob in blobs:
-        layout.append(offset)
-        offset += len(blob)
-    sections = [
-        (0, 0, 0, 0, 0, 0, 0),
-        (1, 3, layout[0], len(shstrtab), 0, 0, 0),           # .shstrtab
-        (11, 3, layout[1], len(strtab), 0, 0, 0),            # .strtab
-        (19, 2, layout[2], len(entries), 2, 1, 16),          # .symtab -> .strtab
-    ]
-    header = struct.pack("<4sBBBBB7sHHIIIIIHHHHHH", b"\x7fELF", 1, 1, 1, 0, 0, b"\0" * 7,
-                         2, 40, 1, 0, 0, offset, 0, 52, 0, 0, 40, len(sections), 1)
-    shdrs = b"".join(struct.pack("<IIIIIIIIII", name, kind, 0, 0, off, size, link, info, 1, entsize)
-                     for name, kind, off, size, link, info, entsize in sections)
-    return header + b"".join(blobs) + shdrs
-
 
 def _watchable(platform: str, symbols: list, ram: list) -> dict:
     with tempfile.TemporaryDirectory() as tmp:

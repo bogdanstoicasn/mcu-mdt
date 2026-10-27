@@ -19,6 +19,9 @@ _PC_TOOL = Path(__file__).resolve().parents[2] / "pc_tool"
 # Lower number = lower layer. A module may import only modules with a smaller number.
 LAYERS = {
     "wire_protocol": 0,
+    "device_description": 1,
+    "elf_symbols": 1,
+    "target_model": 2,
 }
 
 

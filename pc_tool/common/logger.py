@@ -44,7 +44,8 @@ class _MDTLogger:
     """
 
     def __init__(self) -> None:
-        self._logger = logging.getLogger("MCU-MDT")
+        # The package logger: records of every pc_tool.<module> logger reach these handlers too.
+        self._logger = logging.getLogger("pc_tool")
         self._logger.setLevel(logging.DEBUG)
         self._logger.propagate = False
 
@@ -56,6 +57,7 @@ class _MDTLogger:
         self._formatter = logging.Formatter(
             "[%(asctime)s] [%(levelname)s]%(code)s: %(message)s",
             datefmt="%H:%M:%S",
+            defaults={"code": ""},          # module loggers log without an error code
         )
 
         # Always-on null handler keeps Python's logging machinery happy
