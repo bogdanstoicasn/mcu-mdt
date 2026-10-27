@@ -1,0 +1,3 @@
+[ERROR](3): FLASH write rejected: 0x08000000+4B overlaps firmware (0x08000000–0x08000AFF). Write only above firmware_end_address.
+[ERROR](3): Script aborted: validation failed at line 1: 'WRITE_MEM FLASH 0x08000000 4 00000000'
+[INFO]: Script complete.

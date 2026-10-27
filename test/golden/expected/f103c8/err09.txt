@@ -1,0 +1,4 @@
+[ERROR](2): Invalid hex data for data: 'xyz'
+[ERROR](2): Failed to parse line: WRITE_MEM RAM 0x20000200 4 xyz (non-hexadecimal number found in fromhex() arg at position 0)
+[ERROR](2): Script aborted: parse error at line 1: 'WRITE_MEM RAM 0x20000200 4 xyz'
+[INFO]: Script complete.

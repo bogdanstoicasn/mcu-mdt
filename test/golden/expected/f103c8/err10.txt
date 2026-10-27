@@ -1,0 +1,3 @@
+[ERROR](3): Invalid breakpoint ID: 9. Must be 0..3.
+[ERROR](3): Script aborted: validation failed at line 1: 'BREAKPOINT 9 ENABLED'
+[INFO]: Script complete.

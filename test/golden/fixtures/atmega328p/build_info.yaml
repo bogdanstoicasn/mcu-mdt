@@ -1,0 +1,9 @@
+platform: AVR
+mcu: atmega328p
+mcu_db: avr/atmega/ATmega328P.atdf
+port: socket://localhost:<set by the test>
+baudrate: 19200
+uart_idle: false
+breakpoints: 4
+watchpoints: 4
+elf: mcu_mdt_example.elf

@@ -1,0 +1,4 @@
+[ERROR](2): Invalid control value 'ENABLED'. Expected one of: RAM, FLASH, EEPROM
+[ERROR](2): Failed to parse line: READ_MEM ENABLED 0x20000200 4 (unknown control value 'ENABLED')
+[ERROR](2): Script aborted: parse error at line 1: 'READ_MEM ENABLED 0x20000200 4'
+[INFO]: Script complete.

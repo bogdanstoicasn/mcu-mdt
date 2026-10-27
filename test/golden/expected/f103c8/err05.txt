@@ -1,0 +1,3 @@
+[ERROR](3): READ_MEM out of range: RAM addr=0x20004FFC len=8.
+[ERROR](3): Script aborted: validation failed at line 1: 'READ_MEM RAM 0x20004FFC 8'
+[INFO]: Script complete.

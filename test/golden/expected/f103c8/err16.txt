@@ -1,0 +1,3 @@
+[ERROR](3): ERASE rejected: page 0x08000000–0x080003FF overlaps firmware (0x08000000–0x08000AFF). Only erase pages above firmware_end_address.
+[ERROR](3): Script aborted: validation failed at line 1: 'WRITE_MEM ERASE 0x08000000 1 00'
+[INFO]: Script complete.

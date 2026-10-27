@@ -1,0 +1,3 @@
+[ERROR](3): Watch address 0x60000000 is not in RAM (all 4 bytes) or a register of this part.
+[ERROR](3): Script aborted: validation failed at line 1: 'WATCHPOINT 0 ENABLED 0x60000000'
+[INFO]: Script complete.
