@@ -1,3 +1,0 @@
-[ERROR](2): Unknown register name 'NOT_A_REGISTER'
-[ERROR](2): Script aborted: parse error at line 1: 'READ_REG NOT_A_REGISTER'
-[INFO]: Script complete.

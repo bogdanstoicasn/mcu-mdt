@@ -6,9 +6,9 @@ skip when `MCU` is not set; the simulation tests start an emulator themselves an
 
 | Category | Where | Cases | What it needs |
 |---|---|---|---|
-| unit | `test/unit/` | 276 | nothing |
+| unit | `test/unit/` | 285 | nothing |
 | integration | `test/integration/` | 27 | nothing |
-| golden | `test/golden/` | 60 | nothing (about 2 minutes) |
+| golden | `test/golden/` | 9 | nothing (about 25 seconds) |
 | hardware | `test/hardware/` | 53 | a board flashed with the MDT firmware, or Renode |
 | simulation | `test/simulation/` | 29 | Renode or simavr, and the part's toolchain (about 2 minutes per part) |
 
@@ -33,7 +33,7 @@ Tests run with the `pc_tool` logger muted. A test that checks a warning uses
 Building every part listed in `build_system/` needs the toolchains, not a board:
 
 ```bash
-python3 test/firmware/check_parts.py -j 8
+python3 scripts/check_parts.py -j 8
 ```
 
 
@@ -78,7 +78,8 @@ The whole tool, run the way a user runs it (`mcu_mdt.py <build_info> --script ..
 nothing from `pc_tool`, so it can't drift with the code it tests.
 
 - `test_golden.py`: for three parts (ATmega328P, F030F4, F103C8), a script that uses every
-  command plus 17 one-line error scripts. The contract kept exactly is in
+  command. Refused lines are left to the unit tests of `command_parser` and `command_rules`.
+  The contract kept exactly is in
   `test/golden/expected/`: every packet on the wire, every WARNING/ERROR line, and how the
   script ended. INFO wording is free to change. The parts' `build_info.yaml` and ELF are frozen
   in `test/golden/fixtures/`.
@@ -133,7 +134,7 @@ RESET command, so restart it after one.
 ## Simulation tests
 
 The PC tool against real firmware in an emulator, with nothing mocked. The firmware is
-`test/firmware/validation_main.c`, linked against the part's library like a user project. It gives
+`test/simulation/validation_main.c`, linked against the part's library like a user project. It gives
 the tool things to look at: a counter that changes on every pass, one that changes slowly right
 before the firmware hits breakpoint 0, a word that never changes, 1- and 2-byte variables, a
 function-local static. A TCP proxy (`test/common/fault_proxy.py`) sits between tool and emulator

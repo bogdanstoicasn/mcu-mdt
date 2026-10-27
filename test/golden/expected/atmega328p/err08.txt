@@ -1,3 +1,0 @@
-[ERROR](3): Length field 4 does not match data length 2.
-[ERROR](3): Script aborted: validation failed at line 1: 'WRITE_MEM RAM 0x0200 4 0102'
-[INFO]: Script complete.

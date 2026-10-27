@@ -118,7 +118,7 @@ the PC side handles all complex validation and tooling.
 | `docs/commands.md` | All commands with parameters, behavior, and platform availability |
 | `docs/avr/info.md` | AVR platform reference — HAL details, supported MCU list, ATDF extension |
 | `docs/stm32/info.md` | STM32 platform reference — supported cores, interrupt vs poll mode, XL-density, flash semantics |
-| `docs/testing.md` | The test categories (unit, integration, golden, hardware), how to run them, Renode |
+| `docs/testing.md` | The test categories (unit, integration, golden, hardware, simulation), how to run them, Renode |
 | `docs/troubleshooting.md` | Common problems and recovery steps |
 
 

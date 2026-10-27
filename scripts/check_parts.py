@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 """Build every part listed in build_system/ and report the ones that fail.
 
-  python3 test/firmware/check_parts.py              # every platform whose toolchain is installed
-  python3 test/firmware/check_parts.py stm32 -j 8   # one platform
+  python3 scripts/check_parts.py              # every platform whose toolchain is installed
+  python3 scripts/check_parts.py stm32 -j 8   # one platform
 
 The node lists are the contract: only listed parts are supported, so each must build.
 This catches a listed part that stopped building after a HAL, YAML or toolchain change.
@@ -16,7 +16,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from build_system.generate import TREE, load_yaml, resolve  # noqa: E402
 

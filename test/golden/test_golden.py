@@ -4,7 +4,7 @@ GOLDEN TESTS FOR MCU-MDT: the whole PC tool, run as a user runs it
 Each case runs `mcu_mdt.py <build_info> --script <case>` against test/common/fake_mcu.py and
 compares the session log's contract (see golden_cases.contract) with test/golden/expected/.
 
-Run:     python3 -m test.pymdtest golden        (about 2 minutes: each run waits the 2 s reset delay)
+Run:     python3 -m test.pymdtest golden        (about 25 seconds: each run waits the 2 s reset delay)
 Update:  python3 -m test.golden.record          (only for a deliberate change; review the diff)
 """
 

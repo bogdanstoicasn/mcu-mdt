@@ -51,7 +51,7 @@ class Console:
         if readline:
             self._start_readline()
 
-    # ---------------------------------------------------------------- the prompt
+    # user prompt
 
     def read_line(self, prompt: str = "> ") -> str:
         return input(prompt)
@@ -88,7 +88,7 @@ class Console:
         matches = [name for name in self._completions if name.startswith(text.upper())]
         return matches[state] if state < len(matches) else None
 
-    # ---------------------------------------------------------------- lines
+    # lines
 
     def info(self, message: str) -> None:
         log.info("%s", message, extra=self.SHOW)

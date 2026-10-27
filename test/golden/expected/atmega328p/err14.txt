@@ -1,3 +1,0 @@
-[ERROR](2): Symbol 'no_such_symbol' not found in ELF symbol table. Tip: only static/global variables are watchable. Local variables live on the stack and have no fixed address.
-[ERROR](2): Script aborted: parse error at line 1: 'WATCHPOINT 0 ENABLED no_such_symbol'
-[INFO]: Script complete.

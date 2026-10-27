@@ -12,7 +12,7 @@ MDT_SIM picks the target (one per run: two emulators on a small machine starve e
 Needs the target's toolchain, and Renode (`renode` on PATH, or RENODE=<path to renode>) or simavr
 (gcc with libsimavr-dev, libelf-dev). Without MDT_SIM every simulation test skips.
 
-The firmware is test/firmware/validation_main.c, linked against build/<part>/lib*.a like a user
+The firmware is test/simulation/validation_main.c, linked against build/<part>/lib*.a like a user
 project. Building runs `make MCU=<part> lib` (F030F4 with UART_IDLE=0), which regenerates
 build/<part>/ with those settings.
 """
@@ -132,7 +132,7 @@ def _build_firmware(part: str, spec: dict) -> Path:
     ldflags = [f for f in shlex.split(mk["LDFLAGS"]) if not f.startswith("-Wl,-Map=") and f != "-Wl,--print-gc-sections"]
     cmd = [mk["CC"], *shlex.split(mk["CFLAGS"]), f"-I{mk['INC_DIR']}", f"-I{mk['HAL_DIR']}", f"-I{build}",
            "-include", str(build / "mdt_target.h"), *ldflags, *shlex.split(mk.get("STARTUP", "")),
-           str(ROOT / "test" / "firmware" / "validation_main.c"), f"-L{build}", f"-l{mk['LIB']}",
+           str(Path(__file__).with_name("validation_main.c")), f"-L{build}", f"-l{mk['LIB']}",
            *shlex.split(mk.get("LDLIBS", "")), "-o", str(elf)]
     _run(cmd, cwd=ROOT)
     return elf

@@ -91,4 +91,4 @@ with sizes from the datasheets (the tables in `docs/stm32/info.md`). F1 nodes al
 ## Checks
 
     python3 -m test.pymdtest unit                     # test_build_system_{descriptors,generator}.py
-    python3 test/firmware/check_parts.py -j 8         # builds every listed part whose toolchain is installed
+    python3 scripts/check_parts.py -j 8               # builds every listed part whose toolchain is installed

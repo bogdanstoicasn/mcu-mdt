@@ -1,3 +1,0 @@
-[ERROR](3): No register found at address 0x40000000.
-[ERROR](3): Script aborted: validation failed at line 1: 'READ_REG 0x40000000'
-[INFO]: Script complete.

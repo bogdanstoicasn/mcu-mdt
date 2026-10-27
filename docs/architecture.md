@@ -423,7 +423,7 @@ must agree to give up a peripheral before MDT is allowed to claim one.
 
 ```bash
 python3 -m test.pymdtest              # everything that needs no board
-python3 -m test.pymdtest golden       # the whole tool against a fake MCU, about 2 minutes
+python3 -m test.pymdtest golden       # the whole tool against a fake MCU, about 25 seconds
 MCU=F030F4 python3 -m test.pymdtest hardware   # needs a board, or Renode
 ```
 

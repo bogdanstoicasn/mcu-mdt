@@ -1,7 +1,8 @@
 """The golden corpus: what the PC tool is run with, and the part of its log that must not change.
 
-Each case is one `mcu_mdt.py <build_info> --script <case>` run against test/common/fake_mcu.py.
-Script mode stops at the first error, so every error case is a one-line script of its own.
+Each case is one `mcu_mdt.py <build_info> --script <case>` run against test/common/fake_mcu.py:
+one script per part that uses every command. Refused lines are covered by the unit tests of
+command_parser and command_rules, which run in milliseconds instead of a process each.
 The parts' build_info.yaml and ELF are frozen under fixtures/ so the cases do not depend on the
 local toolchain.
 
@@ -42,36 +43,14 @@ HELP
 RESET
 """
 
-ERRORS = [
-    "NOPE",
-    "PING 1",
-    "READ_MEM RAM",
-    "READ_MEM ENABLED {ram} 4",
-    "READ_MEM RAM zz 4",
-    "READ_MEM RAM {ram_end} 8",
-    "READ_REG NOT_A_REGISTER",
-    "READ_REG {reg_gap}",
-    "WRITE_MEM RAM {ram} 4 0102",
-    "WRITE_MEM RAM {ram} 4 xyz",
-    "BREAKPOINT 9 ENABLED",
-    "BREAKPOINT 0 MASK",
-    "WATCHPOINT 0 ENABLED",
-    "WATCHPOINT 0 ENABLED 0x60000000",
-    "WATCHPOINT 0 ENABLED no_such_symbol",
-    "WRITE_MEM FLASH {flash} 4 00000000",
-    "WRITE_MEM ERASE {flash} 1 00",
-]
-
 PARTS = {
-    "atmega328p": dict(ram="0x0200", ram_end="0x08FC", reg="PORTB", reg_gap="0x0001", flash="0x0000",
+    "atmega328p": dict(ram="0x0200", reg="PORTB",
                        extra="READ_MEM EEPROM 0x0010 4\nREAD_MEM FLASH 0x0000 4\n"
                              "WATCHPOINT 1 ENABLED rx_buffer"),
-    "f030f4": dict(ram="0x20000200", ram_end="0x20000FFC", reg="GPIOA_ODR", reg_gap="0x40000000",
-                   flash="0x08000000",
+    "f030f4": dict(ram="0x20000200", reg="GPIOA_ODR",
                    extra="READ_MEM FLASH 0x08000000 8\nWRITE_MEM ERASE 0x08003C00 1 00\n"
                          "WRITE_MEM FLASH 0x08003C00 4 CAFEBABE\nWATCHPOINT 1 ENABLED packet_buffer"),
-    "f103c8": dict(ram="0x20000200", ram_end="0x20004FFC", reg="USART1_BRR", reg_gap="0x40000000",
-                   flash="0x08000000",
+    "f103c8": dict(ram="0x20000200", reg="USART1_BRR",
                    extra="READ_REG TIM1_CCMR1_Output\nWRITE_MEM ERASE 0x0800FC00 1 00\n"
                          "WATCHPOINT 1 ENABLED packet_buffer"),
 }
@@ -79,11 +58,7 @@ PARTS = {
 
 def cases() -> list[tuple[str, str, str]]:
     """(part, case name, script) for every golden run."""
-    out = []
-    for part, values in PARTS.items():
-        out.append((part, "happy", HAPPY.format(**values)))
-        out += [(part, f"err{i:02d}", line.format(**values) + "\n") for i, line in enumerate(ERRORS)]
-    return out
+    return [(part, "happy", HAPPY.format(**values)) for part, values in PARTS.items()]
 
 
 def run_case(part: str, script: str, port: int, tool: list[str] = LAUNCHER) -> str:

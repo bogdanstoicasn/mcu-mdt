@@ -1,3 +1,0 @@
-[ERROR](2): PING expects 0 parameter(s), got 1
-[ERROR](2): Script aborted: parse error at line 1: 'PING 1'
-[INFO]: Script complete.

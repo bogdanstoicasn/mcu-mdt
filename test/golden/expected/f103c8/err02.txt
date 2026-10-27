@@ -1,3 +1,0 @@
-[ERROR](2): READ_MEM expects 3 parameter(s), got 1
-[ERROR](2): Script aborted: parse error at line 1: 'READ_MEM RAM'
-[INFO]: Script complete.

@@ -1,3 +1,0 @@
-[ERROR](3): Unknown command: NOPE
-[ERROR](2): Script aborted: parse error at line 1: 'NOPE'
-[INFO]: Script complete.

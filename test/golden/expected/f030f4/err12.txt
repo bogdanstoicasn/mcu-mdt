@@ -1,3 +1,0 @@
-[ERROR](3): WATCHPOINT ENABLED needs the address to watch: WATCHPOINT <id> ENABLED <symbol|addr>.
-[ERROR](3): Script aborted: validation failed at line 1: 'WATCHPOINT 0 ENABLED'
-[INFO]: Script complete.
