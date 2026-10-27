@@ -1,11 +1,17 @@
 """
 LAYER TESTS FOR THE PC TOOL
 
-pc_tool is layered: a module may import only modules of a lower layer, and only at the top of the
-file. This keeps the domain (wire format, target, parsing, rules) free of I/O and printing, and the
-dependencies one-way. The table below is the architecture; change it on purpose, not to silence it.
+pc_tool is layered: a module may import only modules of a lower layer, only at the top of the
+file, and as a module (from pc_tool import wire_protocol), not names from it. This keeps the domain
+(wire format, target, parsing, rules) free of I/O and printing, and the dependencies one-way.
 
-Modules not in the table are the ones the rework has not replaced yet.
+    app        cli_main, debug_session, user_console
+    transport  event_pump, command_client, serial_link
+    domain     command_rules, command_parser, target_model, elf_symbols, device_description
+    protocol   wire_protocol
+
+The table below is the architecture; change it on purpose, not to silence it. Every module must
+be in it.
 """
 
 import ast
@@ -27,7 +33,19 @@ LAYERS = {
     "serial_link": 5,
     "command_client": 6,
     "event_pump": 6,
+    "user_console": 7,
+    "debug_session": 8,
+    "cli_main": 9,
+    "__main__": 10,
 }
+
+
+def test_every_module_is_in_the_table():
+    modules = {path.stem for path in _PC_TOOL.glob("*.py")} - {"__init__"}
+    assert_eq(sorted(modules - set(LAYERS)), [], what="modules missing from LAYERS")
+    assert_eq(sorted(set(LAYERS) - modules), [], what="LAYERS entries with no module")
+    assert_eq([p.name for p in _PC_TOOL.iterdir() if p.is_dir() and (p / "__init__.py").exists()], [],
+              what="subpackages (pc_tool is flat)")
 
 
 def _pc_tool_imports(tree: ast.Module) -> list[tuple[str, int, bool]]:
@@ -37,10 +55,9 @@ def _pc_tool_imports(tree: ast.Module) -> list[tuple[str, int, bool]]:
     for node in ast.walk(tree):
         if isinstance(node, ast.ImportFrom) and node.module and node.module.startswith("pc_tool"):
             if node.module == "pc_tool":
-                names = [alias.name for alias in node.names]
+                found += [(alias.name, node.lineno, id(node) in top_level) for alias in node.names]
             else:
-                names = [node.module.split(".", 1)[1]]
-            found += [(name, node.lineno, id(node) in top_level) for name in names]
+                found.append((f"names from {node.module}", node.lineno, id(node) in top_level))
         elif isinstance(node, ast.Import):
             found += [(alias.name.split(".", 1)[1], node.lineno, id(node) in top_level)
                       for alias in node.names if alias.name.startswith("pc_tool.")]
@@ -54,7 +71,9 @@ def test_module_imports_only_lower_layers(module):
     for imported, line, top_level in _pc_tool_imports(tree):
         if imported == "MdtError":                  # pc_tool/__init__.py: the base error, below every layer
             continue
-        if not top_level:
+        if imported.startswith("names from "):
+            problems.append(f"line {line}: imports {imported}; import the module instead")
+        elif not top_level:
             problems.append(f"line {line}: imports {imported} inside a function")
         elif imported not in LAYERS:
             problems.append(f"line {line}: imports {imported}, which is not in the layer table")

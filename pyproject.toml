@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.scripts]
-mcu-mdt = "pc_tool.main:main"
+mcu-mdt = "pc_tool.cli_main:main"
 
 [project.optional-dependencies]
 
@@ -33,9 +33,11 @@ pc_tool = ["configs/*.yaml", "mcu_db/**/*.atdf", "mcu_db/**/*.svd"]
 
 [tool.ruff]
 line-length = 100
-select = ["E", "F", "W", "I", "B", "UP", "SIM"]
-ignore = ["E501"]
 exclude = ["build/", "dist/", ".venv/"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "SIM", "G"]   # G: log calls take %-style arguments
+ignore = ["E501"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["pc_tool"]

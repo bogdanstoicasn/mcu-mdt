@@ -88,6 +88,11 @@ def cases() -> list[tuple[str, str, str]]:
 
 def run_case(part: str, script: str, port: int, tool: list[str] = LAUNCHER) -> str:
     """Run the tool on one script against the fake MCU at *port*; return the session log."""
+    return run_tool(part, script, port, tool)[0]
+
+
+def run_tool(part: str, script: str, port: int, tool: list[str] = LAUNCHER) -> tuple[str, int]:
+    """Run the tool on one script against the fake MCU at *port*; return (session log, exit status)."""
     with tempfile.TemporaryDirectory() as work:
         work = Path(work)
         info = yaml.safe_load((FIXTURES / part / "build_info.yaml").read_text())
@@ -95,10 +100,10 @@ def run_case(part: str, script: str, port: int, tool: list[str] = LAUNCHER) -> s
         info["elf"] = str(FIXTURES / part / info["elf"])
         (work / "build_info.yaml").write_text(yaml.safe_dump(info, sort_keys=False))
         (work / "script.txt").write_text(script)
-        subprocess.run([*tool, "build_info.yaml", "--script", "script.txt"], cwd=work,
-                       stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+        done = subprocess.run([*tool, "build_info.yaml", "--script", "script.txt"], cwd=work,
+                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
         logs = sorted((work / "logs").glob("*.log"))
-        return logs[0].read_text() if logs else ""
+        return (logs[0].read_text() if logs else ""), done.returncode
 
 
 def expected_path(part: str, name: str) -> Path:

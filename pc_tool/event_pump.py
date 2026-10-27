@@ -33,6 +33,7 @@ class EventPump:
         self._uart_idle = uart_idle
         self._on_event = on_event
         self._on_lost = on_lost         # the link died (unplugged): the app should shut down
+        self.lost = False
         self._stop = threading.Event()
         self._threads: list[threading.Thread] = []
 
@@ -72,12 +73,13 @@ class EventPump:
             try:
                 raw = self._link.read_packet(timeout=_READ_TIMEOUT)
                 errors = 0
-            except Exception as exc:    # the port itself failed; the reader must outlive one bad read
+            except Exception as exc:    # the reader must outlive a bad read; a port error ends the link
                 if self._stop.is_set():
                     return
                 errors += 1
-                if _is_unplugged(exc) or errors >= _MAX_READ_ERRORS or not self._link.is_open:
+                if isinstance(exc, OSError) or errors >= _MAX_READ_ERRORS:   # SerialException is an OSError
                     log.error("Board disconnected (%s). Exiting.", exc, extra={"code": "(5)"})
+                    self.lost = True
                     self._stop.set()
                     self._on_lost()
                     return
@@ -118,8 +120,3 @@ class EventPump:
 
 def _is_event_packet(raw: bytes) -> bool:
     return raw[wire_protocol.Offset.CMD_ID] == 0 and bool(raw[wire_protocol.Offset.FLAGS] & wire_protocol.Flag.EVENT_PACKET)
-
-
-def _is_unplugged(exc: Exception) -> bool:
-    """EIO: the USB-serial adapter went away."""
-    return getattr(exc, "errno", None) == 5

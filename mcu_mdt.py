@@ -1,18 +1,8 @@
-import os
+"""Run the PC tool from a checkout without installing it: python3 mcu_mdt.py build/<part>/build_info.yaml"""
+
 import sys
 
-# Project root on sys path
-PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
-sys.path.insert(0, PROJECT_ROOT)
-
-from pc_tool.main import main
-from pc_tool.parser import parse_args
-
-
-def cli_main():
-    args = parse_args()
-    main(args)
-
+from pc_tool import cli_main
 
 if __name__ == "__main__":
-    cli_main()
+    sys.exit(cli_main.main())

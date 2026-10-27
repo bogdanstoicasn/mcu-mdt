@@ -6,7 +6,8 @@ Coverage:
 2. A corrupted packet is dropped with a warning; the reader goes on
 3. UART-idle mode polls for events on its own, and again right after each event
 4. Draining stale events at startup covers a full burst, and stops at max_polls
-5. Bug 4: an unplugged adapter calls on_lost and stops the reader; the process is not killed
+5. Bug 4: an unplugged adapter (a port error) calls on_lost and stops the reader; the process is
+   not killed. Other read failures are logged and survived
 """
 
 import errno
@@ -138,5 +139,30 @@ def test_an_unplugged_adapter_reports_lost_and_stops():
     pump.start()
     assert _until(lambda: lost)
     pump.stop()
-    assert_eq(lost, [True])
+    assert_eq((lost, pump.lost), ([True], True))
     assert_eq(any(t.is_alive() for t in pump._threads), False)
+
+
+class _FlakyReader(FakeSerialPort):
+    """A bug in a read (not a port error): the reader logs it and keeps reading."""
+
+    def __init__(self):
+        super().__init__(answer=lambda request: b"")
+        self.failures = 2
+
+    def read(self, size=1):
+        if self.failures:
+            self.failures -= 1
+            raise ValueError("bad byte")
+        return super().read(size)
+
+
+def test_a_failing_read_that_is_not_a_port_error_is_survived():
+    pump, link, port, events = _pump(port=_FlakyReader())
+    pump.start()
+    try:
+        port.inject(_watchpoint_event())
+        assert _until(lambda: events, timeout=3.0)
+    finally:
+        pump.stop()
+    assert_eq(pump.lost, False)
