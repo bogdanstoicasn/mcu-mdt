@@ -73,7 +73,8 @@ def _connect_and_run(args: argparse.Namespace, target: target_model.Target,
         return 1
     link.sync(_STARTUP_PING)
 
-    pump = event_pump.EventPump(link, target.uart_idle, on_event=console.event, on_lost=_interrupt_main)
+    waker = _MainWaker()
+    pump = event_pump.EventPump(link, target.uart_idle, on_event=console.event, on_lost=waker.start)
     pump.drain_stale_events()           # events left from an earlier session, before the reader starts
     pump.start()
     console.info("UART idle interrupt mode — event poll thread started." if target.uart_idle
@@ -91,6 +92,7 @@ def _connect_and_run(args: argparse.Namespace, target: target_model.Target,
     except KeyboardInterrupt:           # Ctrl-C during a command, or the link was lost
         console.info("Exiting...")
     finally:
+        waker.stop()
         pump.stop()
         link.close()
         console.success("Debugger closed.")
@@ -109,12 +111,30 @@ def _session_banner(title: str, target: target_model.Target | None = None, log_f
         log.info("%s", line)
 
 
-def _interrupt_main() -> None:
-    """The link is gone: wake the main thread out of input() with KeyboardInterrupt, so it shuts down cleanly."""
-    if hasattr(signal, "pthread_kill"):
-        signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
-    else:                               # Windows: takes effect at the next line typed
-        _thread.interrupt_main()
+class _MainWaker:
+    """The link is gone: wake the main thread out of input() with KeyboardInterrupt, so it shuts down
+    cleanly. A signal that lands just before readline blocks only sets Python's flag and wakes
+    nothing, so it is sent again every half second until the session starts shutting down."""
+
+    def __init__(self) -> None:
+        self._done = threading.Event()
+
+    def start(self) -> None:
+        threading.Thread(target=self._wake_until_done, name="main_waker", daemon=True).start()
+
+    def stop(self) -> None:
+        """Shutting down: a wake-up still on its way must not interrupt it."""
+        if threading.current_thread() is threading.main_thread():
+            signal.signal(signal.SIGINT, signal.SIG_IGN)
+        self._done.set()
+
+    def _wake_until_done(self) -> None:
+        while not self._done.is_set():
+            if hasattr(signal, "pthread_kill"):
+                signal.pthread_kill(threading.main_thread().ident, signal.SIGINT)
+            else:                       # Windows: takes effect at the next line typed
+                _thread.interrupt_main()
+            self._done.wait(0.5)
 
 
 if __name__ == "__main__":

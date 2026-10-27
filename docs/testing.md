@@ -1,14 +1,16 @@
 # Testing
 
-Four categories. The first three run anywhere; the hardware tests need a board or Renode and
-skip when `MCU` is not set.
+Five categories. The first three run anywhere. The hardware tests need a board or an emulator and
+skip when `MCU` is not set; the simulation tests start an emulator themselves and skip when
+`MDT_SIM` is not set.
 
 | Category | Where | Cases | What it needs |
 |---|---|---|---|
-| unit | `test/unit/` | 274 | nothing |
-| integration | `test/integration/` | 26 | nothing |
+| unit | `test/unit/` | 276 | nothing |
+| integration | `test/integration/` | 27 | nothing |
 | golden | `test/golden/` | 60 | nothing (about 2 minutes) |
 | hardware | `test/hardware/` | 53 | a board flashed with the MDT firmware, or Renode |
+| simulation | `test/simulation/` | 29 | Renode or simavr, and the part's toolchain (about 2 minutes per part) |
 
 
 ## Running them
@@ -53,6 +55,7 @@ One file per module, no serial port, no threads left behind.
 | `test_event_pump.py` | Routing, corrupted packets, UART-idle polling, the startup drain, an unplugged adapter |
 | `test_user_console.py` | Console and log file lines, the packet box, the event line, the history file |
 | `test_layers.py` | Every module is in the layer table and imports only lower layers |
+| `test_cli_main.py` | Arguments; a lost link keeps waking the prompt until the session shuts down |
 | `test_build_system_*.py` | The part descriptions in `build_system/` and the files generated from them |
 
 The transport tests use `FakeSerialPort` from `test/common/fake_mcu.py`: a pyserial-like port
@@ -127,9 +130,48 @@ F0 interrupt mode (`UART_IDLE=1`) still needs a real board. Renode doesn't come 
 RESET command, so restart it after one.
 
 
+## Simulation tests
+
+The PC tool against real firmware in an emulator, with nothing mocked. The firmware is
+`test/firmware/validation_main.c`, linked against the part's library like a user project. It gives
+the tool things to look at: a counter that changes on every pass, one that changes slowly right
+before the firmware hits breakpoint 0, a word that never changes, 1- and 2-byte variables, a
+function-local static. A TCP proxy (`test/common/fault_proxy.py`) sits between tool and emulator
+when a test damages the line.
+
+```bash
+MDT_SIM=f103c8     python3 -m test.pymdtest simulation    # Renode, UART-idle mode
+MDT_SIM=f030f4     python3 -m test.pymdtest simulation    # Renode, poll mode
+MDT_SIM=atmega328p python3 -m test.pymdtest simulation    # simavr
+```
+
+Renode comes from `renode` on PATH or `RENODE=<path>`. simavr needs `gcc`, `libsimavr-dev` and
+`libelf-dev`: the tests build `test/simulators/avr_uart_tcp.c`, a small bridge that puts the AVR's
+UART0 on a TCP socket and runs the simulation in real time. Building the firmware runs
+`make MCU=<part> lib` (F030F4 with `UART_IDLE=0`), which regenerates `build/<part>/`. Run one part at a
+time: on a small machine two emulators starve each other and the tool's timeouts.
+
+- `test_emulated_mcu.py`: long writes read back at every length and offset; symbols and local
+  statics; the firmware image read back and protected; every UART register; both bytes of a 16-bit
+  AVR register; watchpoints (changes, MASK, DISABLED, RESET, a quiet word, a register); a breakpoint
+  the firmware hits, held while commands still work, NEXT and DISABLED; corrupted, dropped, late,
+  noisy, doubled and byte-by-byte replies; an unplugged cable; 240 commands with events flowing; stale
+  events drained at the next start.
+- `test_emulated_cli.py`: the real `mcu_mdt.py` on a pseudo-terminal: TAB completion, history, up
+  arrow, Ctrl-C and Ctrl-D; an event arriving while a line is half typed; CPU use while idle; an
+  unplugged cable at the prompt; a corrupted reply in a script; exit status.
+
+Renode models no flash controller for the STM32 parts, so the flash erase/write test skips there.
+Watching a register in a simulation test has to keep the 4 sampled bytes off a register that
+changes when read: UBRR0's four bytes on the ATmega328P include UDR0, and sampling it eats the
+commands coming in.
+
+The hardware suite also runs against these emulators (`MDT_PORT=socket://localhost:<port>`), with the
+example firmware: the validation firmware hits breakpoint 0, which the hardware suite doesn't expect.
+
+
 ## Not covered yet
 
-- RESET on hardware: nothing checks that the MCU answers again after it.
-- A breakpoint hit from application code (`MDT_BREAKPOINT(id)`) and its event, on hardware.
+- RESET: nothing checks that the MCU answers again after it. Renode doesn't come back from one.
 - AVR and STM32 side by side: the hardware suite runs one part at a time.
 - The prompt itself (readline editing, TAB completion) is checked by hand only.

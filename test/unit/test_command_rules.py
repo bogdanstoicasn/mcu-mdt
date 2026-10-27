@@ -205,11 +205,14 @@ def test_watch_address_must_be_ram_or_a_register(address, ok):
     assert_eq(_ok(_watch(address)), ok, address=hex(address))
 
 
-def test_enabled_needs_a_watch_address():
+def test_enabled_and_mask_need_their_value():
     message = "WATCHPOINT ENABLED needs the address to watch: WATCHPOINT <id> ENABLED <symbol|addr>."
     assert_eq(_reason(_watch()), message)
     assert_eq(_reason(_watch(data=b"\x00\x01")), message)
-    for control in (WatchpointControl.DISABLED, WatchpointControl.RESET, WatchpointControl.MASK):
+    # without a value the MCU would set the mask to 0 and the watchpoint would never fire again
+    assert_eq(_reason(_watch(control=WatchpointControl.MASK)), "WATCHPOINT MASK needs the mask: WATCHPOINT <id> MASK <mask>.")
+    assert_eq(_ok(_watch(control=WatchpointControl.MASK, data=bytes([0xFF, 0, 0, 0]))), True)
+    for control in (WatchpointControl.DISABLED, WatchpointControl.RESET):     # the value is ignored: may be left out
         assert_eq(_ok(_watch(control=control)), True, control=control.name)
 
 

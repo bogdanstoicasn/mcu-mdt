@@ -135,6 +135,7 @@ def test_erase_fills_the_page():
     ("WRITE_MEM FLASH 0x08000000 4 00000000", 3),   # the running firmware
     ("BREAKPOINT 9 ENABLED", 3),
     ("WATCHPOINT 0 ENABLED", 3),
+    ("WATCHPOINT 0 MASK", 3),                  # would set the mask to 0
     ("READ_REG 0x50000000", 3),
 ])
 def test_a_refused_line_sends_nothing(line, code):

@@ -130,12 +130,21 @@ def _breakpoint(command: wire_protocol.Command, target: target_model.Target) -> 
     log.info("BREAKPOINT valid: slot=%d control=%s.", command.address, control.name)
 
 
+# The controls that use the value; DISABLED and RESET ignore it, so it may be left out there.
+# (A MASK sent without one would set the mask to 0, and the watchpoint would never fire again.)
+_WATCHPOINT_VALUE = {
+    wire_protocol.WatchpointControl.ENABLED: "the address to watch: WATCHPOINT <id> ENABLED <symbol|addr>",
+    wire_protocol.WatchpointControl.MASK: "the mask: WATCHPOINT <id> MASK <mask>",
+}
+
+
 def _watchpoint(command: wire_protocol.Command, target: target_model.Target) -> None:
     _slot("watchpoint", command.address, target.watchpoints)
     control = _enum(wire_protocol.WatchpointControl, command.mem, "watchpoint control value")
+    needs = _WATCHPOINT_VALUE.get(control)
+    if needs and (command.data is None or len(command.data) != wire_protocol.WORD_SIZE):
+        raise _refused(f"WATCHPOINT {control.name} needs {needs}.")
     if control == wire_protocol.WatchpointControl.ENABLED:
-        if command.data is None or len(command.data) != wire_protocol.WORD_SIZE:
-            raise _refused("WATCHPOINT ENABLED needs the address to watch: WATCHPOINT <id> ENABLED <symbol|addr>.")
         watched = int.from_bytes(command.data, "little")
         # The MCU reads these 4 bytes on every poll: an unmapped address faults an STM32 for good.
         if target.segment("ram", watched, 4) is None and target.registers.at(watched) is None:
