@@ -3,7 +3,7 @@ BUILD SYSTEM GENERATOR TESTS FOR MCU-MDT
 
 Checks build_system/generate.py without a toolchain: resolution and merging, leaf
 overrides, validation, the rendered files and write-if-changed.
-test/firmware/check_parts.py is the toolchain check.
+scripts/check_parts.py is the toolchain check.
 """
 
 import re

@@ -99,7 +99,7 @@ Transfers larger than 4 bytes are split by the PC tool into multiple 4-byte chun
 - `SEQ_PRESENT` flag is set on all packets in the sequence.
 - `LAST_PACKET` flag is set on the final packet.
 - The MCU processes each packet independently and responds to each one.
-- The PC tool collects responses in order via the `rx_worker` thread.
+- The PC tool waits for each packet's reply (same CMD_ID, SEQ and ADDRESS) before sending the next.
 
 
 ## Event Packets
@@ -113,7 +113,8 @@ The MCU can send unsolicited event packets to the PC at any time:
 - `ADDRESS` carries context data (the old value for watchpoints, 0 otherwise).
 - `DATA` carries the new value, the total hit count, or an error count (see table below).
 - No response is expected from the PC.
-- The PC `rx_worker` routes event packets to a separate event queue.
+- The PC tool's reader thread hands event packets straight to the console; they never wait
+  behind a command reply.
 
 ### How the MCU reports events
 

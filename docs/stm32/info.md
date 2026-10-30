@@ -47,8 +47,8 @@ runs freely between PendSV invocations.
 Because `mcu_mdt_poll()` is never called in this mode, the MCU cannot
 push events on its own. Instead the PC tool sends a CMD_ID=0 poll packet
 every 500 ms. The MCU's `handle_reserved()` responds with any pending
-event payload, and the PC `rx_worker` routes the response to the event
-queue.
+event payload, and the PC tool's reader thread shows it as an event. Right
+after an event it polls again, so a burst drains without waiting 500 ms each.
 
 Use this mode when your application does not have a tight cooperative
 main loop. For example if it uses `HAL_Delay()`, blocking I2C/SPI

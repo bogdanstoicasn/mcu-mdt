@@ -34,65 +34,98 @@ The goal of this architecture is to provide a **portable, deterministic, and ext
 
 The system consists of two main components:
 ```
-+--------------------+        UART        +---------------------+
-| PC Debug Tool      | <---------------> | MCU Firmware (MDT)  |
-|                    |                   |                     |
-| - CLI              |                   | - Protocol Engine   |
-| - YAML Command DB  |                   | - Command Dispatch  |
-| - Validation       |                   | - Memory Access     |
-| - Serialization    |                   | - Breakpoints       |
-| - Event handling   |                   | - Watchpoints       |
-+--------------------+                   | - HAL Abstraction   |
-                                         +---------------------+
++---------------------+        UART        +---------------------+
+| PC tool (pc_tool/)  | <---------------> | MCU Firmware (MDT)  |
+|                     |                   |                     |
+| - Prompt / scripts  |                   | - Protocol Engine   |
+| - Part description  |                   | - Command Dispatch  |
+|   (ATDF / SVD, ELF) |                   | - Memory Access     |
+| - Command rules     |                   | - Breakpoints       |
+| - Wire protocol     |                   | - Watchpoints       |
+| - Event handling    |                   | - HAL Abstraction   |
++---------------------+                   +---------------------+
 ```
 
 
 ## PC-Side Architecture
 
-### Responsibilities
+The PC tool (`pc_tool/`) does everything the firmware doesn't. It reads the part's description
+and the build, parses what you type, refuses what would hurt the MCU, and talks the wire
+protocol. The MCU never parses text.
 
-The PC tool is responsible for:
+### Modules
 
-- Parsing user input (CLI commands)
-- Handling CLI-only commands (HELP, EXIT, CLEAR, HISTORY)
-- Loading and interpreting `commands.yaml`
-- Validating command parameters and memory ranges against MCU metadata (ATDF/SVD)
-- Serializing commands into binary packets
-- Chunking transfers larger than 4 bytes into multiple packets
-- UART communication with the target MCU
-- Routing incoming packets to response or event queues
+Twelve flat modules in four layers. A module imports only modules from the layers below it,
+and `test/unit/test_layers.py` fails if one doesn't.
 
-The MCU **never** parses text or YAML.
+| Layer | Module | Job |
+|---|---|---|
+| app | `cli_main.py` | Arguments, logging, connect, run, shut down, exit status |
+| | `debug_session.py` | One path for every line: parse, check, send, show. Prompt and script mode |
+| | `user_console.py` | The prompt (history, TAB), HELP, the packet box, the event line, the log handlers |
+| transport | `event_pump.py` | Reader thread that decodes and routes every packet; the event poller in UART-idle mode |
+| | `command_client.py` | Sends one command: a packet per word, waits for each reply, retries |
+| | `serial_link.py` | The port (any pyserial URL), framed reads, locked writes, the reply queue |
+| domain | `command_rules.py` | Accepts a command for this target, or says why not |
+| | `command_parser.py` | One line to one `Command`, by `configs/commands.yaml` |
+| | `target_model.py` | The `Target`: memory, peripherals, registers, symbols, slot counts, firmware range |
+| | `device_description.py` | Reads an ATDF or SVD into peripherals, registers and memory segments |
+| | `elf_symbols.py` | RAM symbols and the flash image range of the ELF |
+| protocol | `wire_protocol.py` | Ids, flags, offsets, `encode`/`decode`, CRC, events |
 
-### Layering
+The domain modules don't print and don't start threads. They return values or raise an error
+whose message is meant for the user; every such error derives from `pc_tool.MdtError`.
+
+### One command, start to finish
+
 ```
-CLI
- ├── CLI Commands (local-only)
- ├── Validator
- │    ├── Command schema validation
- │    ├── Memory range validation (ATDF / SVD based)
- │    ├── Breakpoint / watchpoint slot validation
- ├── Protocol Encoder/Decoder
- │    ├── Serialization (Command → 18-byte packet)
- │    ├── Deserialization (18-byte packet → CommandPacket)
- │    ├── CRC16 calculation and verification
- └── UART Transport
-      ├── rx_worker thread (routes responses / events)
-      └── Commander.execute (chunked send + response collection)
-```
-
-### Validation Model
-
-- CLI-only commands are handled immediately and never sent over UART.
-- Protocol commands follow a strict flow:
-```
-parse → validate → serialize → send → receive → verify
+line ──▶ command_parser.parse ──▶ command_rules.check ──▶ command_client.run ──▶ user_console.packet
+         CommandError (2)         CommandError (3)        NoReplyError (4)
 ```
 
-- Memory validation maps logical memory types (RAM / FLASH / EEPROM) to ATDF/SVD memory segments.
-- FLASH writes are rejected by default unless explicitly enabled.
-- Watchpoint addresses may be unaligned, the MCU reads 4 bytes byte-by-byte and is safe at any
-  address. A warning is logged but the command is not rejected.
+`EXIT`, `HELP` and `CLEAR` are `local: true` in `commands.yaml` and stop after parsing.
+
+The client holds the link lock for a whole exchange, so the event poll can't slip a packet in
+between. Each packet waits for the reply that echoes its command id, sequence and address. A
+NACK, a timeout or a reply with a bad CRC means a resend, three sends at most.
+
+### Threads
+
+- **main**: the prompt or the script, and every command.
+- **reader** (`event_pump`): reads every packet, decodes it, queues replies for the client and
+  hands events to the console. If the port fails (unplugged adapter), it wakes the main thread,
+  which shuts down normally.
+- **poller** (UART-idle mode only): sends a CMD_ID 0 packet every 0.5 s so the MCU can report
+  its events.
+
+Both stop through a `threading.Event`. The link is closed on every way out.
+
+### What the rules check
+
+- READ_MEM / WRITE_MEM: the whole range lies in one segment of the right kind (RAM, flash,
+  EEPROM) of this part, and the data length matches.
+- READ_REG / WRITE_REG: the address is one of the part's registers; a write needs a writable one.
+- BREAKPOINT / WATCHPOINT: the slot exists in the firmware that was built (`build_info.yaml`).
+- WATCHPOINT ENABLED: the 4 watched bytes are in RAM or on a register. The MCU reads them on
+  every sample, and an unmapped address faults an STM32. An unaligned address is allowed (the MCU
+  reads byte by byte) but warned about.
+- Flash writes and erases stay off the running firmware (next section).
+
+### Output and logging
+
+Every module logs to `logging.getLogger(__name__)`, below the `pc_tool` logger. `cli_main`
+gives that logger two handlers:
+
+- **the log file** `logs/mdt_<mcu>_<date>_<time>.log`: everything, as
+  `[HH:MM:SS] [LEVEL](code): message`, between a session header and footer.
+- **the console**: warnings and errors (`WARN:  ...`, `ERROR: ... (code)`), plus the lines
+  marked for the user.
+
+Script mode turns the console off; the log file still gets everything. The packet box and the
+event line are written by `user_console`, one write each.
+
+Error codes: **1** the session can't start (build, port, script file), **2** the line doesn't
+parse, **3** the target refuses it, **4** no reply from the MCU, **5** the serial port failed.
 
 
 ## MCU-Side Architecture
@@ -219,46 +252,47 @@ void    hal_reset(void);  /* drains TX, then resets MCU; does not return */
   chunking; the MCU processes one packet at a time using the sequence number to track order.
 
 - **Events are unsolicited packets from the MCU**: same 18-byte format, EVENT flag set, CMD_ID=0.
-  The PC `rx_worker` routes them to a separate event queue so they don't block command responses.
+  The PC's reader thread hands them to the console, so they never wait behind a command reply.
 
 
 ## Firmware Protection
 
-The PC validator prevents the user from accidentally erasing or overwriting the
-running firmware image. `ConfigLoader` reads the protected range from the firmware
-ELF named in `build_info.yaml`: the span of its load segments that fall in flash
-(code, read-only data and the initial values of `.data`), which is exactly what
-objcopy writes to the `.bin`/`.hex`. The erase page comes from the flash segment of
-the memory map (the build's for STM32, the ATDF's for AVR).
+The PC tool won't let you erase or overwrite the firmware that is running. `target_model` reads
+the protected range from the ELF: the span of its load segments that fall in flash (code,
+read-only data and the initial values of `.data`), which is exactly what objcopy writes to the
+`.bin`/`.hex`. The erase page comes from the flash segment of the memory map (the build's for
+STM32, the ATDF's for AVR).
 
-`ConfigLoader` injects the range into `mcu_metadata["firmware"]`
-(`start`, `end` = first free byte, `size`, `page_size`). The validator uses it in two places:
+`command_rules` uses it twice:
 
-- **FLASH write**: any write whose byte range `[address, address+len)` intersects
-  `[fw_start, fw_end)` is rejected before the packet is sent.
-- **ERASE**: the full page containing `address` is expanded to
-  `[page_base, page_base+page_size)` and checked against the firmware range.
+- **FLASH write**: a write whose bytes `[address, address + len)` touch the image is rejected.
+- **ERASE**: the whole page holding `address` is checked against the image.
 
-If the ELF is missing or nothing of it loads into flash, the PC tool warns that flash
-writes and erases are not checked.
+The ELF is the one named in `build_info.yaml`, or the one you give with `--elf`. If it is missing,
+or nothing of it loads into flash, the tool warns that flash writes and erases are not checked.
 
-## Register Name Resolution
 
-READ_REG and WRITE_REG accept either a raw hex address or a register name. The PC
-tool resolves names to absolute addresses using the SVD (STM32) or ATDF (AVR)
-database via a two-stage lookup in `pc_tool/parser.py`:
+## Part Descriptions and Register Names
 
-1. **Qualified lookup**: if the name contains `_`, split on the first underscore.
-   The left part is the peripheral name, the right part is the register name
-   (which may itself contain underscores, e.g. `TIM1_CCMR1_Output` →
-   peripheral `TIM1`, register `CCMR1_Output`). If the peripheral exists in the
-   metadata, only that peripheral's registers are searched. This is the recommended
-   form because it is unambiguous.
+`device_description` reads the part's description file (`mcu_db` in `build_info.yaml`) into
+peripherals and their registers (address, size in bytes, writable or not), plus the ATDF memory
+segments.
 
-2. **Bare fallback**: if the qualified lookup finds nothing, or if the name has no
-   underscore, all peripherals are searched in order and the first matching register
-   name is returned. AVR register names never contain underscores (verified across
-   all ATmega ATDFs), so AVR always uses this path.
+- **SVD** is read by the CMSIS-SVD rules, so any vendor's file works (STM32, NXP MCX, ...):
+  `derivedFrom` on peripherals, clusters and registers; `dim` arrays (`NAME[%s]` and `%s` with
+  `dimIndex`); cluster and register names joined with `_` (`CH0_CTRL`); size and access inherited
+  device → peripheral → cluster → register, 32-bit read-write when no level says; a register in an
+  `alternateGroup` that reuses a name becomes `NAME_GROUP`.
+- **ATDF** sizes are in bytes, so a 16-bit AVR register (`UBRR0`) covers both its addresses.
+
+READ_REG and WRITE_REG take a hex address or a name, any case:
+
+1. **Qualified** `PERIPHERAL_REGISTER` (`USART1_BRR`, `TIM1_CCMR1_Output`). When peripheral
+   names overlap, the longest one wins: `TIM1_CH_X` is register `X` of `TIM1_CH` if it exists.
+2. **Bare** `REGISTER` (`UDR0`): the first register with that name, in file order. AVR names
+   are unique, so this is the usual form there.
+
+`NAME[3]` is the same as `NAME3`.
 
 
 ## Memory Safety
@@ -361,67 +395,7 @@ must agree to give up a peripheral before MDT is allowed to claim one.
   tool logs a warning for unaligned addresses but does not reject them.
 
 
-## PC-Side Output: File-Only Logger + Terminal Presentation Layer
-
-The PC tool keeps two ideas apart at the module level: the persistent log
-file (what happened, with timestamps) and what the user sees in their
-shell (boxed packet views, error banners, status lines). Each idea has its
-own module.
-
-| Component | Module | Where it writes | Purpose |
-|---|---|---|---|
-| `MDTLogger` | `pc_tool/common/logger.py` | file only | Audit trail. Every command, response, and error, with timestamps. Persists across sessions. |
-| `Terminal` | `pc_tool/common/terminal.py` | stdout | UX. Pretty packet boxes, status lines, the intro banner. Plain text, no colour. |
-
-`MDTLogger` carries a `NullHandler` by default and gets a `FileHandler`
-attached only when `main()` calls `enable_file_logging()`. Tests never
-call that, so tests never produce log files.
-
-The clever bit: a small custom handler called `_TerminalHandler` lives on
-the logger and forwards records at WARNING or ERROR level to the
-`Terminal`. This means every existing `MDTLogger.error("Unknown command: …")`
-call site automatically shows up on the user's screen, with no change to
-those call sites. The parser, the validator, the protocol layer, the
-loader, all still call `MDTLogger.error(...)` like before. The handler
-takes care of the routing.
-
-`Terminal` also has its own API for things that don't fit the level/severity
-shape: `Terminal.packet(...)` for the boxed packet view,
-`Terminal.event(...)` for async events with the prompt redraw,
-`Terminal.intro(...)` for the startup banner, `Terminal.help_table(...)`.
-These also mirror to file handlers so the audit log stays complete from
-both entry points.
-
-### Why two modules instead of one
-
-Mostly so the logger stays simple and the terminal stays fast. The logger
-goes through Python's standard logging machinery and is fine being a bit
-slow (file writes happen rarely). The terminal builds its output as one
-string and writes it once. Measurements with a real file handler attached:
-
-| Call | Time |
-|---|---|
-| `Terminal.packet(...)` | ~13 us |
-| `Terminal.error(...)` | ~2.8 us |
-| `Terminal.info(...)` | ~2.8 us |
-
-### What tests see
-
-The test runner mutes both paths before each test:
-
-```python
-logging.getLogger("MCU-MDT").setLevel(logging.CRITICAL)
-Terminal.set_quiet(True)
-```
-
-The first line cuts off the auto-routed warnings and errors at the logger
-level, before they reach the handler. The second line silences direct
-`Terminal.packet`/`info`/`event` calls. Together they guarantee zero
-stdout pollution during test runs, which is why `python -m test.pymdtest`
-produces only `[PASS]`/`[FAIL]`/`[SKIP]` lines and nothing else from the
-code under test.
-
-
+## Build System
 
 - **Description, then build**: `build_system/` describes every part as a YAML tree (root,
   platform trunk, family branch, part node; see `build_system/README.md`). On every `make`,
@@ -445,30 +419,13 @@ code under test.
 
 ## Testing
 
-Tests are split into three categories and run with the custom `PyMDTest` runner:
+`docs/testing.md` has the details. In short:
 
 ```bash
-MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest   # all tests (unit + integration + hardware)
-python3 -m test.pymdtest                           # unit + integration only (hardware skipped)
+python3 -m test.pymdtest              # everything that needs no board
+python3 -m test.pymdtest golden       # the whole tool against a fake MCU, about 25 seconds
+MCU=F030F4 python3 -m test.pymdtest hardware   # needs a board, or Renode
 ```
-
-| Category    | Location                  | Requires hardware |
-|-------------|---------------------------|-------------------|
-| Unit        | `test/unit/`              | No                |
-| Integration | `test/integration/`       | No                |
-| Hardware    | `test/hardware/`          | Yes (MDT_PORT)    |
-
-The `@parametrize` decorator is custom (`test/pymdtest.py`) and is not compatible with pytest.
-Always use `python3 -m test.pymdtest` to run tests, not `pytest` directly.
-
-Environment variables for hardware tests:
-
-| Variable       | Default      | Description                        |
-|----------------|--------------|------------------------------------|
-| `MDT_PORT`     | unset        | Serial port (e.g. `/dev/ttyACM0`)  |
-| `MDT_BAUD`     | 19200        | Baud rate                          |
-| `MDT_TIMEOUT`  | 2.0          | Per-packet read timeout (seconds)  |
-| `MDT_PLATFORM` | avr          | `avr` or `stm32`                   |
 
 
 ## Known Issues

@@ -1,0 +1,17 @@
+platform: STM32
+mcu: f030f4
+mcu_db: stm32/cortex-m0/STM32F0x0.svd
+port: socket://localhost:<set by the test>
+baudrate: 19200
+uart_idle: true
+breakpoints: 4
+watchpoints: 4
+elf: mcu_mdt_example.elf
+memory:
+  flash:
+    origin: 134217728
+    size: 16384
+    page: 1024
+  ram:
+    origin: 536870912
+    size: 4096
