@@ -15,9 +15,16 @@ from test.common.asserts import assert_eq
 
 
 def test_arguments():
-    args = cli_main.parse_args(["build/f030f4/build_info.yaml", "--elf", "app.elf", "--script", "s.txt"])
-    assert_eq((args.build_info, args.elf, args.script), ("build/f030f4/build_info.yaml", "app.elf", "s.txt"))
-    assert_eq((cli_main.parse_args(["b.yaml"]).elf, cli_main.parse_args(["b.yaml"]).script), (None, None))
+    args = cli_main.parse_args(
+        ["build/f030f4/build_info.yaml", "--elf", "app.elf", "--script", "s.txt"]
+    )
+    assert_eq(
+        (args.build_info, args.elf, args.script),
+        ("build/f030f4/build_info.yaml", "app.elf", "s.txt"),
+    )
+    assert_eq(
+        (cli_main.parse_args(["b.yaml"]).elf, cli_main.parse_args(["b.yaml"]).script), (None, None)
+    )
 
 
 def test_the_main_thread_is_woken_until_shutdown_starts():
@@ -31,7 +38,7 @@ def test_the_main_thread_is_woken_until_shutdown_starts():
         waker.stop()
         count = len(sent)
         time.sleep(0.7)
-        assert count >= 3, sent                          # at once, then every half second
+        assert count >= 3, sent  # at once, then every half second
         assert_eq(len(sent), count, what="wake-ups after stop()")
         assert_eq(set(sent), {signal.SIGINT})
         assert_eq(signal.getsignal(signal.SIGINT), signal.SIG_IGN, what="Ctrl-C during shutdown")

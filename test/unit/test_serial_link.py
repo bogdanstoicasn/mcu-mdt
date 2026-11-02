@@ -29,11 +29,12 @@ def _link(port=None) -> tuple[SerialLink, FakeSerialPort]:
 
 # ---------------------------------------------------------------- 1. opening
 
+
 def test_any_pyserial_url_opens():
     link = SerialLink("loop://", reset_delay=0)
     link.open()
     try:
-        link.send(_PING)                              # loop:// echoes what is written
+        link.send(_PING)  # loop:// echoes what is written
         assert_eq(link.read_packet(timeout=1.0), _PING)
     finally:
         link.close()
@@ -54,11 +55,12 @@ def test_a_device_that_never_appears_is_a_link_error():
 
 # ---------------------------------------------------------------- 2. framing
 
+
 def test_noise_before_the_start_byte_is_skipped():
     link, port = _link()
     port.inject(b"\x00\x13\x37" + _PING + b"\x55")
     assert_eq(link.read_packet(timeout=0.5), _PING)
-    assert_eq(link.read_packet(timeout=0.1), None)    # the stray 0x55 is not a packet
+    assert_eq(link.read_packet(timeout=0.1), None)  # the stray 0x55 is not a packet
 
 
 def test_a_packet_split_over_reads_is_joined():
@@ -77,6 +79,7 @@ def test_nothing_on_the_wire_times_out():
 
 # ---------------------------------------------------------------- 3. bug 3: no busy wait
 
+
 def test_waiting_for_bytes_uses_no_cpu():
     link, _ = _link()
     cpu = time.process_time()
@@ -85,6 +88,7 @@ def test_waiting_for_bytes_uses_no_cpu():
 
 
 # ---------------------------------------------------------------- 4. startup sync
+
 
 def test_sync_echo_means_connected():
     link, port = _link(FakeSerialPort())
@@ -105,13 +109,14 @@ def test_sync_silence_warns_and_returns():
 
 # ---------------------------------------------------------------- 5. the lock
 
+
 def test_no_other_thread_sends_while_a_command_holds_the_link():
     link, port = _link()
     results = []
-    with link.lock:                                   # what the command client does for one exchange
+    with link.lock:  # what the command client does for one exchange
         worker = threading.Thread(target=lambda: results.append(link.try_send(b"poll")))
         worker.start()
         worker.join()
     assert_eq(results, [False])
-    assert_eq(link.try_send(_PING), True)             # free again once the command is done
+    assert_eq(link.try_send(_PING), True)  # free again once the command is done
     assert_eq(port.written, [_PING])

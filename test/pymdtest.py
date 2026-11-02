@@ -4,10 +4,11 @@ import os
 import sys
 import traceback
 
-GREEN  = "\033[92m"
-RED    = "\033[91m"
+GREEN = "\033[92m"
+RED = "\033[91m"
 YELLOW = "\033[93m"
-RESET  = "\033[0m"
+RESET = "\033[0m"
+
 
 # Logger control: tests run with the pc_tool logger muted (a test that checks a warning unmutes it)
 def _silence_logger():
@@ -27,6 +28,7 @@ def parametrize(arg_names: str, cases: list):
         return func
 
     return decorator
+
 
 # Test Runner
 class PyMDTest:
@@ -138,13 +140,16 @@ class PyMDTest:
 
     def report(self):
         """Print a summary of test results."""
-        total_len  = len(self.results)
+        total_len = len(self.results)
         passed_len = sum(1 for _, passed in self.results if passed)
         failed_len = total_len - passed_len
 
         print("\nTEST SUMMARY")
-        print(f"{GREEN}Passed: {passed_len}/{total_len}{RESET}" if failed_len == 0
-              else f"{RED}Passed: {passed_len}/{total_len} — {failed_len} failed{RESET}")
+        print(
+            f"{GREEN}Passed: {passed_len}/{total_len}{RESET}"
+            if failed_len == 0
+            else f"{RED}Passed: {passed_len}/{total_len} — {failed_len} failed{RESET}"
+        )
 
 
 if __name__ == "__main__":

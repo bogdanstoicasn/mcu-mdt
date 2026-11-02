@@ -18,9 +18,9 @@ from pc_tool import MdtError, wire_protocol
 
 log = logging.getLogger(__name__)
 
-_READ_SLICE = 0.05          # seconds one port read may block; bounds how fast a reader sees a stop
-_PORT_APPEAR_WAIT = 5.0     # seconds to wait for a device file to appear (simavr creates its pty late)
-_SYNC_WAIT = 5.0            # seconds to wait for the startup ping's echo
+_READ_SLICE = 0.05  # seconds one port read may block; bounds how fast a reader sees a stop
+_PORT_APPEAR_WAIT = 5.0  # seconds to wait for a device file to appear (simavr creates its pty late)
+_SYNC_WAIT = 5.0  # seconds to wait for the startup ping's echo
 
 
 class LinkError(MdtError):
@@ -34,7 +34,7 @@ class SerialLink:
     def __init__(self, port: str, baudrate: int = 19200, reset_delay: float = 2.0) -> None:
         self.port = port
         self.baudrate = baudrate
-        self.reset_delay = reset_delay      # boards that reset on open (Arduino) need it
+        self.reset_delay = reset_delay  # boards that reset on open (Arduino) need it
         self.lock = threading.RLock()
         self.replies: queue.Queue[wire_protocol.Packet] = queue.Queue()
         self._serial = None
@@ -49,7 +49,9 @@ class SerialLink:
             return
         try:
             _wait_for_device(self.port)
-            self._serial = serial.serial_for_url(self.port, baudrate=self.baudrate, timeout=_READ_SLICE)
+            self._serial = serial.serial_for_url(
+                self.port, baudrate=self.baudrate, timeout=_READ_SLICE
+            )
         except (serial.SerialException, ValueError) as exc:
             raise LinkError(str(exc)) from exc
         if self.reset_delay > 0:
@@ -64,7 +66,11 @@ class SerialLink:
         while len(echoed) < wire_protocol.PACKET_SIZE and time.monotonic() < deadline:
             echoed += self._serial.read(wire_protocol.PACKET_SIZE - len(echoed))
         if len(echoed) < wire_protocol.PACKET_SIZE:
-            log.warning("Startup ping echo mismatch: expected %d, got %d.", wire_protocol.PACKET_SIZE, len(echoed))
+            log.warning(
+                "Startup ping echo mismatch: expected %d, got %d.",
+                wire_protocol.PACKET_SIZE,
+                len(echoed),
+            )
             return False
         log.info("Startup ping successful — MCU is connected.")
         return True
@@ -75,7 +81,7 @@ class SerialLink:
         try:
             self._serial.reset_input_buffer()
             self._serial.reset_output_buffer()
-        except Exception:       # the port may already be gone (unplugged); closing is all that's left
+        except Exception:  # the port may already be gone (unplugged); closing is all that's left
             pass
         self._serial.close()
         self._serial = None
@@ -119,12 +125,14 @@ class SerialLink:
             elif start > 0:
                 del self._rx[:start]
             if len(self._rx) >= wire_protocol.PACKET_SIZE:
-                packet = bytes(self._rx[:wire_protocol.PACKET_SIZE])
-                del self._rx[:wire_protocol.PACKET_SIZE]
+                packet = bytes(self._rx[: wire_protocol.PACKET_SIZE])
+                del self._rx[: wire_protocol.PACKET_SIZE]
                 return packet
             if time.monotonic() >= deadline or not self.is_open:
                 return None
-            self._rx += self._serial.read(max(1, self._serial.in_waiting))   # blocks up to _READ_SLICE
+            self._rx += self._serial.read(
+                max(1, self._serial.in_waiting)
+            )  # blocks up to _READ_SLICE
 
     # ---------------------------------------------------------------- replies
 
@@ -150,7 +158,9 @@ def _wait_for_device(port: str) -> None:
     deadline = time.monotonic() + _PORT_APPEAR_WAIT
     while not os.path.exists(port):
         if time.monotonic() >= deadline:
-            raise LinkError(f"Port '{port}' did not appear within {_PORT_APPEAR_WAIT:.0f}s. "
-                            f"Check the board is connected and the port is correct "
-                            f"(e.g. /dev/ttyUSB0 or /dev/ttyACM0)")
+            raise LinkError(
+                f"Port '{port}' did not appear within {_PORT_APPEAR_WAIT:.0f}s. "
+                f"Check the board is connected and the port is correct "
+                f"(e.g. /dev/ttyUSB0 or /dev/ttyACM0)"
+            )
         time.sleep(0.1)

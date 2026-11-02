@@ -14,8 +14,8 @@ from pc_tool import MdtError, serial_link, wire_protocol
 
 log = logging.getLogger(__name__)
 
-REPLY_TIMEOUT = 1.0     # seconds per attempt
-MAX_ATTEMPTS = 3        # sends per packet before giving up
+REPLY_TIMEOUT = 1.0  # seconds per attempt
+MAX_ATTEMPTS = 3  # sends per packet before giving up
 
 
 class NoReplyError(MdtError):
@@ -40,12 +40,17 @@ class CommandClient:
             log.info("Serialized Command Packet: %s", packet.hex())
             reply = self._exchange(packet)
             if reply is None:
-                message = (f"Ping failed after {MAX_ATTEMPTS} attempts." if command.id == wire_protocol.CommandId.PING
-                           else f"Command failed after {MAX_ATTEMPTS} attempts (seq={seq}). Aborting.")
+                message = (
+                    f"Ping failed after {MAX_ATTEMPTS} attempts."
+                    if command.id == wire_protocol.CommandId.PING
+                    else f"Command failed after {MAX_ATTEMPTS} attempts (seq={seq}). Aborting."
+                )
                 raise NoReplyError(message, replies)
             log.info("Received ACK: %s", reply.raw.hex())
             if reply.is_error:
-                log.error("Command execution error indicated by status flag.", extra={"code": "(3)"})
+                log.error(
+                    "Command execution error indicated by status flag.", extra={"code": "(3)"}
+                )
             else:
                 log.info("Command packet validation successful.")
             replies.append(reply)
@@ -61,10 +66,19 @@ class CommandClient:
                 self._link.send(packet)
                 reply = self._await_reply(sent)
                 if reply is None:
-                    log.warning("No response from MCU for seq=%d (attempt %d/%d).", sent.seq, attempt, MAX_ATTEMPTS)
+                    log.warning(
+                        "No response from MCU for seq=%d (attempt %d/%d).",
+                        sent.seq,
+                        attempt,
+                        MAX_ATTEMPTS,
+                    )
                 elif reply.is_nack:
-                    log.warning("NACK received for seq=%d (attempt %d/%d), retrying...", reply.seq, attempt,
-                                MAX_ATTEMPTS)
+                    log.warning(
+                        "NACK received for seq=%d (attempt %d/%d), retrying...",
+                        reply.seq,
+                        attempt,
+                        MAX_ATTEMPTS,
+                    )
                 else:
                     return reply
         return None
@@ -77,8 +91,11 @@ class CommandClient:
             reply = self._link.next_reply(left)
             if reply is None:
                 return None
-            if reply.is_nack or (reply.is_ack and (reply.cmd_id, reply.seq, reply.address)
-                                 == (sent.cmd_id, sent.seq, sent.address)):
+            if reply.is_nack or (
+                reply.is_ack
+                and (reply.cmd_id, reply.seq, reply.address)
+                == (sent.cmd_id, sent.seq, sent.address)
+            ):
                 return reply
             log.info("Dropped a reply to another request: %s", reply.raw.hex())
         return None
@@ -87,17 +104,32 @@ class CommandClient:
 def _packets(command: wire_protocol.Command) -> list[tuple[int, bytes]]:
     """(seq, packet) for every word of *command*."""
     if command.id == wire_protocol.CommandId.PING:
-        return [(0, wire_protocol.encode(command))]     # bare, length 0, as the startup sync sends it
+        return [(0, wire_protocol.encode(command))]  # bare, length 0, as the startup sync sends it
     length = command.length if command.length is not None else wire_protocol.WORD_SIZE
     packets = []
     for index, offset in enumerate(range(0, length, wire_protocol.WORD_SIZE)):
         size = min(wire_protocol.WORD_SIZE, length - offset)
         data = None
         if command.data is not None:
-            data = command.data[offset:offset + size].ljust(wire_protocol.WORD_SIZE, b"\0")
-        word = wire_protocol.Command(name=command.name, id=command.id, mem=command.mem,
-                                     address=command.address + offset, data=data, length=size)
-        seq = index % 0xFF                              # 0..254, then wraps
-        packets.append((seq, wire_protocol.encode(word, seq=seq, multi=length > wire_protocol.WORD_SIZE,
-                                                  last=offset + wire_protocol.WORD_SIZE >= length)))
+            data = command.data[offset : offset + size].ljust(wire_protocol.WORD_SIZE, b"\0")
+        word = wire_protocol.Command(
+            name=command.name,
+            id=command.id,
+            mem=command.mem,
+            address=command.address + offset,
+            data=data,
+            length=size,
+        )
+        seq = index % 0xFF  # 0..254, then wraps
+        packets.append(
+            (
+                seq,
+                wire_protocol.encode(
+                    word,
+                    seq=seq,
+                    multi=length > wire_protocol.WORD_SIZE,
+                    last=offset + wire_protocol.WORD_SIZE >= length,
+                ),
+            )
+        )
     return packets

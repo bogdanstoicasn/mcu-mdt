@@ -32,11 +32,22 @@ ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "build" / "sim"
 
 TARGETS = {
-    "f103c8": dict(mcu="F103C8", emulator="renode", resc="stm32f103.resc", uart_idle=True, flash=True),
-    "f030f4": dict(mcu="F030F4", emulator="renode", resc="stm32f030.resc", uart_idle=False, flash=True,
-                   settings=["UART_IDLE=0"]),
-    "atmega328p": dict(mcu="atmega328p", emulator="simavr", f_cpu=16000000, uart_idle=False, flash=False),
+    "f103c8": dict(
+        mcu="F103C8", emulator="renode", resc="stm32f103.resc", uart_idle=True, flash=True
+    ),
+    "f030f4": dict(
+        mcu="F030F4",
+        emulator="renode",
+        resc="stm32f030.resc",
+        uart_idle=False,
+        flash=True,
+        settings=["UART_IDLE=0"],
+    ),
+    "atmega328p": dict(
+        mcu="atmega328p", emulator="simavr", f_cpu=16000000, uart_idle=False, flash=False
+    ),
 }
+
 
 @dataclass
 class Emulated:
@@ -45,7 +56,7 @@ class Emulated:
     build_info: Path
     elf: Path
     uart_idle: bool
-    flash: bool                     # flash erase and write can be tried (they fail in Renode: no flash controller)
+    flash: bool  # flash erase and write can be tried (they fail in Renode: no flash controller)
     process: subprocess.Popen
 
     @property
@@ -81,7 +92,7 @@ def _start(name: str) -> Emulated:
     elf = _build_firmware(part, spec)
     port = _free_port()
     out = WORK / part
-    log = open(out / "emulator.log", "w")    # noqa: SIM115 - the emulator writes to it until it stops
+    log = open(out / "emulator.log", "w")  # noqa: SIM115 - the emulator writes to it until it stops
     if spec["emulator"] == "renode":
         renode = os.environ.get("RENODE") or shutil.which("renode")
         if not renode:
@@ -89,14 +100,24 @@ def _start(name: str) -> Emulated:
         resc = out / "validation.resc"
         resc.write_text(_resc(spec["resc"], part, elf, port))
         cmd = [renode, "--disable-gui", "-P", str(_free_port()), str(resc)]
-        process = subprocess.Popen(cmd, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT)
+        process = subprocess.Popen(
+            cmd, stdin=subprocess.PIPE, stdout=log, stderr=subprocess.STDOUT, cwd=ROOT
+        )
     else:
         bridge = _build_avr_bridge()
         cmd = [str(bridge), part, str(spec["f_cpu"]), str(elf), str(port)]
         process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT)
     _wait_for_port(port, process, timeout=90)
-    time.sleep(1.0)                 # let the firmware run mcu_mdt_init()
-    return Emulated(name, port, ROOT / "build" / part / "build_info.yaml", elf, spec["uart_idle"], spec["flash"], process)
+    time.sleep(1.0)  # let the firmware run mcu_mdt_init()
+    return Emulated(
+        name,
+        port,
+        ROOT / "build" / part / "build_info.yaml",
+        elf,
+        spec["uart_idle"],
+        spec["flash"],
+        process,
+    )
 
 
 def _resc(name: str, part: str, elf: Path, port: int) -> str:
@@ -129,11 +150,28 @@ def _build_firmware(part: str, spec: dict) -> Path:
     out = WORK / part
     out.mkdir(parents=True, exist_ok=True)
     elf = out / "validation.elf"
-    ldflags = [f for f in shlex.split(mk["LDFLAGS"]) if not f.startswith("-Wl,-Map=") and f != "-Wl,--print-gc-sections"]
-    cmd = [mk["CC"], *shlex.split(mk["CFLAGS"]), f"-I{mk['INC_DIR']}", f"-I{mk['HAL_DIR']}", f"-I{build}",
-           "-include", str(build / "mdt_target.h"), *ldflags, *shlex.split(mk.get("STARTUP", "")),
-           str(Path(__file__).with_name("validation_main.c")), f"-L{build}", f"-l{mk['LIB']}",
-           *shlex.split(mk.get("LDLIBS", "")), "-o", str(elf)]
+    ldflags = [
+        f
+        for f in shlex.split(mk["LDFLAGS"])
+        if not f.startswith("-Wl,-Map=") and f != "-Wl,--print-gc-sections"
+    ]
+    cmd = [
+        mk["CC"],
+        *shlex.split(mk["CFLAGS"]),
+        f"-I{mk['INC_DIR']}",
+        f"-I{mk['HAL_DIR']}",
+        f"-I{build}",
+        "-include",
+        str(build / "mdt_target.h"),
+        *ldflags,
+        *shlex.split(mk.get("STARTUP", "")),
+        str(Path(__file__).with_name("validation_main.c")),
+        f"-L{build}",
+        f"-l{mk['LIB']}",
+        *shlex.split(mk.get("LDLIBS", "")),
+        "-o",
+        str(elf),
+    ]
     _run(cmd, cwd=ROOT)
     return elf
 
@@ -157,7 +195,9 @@ def _make_vars(path: Path):
 def _run(cmd, cwd):
     done = subprocess.run(cmd, cwd=cwd, capture_output=True, text=True)
     if done.returncode:
-        raise RuntimeError(f"{' '.join(map(str, cmd[:3]))} ... failed:\n{(done.stdout + done.stderr)[-1500:]}")
+        raise RuntimeError(
+            f"{' '.join(map(str, cmd[:3]))} ... failed:\n{(done.stdout + done.stderr)[-1500:]}"
+        )
 
 
 def _free_port() -> int:

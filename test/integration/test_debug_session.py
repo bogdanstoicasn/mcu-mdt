@@ -84,29 +84,57 @@ class _Session:
 
 # ---------------------------------------------------------------- 1. every command
 
-@parametrize("line,cmd_id,mem,address,data", [
-    ("PING",                             CommandId.PING,       None,                       0,          bytes(4)),
-    ("READ_MEM RAM 0x20000100 4",        CommandId.READ_MEM,   MemType.RAM,                0x20000100, bytes(4)),
-    ("WRITE_MEM RAM 0x20000100 4 CAFE0102", CommandId.WRITE_MEM, MemType.RAM,              0x20000100,
-     bytes.fromhex("CAFE0102")),
-    ("READ_REG USART1_BRR",              CommandId.READ_REG,   None,                       0x40013808, bytes(4)),
-    ("WRITE_REG USART1_DR 000000FF",     CommandId.WRITE_REG,  None,                       0x40013804,
-     bytes.fromhex("000000FF")),
-    ("RESET",                            CommandId.RESET,      None,                       0,          bytes(4)),
-    ("BREAKPOINT 1 ENABLED",             CommandId.BREAKPOINT, 1,                          1,          bytes(4)),
-    ("WATCHPOINT 0 ENABLED 0x20000100",  CommandId.WATCHPOINT, WatchpointControl.ENABLED,  0,
-     (0x20000100).to_bytes(4, "little")),
-    ("WATCHPOINT 0 RESET",               CommandId.WATCHPOINT, WatchpointControl.RESET,    0,          bytes(4)),
-])
+
+@parametrize(
+    "line,cmd_id,mem,address,data",
+    [
+        ("PING", CommandId.PING, None, 0, bytes(4)),
+        ("READ_MEM RAM 0x20000100 4", CommandId.READ_MEM, MemType.RAM, 0x20000100, bytes(4)),
+        (
+            "WRITE_MEM RAM 0x20000100 4 CAFE0102",
+            CommandId.WRITE_MEM,
+            MemType.RAM,
+            0x20000100,
+            bytes.fromhex("CAFE0102"),
+        ),
+        ("READ_REG USART1_BRR", CommandId.READ_REG, None, 0x40013808, bytes(4)),
+        (
+            "WRITE_REG USART1_DR 000000FF",
+            CommandId.WRITE_REG,
+            None,
+            0x40013804,
+            bytes.fromhex("000000FF"),
+        ),
+        ("RESET", CommandId.RESET, None, 0, bytes(4)),
+        ("BREAKPOINT 1 ENABLED", CommandId.BREAKPOINT, 1, 1, bytes(4)),
+        (
+            "WATCHPOINT 0 ENABLED 0x20000100",
+            CommandId.WATCHPOINT,
+            WatchpointControl.ENABLED,
+            0,
+            (0x20000100).to_bytes(4, "little"),
+        ),
+        ("WATCHPOINT 0 RESET", CommandId.WATCHPOINT, WatchpointControl.RESET, 0, bytes(4)),
+    ],
+)
 def test_every_command_reaches_the_wire_and_its_reply_is_shown(line, cmd_id, mem, address, data):
     with _Session() as s:
         assert_eq(s.session.run_line(line), True)
     sent = s.sent()
-    assert_eq([(p.cmd_id, p.mem_id, p.address, p.data) for p in sent], [(cmd_id, mem, address, data)], line=line)
-    assert_eq([(r.cmd_id, r.is_ack, r.is_error) for r in s.console.packets], [(cmd_id, True, False)], line=line)
+    assert_eq(
+        [(p.cmd_id, p.mem_id, p.address, p.data) for p in sent],
+        [(cmd_id, mem, address, data)],
+        line=line,
+    )
+    assert_eq(
+        [(r.cmd_id, r.is_ack, r.is_error) for r in s.console.packets],
+        [(cmd_id, True, False)],
+        line=line,
+    )
 
 
 # ---------------------------------------------------------------- 2. words
+
 
 def test_a_long_write_reads_back_word_by_word():
     with _Session() as s:
@@ -123,21 +151,25 @@ def test_erase_fills_the_page():
         s.session.run_line("WRITE_MEM ERASE 0x08004000 1 00")
         s.console.packets.clear()
         s.session.run_line("READ_MEM FLASH 0x08004010 4")
-    assert_eq(s.console.packets[0].data, b"\xFF" * 4)
+    assert_eq(s.console.packets[0].data, b"\xff" * 4)
 
 
 # ---------------------------------------------------------------- 3. refused lines
 
-@parametrize("line,code", [
-    ("NOPE", 3),
-    ("READ_MEM RAM zz 4", 2),                   # no symbols in this target
-    ("READ_MEM RAM 0x20004FFC 8", 3),           # past the end of RAM
-    ("WRITE_MEM FLASH 0x08000000 4 00000000", 3),   # the running firmware
-    ("BREAKPOINT 9 ENABLED", 3),
-    ("WATCHPOINT 0 ENABLED", 3),
-    ("WATCHPOINT 0 MASK", 3),                  # would set the mask to 0
-    ("READ_REG 0x50000000", 3),
-])
+
+@parametrize(
+    "line,code",
+    [
+        ("NOPE", 3),
+        ("READ_MEM RAM zz 4", 2),  # no symbols in this target
+        ("READ_MEM RAM 0x20004FFC 8", 3),  # past the end of RAM
+        ("WRITE_MEM FLASH 0x08000000 4 00000000", 3),  # the running firmware
+        ("BREAKPOINT 9 ENABLED", 3),
+        ("WATCHPOINT 0 ENABLED", 3),
+        ("WATCHPOINT 0 MASK", 3),  # would set the mask to 0
+        ("READ_REG 0x50000000", 3),
+    ],
+)
 def test_a_refused_line_sends_nothing(line, code):
     with _Session() as s:
         try:
@@ -162,13 +194,18 @@ def test_no_reply_raises_after_the_retries():
 
 # ---------------------------------------------------------------- 4. local commands
 
+
 def test_local_commands_never_leave_the_pc():
     with _Session() as s:
-        assert_eq([s.session.run_line(line) for line in ("help", "CLEAR", "  ", "EXIT")], [True, True, True, False])
+        assert_eq(
+            [s.session.run_line(line) for line in ("help", "CLEAR", "  ", "EXIT")],
+            [True, True, True, False],
+        )
     assert_eq((s.port.written, s.console.helps, s.console.clears), ([], 1, 1))
 
 
 # ---------------------------------------------------------------- 5. events
+
 
 def test_a_watchpoint_reports_the_change():
     with _Session(uart_idle=True) as s:
@@ -179,10 +216,14 @@ def test_a_watchpoint_reports_the_change():
             time.sleep(0.05)
     assert_eq(len(s.console.events), 1)
     event = s.console.events[0]
-    assert_eq((event.kind, event.slot, event.data), (EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 0, 0x04030201))
+    assert_eq(
+        (event.kind, event.slot, event.data),
+        (EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 0, 0x04030201),
+    )
 
 
 # ---------------------------------------------------------------- 6. scripts
+
 
 def _script(s: _Session, text: str) -> bool:
     with tempfile.TemporaryDirectory() as tmp:
@@ -199,20 +240,29 @@ def test_a_script_runs_every_line():
     assert_eq(warnings, ["Skipping PC-only command at line 4: HELP"])
 
 
-@parametrize("bad_line,why", [
-    ("NOPE", "Script aborted: parse error at line 2: 'NOPE'"),
-    ("BREAKPOINT 9 ENABLED", "Script aborted: validation failed at line 2: 'BREAKPOINT 9 ENABLED'"),
-])
+@parametrize(
+    "bad_line,why",
+    [
+        ("NOPE", "Script aborted: parse error at line 2: 'NOPE'"),
+        (
+            "BREAKPOINT 9 ENABLED",
+            "Script aborted: validation failed at line 2: 'BREAKPOINT 9 ENABLED'",
+        ),
+    ],
+)
 def test_the_first_error_stops_the_script(bad_line, why):
     with _Session() as s, logged_warnings("pc_tool.debug_session") as errors:
         ok = _script(s, f"PING\n{bad_line}\nRESET\n")
     assert_eq(ok, False)
-    assert_eq([p.cmd_id for p in s.sent()], [CommandId.PING])        # RESET never sent
+    assert_eq([p.cmd_id for p in s.sent()], [CommandId.PING])  # RESET never sent
     assert_eq(errors[-1], why)
 
 
 def test_no_reply_stops_the_script():
-    with _Session(answer=lambda request: b"") as s, logged_warnings("pc_tool.debug_session") as errors:
+    with (
+        _Session(answer=lambda request: b"") as s,
+        logged_warnings("pc_tool.debug_session") as errors,
+    ):
         ok = _script(s, "PING\nRESET\n")
     assert_eq(ok, False)
     assert_eq(errors[-1], "Script aborted: no reply at line 1: 'PING'")

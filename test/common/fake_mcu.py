@@ -40,15 +40,20 @@ class FakeMcu:
 
     def __init__(self) -> None:
         self.memory = bytearray(PATTERN)
-        self.watch: dict[int, tuple[int, int]] = {}      # slot -> (address, last reported value)
+        self.watch: dict[int, tuple[int, int]] = {}  # slot -> (address, last reported value)
 
     def _word(self, address: int) -> int:
-        return int.from_bytes(bytes(self.memory[(address + i) % len(self.memory)] for i in range(4)), "little")
+        return int.from_bytes(
+            bytes(self.memory[(address + i) % len(self.memory)] for i in range(4)), "little"
+        )
 
     def handle(self, request: bytes) -> bytes:
         """The reply to one 18-byte request."""
-        if (request[0] != START or request[17] != END
-                or crc16(request[1:15]) != int.from_bytes(request[15:17], "little")):
+        if (
+            request[0] != START
+            or request[17] != END
+            or crc16(request[1:15]) != int.from_bytes(request[15:17], "little")
+        ):
             return _seal(bytearray([START, 0, ACK | ERROR, request[3]] + [0] * 13 + [END]))
 
         reply, cmd, mem = bytearray(request), request[1], request[4]
@@ -57,22 +62,24 @@ class FakeMcu:
         ok = True
         if cmd == 0x00:
             self._report_watchpoint(reply)
-        elif cmd in (0x01, 0x03):                         # READ_MEM, READ_REG
+        elif cmd in (0x01, 0x03):  # READ_MEM, READ_REG
             n = 4 if cmd == 0x03 else min(length, 4)
-            reply[11:15] = bytes(self.memory[(address + i) % len(self.memory)] for i in range(n)).ljust(4, b"\0")
-        elif cmd == 0x02 and mem == 3:                    # WRITE_MEM ERASE
+            reply[11:15] = bytes(
+                self.memory[(address + i) % len(self.memory)] for i in range(n)
+            ).ljust(4, b"\0")
+        elif cmd == 0x02 and mem == 3:  # WRITE_MEM ERASE
             for i in range(1024):
                 self.memory[((address & ~1023) + i) % len(self.memory)] = 0xFF
-        elif cmd in (0x02, 0x04):                         # WRITE_MEM, WRITE_REG
+        elif cmd in (0x02, 0x04):  # WRITE_MEM, WRITE_REG
             for i in range(4 if cmd == 0x04 else min(length, 4)):
                 self.memory[(address + i) % len(self.memory)] = request[11 + i]
-        elif cmd == 0x08:                                 # WATCHPOINT: mem = control, address = slot
+        elif cmd == 0x08:  # WATCHPOINT: mem = control, address = slot
             if mem == 1:
                 watched = int.from_bytes(request[11:15], "little")
                 self.watch[address] = (watched, self._word(watched))
             elif mem in (0, 2):
                 self.watch.pop(address, None)
-        elif cmd not in (0x05, 0x06, 0x07):               # PING, RESET, BREAKPOINT
+        elif cmd not in (0x05, 0x06, 0x07):  # PING, RESET, BREAKPOINT
             ok = False
         reply[2] |= ACK if ok else ACK | ERROR
         return _seal(reply)
@@ -83,7 +90,7 @@ class FakeMcu:
             if now != last:
                 self.watch[slot] = (address, now)
                 reply[2] |= EVENT
-                reply[3], reply[4] = slot, 4                  # seq = slot, mem = WATCHPOINT_HIT
+                reply[3], reply[4] = slot, 4  # seq = slot, mem = WATCHPOINT_HIT
                 reply[5:9] = last.to_bytes(4, "little")
                 reply[9:11] = (4).to_bytes(2, "little")
                 reply[11:15] = now.to_bytes(4, "little")
@@ -101,16 +108,18 @@ class FakeSerialPort:
         self.answer = answer or self.mcu.handle
         self.timeout = timeout
         self.is_open = True
-        self.written: list[bytes] = []                    # every request, in order
+        self.written: list[bytes] = []  # every request, in order
         self._pending, self._rx = b"", bytearray()
         self._ready = threading.Condition()
 
     def write(self, data: bytes) -> int:
         self._pending += data
         replies = b""
-        while (start := self._pending.find(bytes([START]))) >= 0 and len(self._pending) - start >= PACKET_SIZE:
-            request = self._pending[start:start + PACKET_SIZE]
-            self._pending = self._pending[start + PACKET_SIZE:]
+        while (start := self._pending.find(bytes([START]))) >= 0 and len(
+            self._pending
+        ) - start >= PACKET_SIZE:
+            request = self._pending[start : start + PACKET_SIZE]
+            self._pending = self._pending[start + PACKET_SIZE :]
             self.written.append(request)
             replies += self.answer(request)
         self.inject(replies)
@@ -161,7 +170,7 @@ def _accept_forever(server: socket.socket) -> None:
     while True:
         try:
             conn, _ = server.accept()
-        except OSError:                                   # the server socket was closed
+        except OSError:  # the server socket was closed
             return
         threading.Thread(target=_talk, args=(conn,), daemon=True).start()
 
@@ -177,9 +186,11 @@ def _talk(conn: socket.socket) -> None:
             if not chunk:
                 return
             pending += chunk
-            while (start := pending.find(bytes([START]))) >= 0 and len(pending) - start >= PACKET_SIZE:
-                conn.sendall(mcu.handle(pending[start:start + PACKET_SIZE]))
-                pending = pending[start + PACKET_SIZE:]
+            while (start := pending.find(bytes([START]))) >= 0 and len(
+                pending
+            ) - start >= PACKET_SIZE:
+                conn.sendall(mcu.handle(pending[start : start + PACKET_SIZE]))
+                pending = pending[start + PACKET_SIZE :]
             if START not in pending:
                 pending = b""
 

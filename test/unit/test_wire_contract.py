@@ -37,8 +37,10 @@ def _c_members(rel_path: str, prefix: str, aliases: dict | None = None) -> dict:
     """Parse ``<prefix>NAME = value`` enum members; return {NAME: value}."""
     aliases = aliases or {}
     pattern = rf"\b{prefix}(\w+)\s*=\s*(0x[0-9A-Fa-f]+|\d+)\b"
-    return {aliases.get(name, name): int(value, 0)
-            for name, value in re.findall(pattern, _text(rel_path))}
+    return {
+        aliases.get(name, name): int(value, 0)
+        for name, value in re.findall(pattern, _text(rel_path))
+    }
 
 
 def _c_defines(rel_path: str, prefix: str) -> dict:
@@ -52,9 +54,13 @@ def _py(enum_cls, skip=()) -> dict:
 
 
 def _assert_same(c_side: dict, py_side: dict, what: str) -> None:
-    assert_eq(c_side, py_side, what=what,
-              only_in_c=sorted(set(c_side) - set(py_side)),
-              only_in_python=sorted(set(py_side) - set(c_side)))
+    assert_eq(
+        c_side,
+        py_side,
+        what=what,
+        only_in_c=sorted(set(c_side) - set(py_side)),
+        only_in_python=sorted(set(py_side) - set(c_side)),
+    )
 
 
 def test_packet_size():
@@ -63,13 +69,16 @@ def test_packet_size():
 
 
 def test_field_offsets():
-    _assert_same(_c_defines("src/mcu_mdt_protocol.h", "MDT_OFFSET_"), _py(wire_protocol.Offset), "MDT_OFFSET_*")
+    _assert_same(
+        _c_defines("src/mcu_mdt_protocol.h", "MDT_OFFSET_"),
+        _py(wire_protocol.Offset),
+        "MDT_OFFSET_*",
+    )
 
 
 def test_fence_bytes():
     c = _c_defines("src/mcu_mdt_protocol.h", "MDT_")
-    assert_eq((c["START_BYTE"], c["END_BYTE"]),
-              (wire_protocol.START_BYTE, wire_protocol.END_BYTE))
+    assert_eq((c["START_BYTE"], c["END_BYTE"]), (wire_protocol.START_BYTE, wire_protocol.END_BYTE))
 
 
 def test_flags():
@@ -79,7 +88,7 @@ def test_flags():
 
 def test_command_ids_c_vs_python():
     c = _c_members("src/mcu_mdt_protocol.h", "INTERNAL_MDT_CMD_")
-    assert_eq(c.pop("NONE"), 0)                       # id 0 is reserved for CMD_ID=0 polls/events
+    assert_eq(c.pop("NONE"), 0)  # id 0 is reserved for CMD_ID=0 polls/events
     _assert_same(c, _py(wire_protocol.CommandId), "INTERNAL_MDT_CMD_*")
 
 
@@ -87,7 +96,9 @@ def test_command_ids_yaml_vs_python():
     commands = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["commands"]
     yaml_ids = {name: spec["id"] for name, spec in commands.items() if not spec.get("local")}
     _assert_same(yaml_ids, _py(wire_protocol.CommandId), "commands.yaml ids")
-    assert all("id" not in spec for spec in commands.values() if spec.get("local")), "a local command has an id"
+    assert all("id" not in spec for spec in commands.values() if spec.get("local")), (
+        "a local command has an id"
+    )
 
 
 def test_event_types():
@@ -110,13 +121,27 @@ def test_breakpoint_and_watchpoint_controls():
 
 def test_commands_yaml_choices_send_their_commands_values():
     """Each command takes only its own control names, and each name sends that command's value."""
-    own = {"READ_MEM": wire_protocol.MemType, "WRITE_MEM": wire_protocol.MemType,
-           "BREAKPOINT": wire_protocol.BreakpointControl, "WATCHPOINT": wire_protocol.WatchpointControl}
+    own = {
+        "READ_MEM": wire_protocol.MemType,
+        "WRITE_MEM": wire_protocol.MemType,
+        "BREAKPOINT": wire_protocol.BreakpointControl,
+        "WATCHPOINT": wire_protocol.WatchpointControl,
+    }
     commands = yaml.safe_load(_text("pc_tool/configs/commands.yaml"))["commands"]
-    choices = [(name, param["values"]) for name, spec in commands.items()
-               for param in spec.get("params", []) if param["type"] == "choice"]
+    choices = [
+        (name, param["values"])
+        for name, spec in commands.items()
+        for param in spec.get("params", [])
+        if param["type"] == "choice"
+    ]
     assert_eq(sorted({name for name, _ in choices}), sorted(own))
     for name, values in choices:
         assert_eq(values, {word: own[name][word].value for word in values}, command=name)
-    assert_eq(set(commands["WATCHPOINT"]["params"][1]["values"]), set(_py(wire_protocol.WatchpointControl)))
-    assert_eq(set(commands["BREAKPOINT"]["params"][1]["values"]), set(_py(wire_protocol.BreakpointControl)))
+    assert_eq(
+        set(commands["WATCHPOINT"]["params"][1]["values"]),
+        set(_py(wire_protocol.WatchpointControl)),
+    )
+    assert_eq(
+        set(commands["BREAKPOINT"]["params"][1]["values"]),
+        set(_py(wire_protocol.BreakpointControl)),
+    )

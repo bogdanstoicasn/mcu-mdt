@@ -23,9 +23,15 @@ def _file(content: bytes, tmp: str) -> str:
 
 def test_image_extent_spans_code_and_data_initialisers_in_flash():
     with tempfile.TemporaryDirectory() as tmp:
-        elf = _file(elf_with_segments([(0, 0, 0xBD4, 0xBD4), (0x800100, 0xBD4, 0x36, 0x36),
-                                       (0x800136, 0x800136, 0, 0xC6)]), tmp)
-        assert_eq(elf_symbols.image_extent(elf, [(0, 0x8000)]), (0, 0xC0A))   # AVR-like: .data LMA after .text
+        elf = _file(
+            elf_with_segments(
+                [(0, 0, 0xBD4, 0xBD4), (0x800100, 0xBD4, 0x36, 0x36), (0x800136, 0x800136, 0, 0xC6)]
+            ),
+            tmp,
+        )
+        assert_eq(
+            elf_symbols.image_extent(elf, [(0, 0x8000)]), (0, 0xC0A)
+        )  # AVR-like: .data LMA after .text
         assert_eq(elf_symbols.image_extent(elf, [(0x8000, 0x10000)]), None)  # nothing loads there
         assert_eq(elf_symbols.image_extent(elf, []), None)
 
@@ -38,9 +44,12 @@ def _watchable(platform: str, symbols: list, ram: list) -> dict:
 
 def test_only_ram_symbols_are_watchable_on_any_platform():
     symbols = [("counter", 0x20000010, 4), ("table", 0x00001000, 4), ("gpio", 0x40000000, 4)]
-    for platform in ("STM32", "NXP"):          # a platform the tool has never heard of behaves the same
-        assert_eq(_watchable(platform, symbols, [(0x20000000, 0x20001000)]), {"counter": (0x20000010, 4)},
-                  platform=platform)
+    for platform in ("STM32", "NXP"):  # a platform the tool has never heard of behaves the same
+        assert_eq(
+            _watchable(platform, symbols, [(0x20000000, 0x20001000)]),
+            {"counter": (0x20000010, 4)},
+            platform=platform,
+        )
 
 
 def test_avr_symbols_lose_the_data_space_offset_and_flash_stays_out():

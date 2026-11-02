@@ -70,14 +70,22 @@ class Live:
         t = emu.target()
         self.console = _Console()
         self.lost = []
-        self.link = serial_link.SerialLink(f"socket://localhost:{proxy.port}" if proxy else t.url, reset_delay=0)
+        self.link = serial_link.SerialLink(
+            f"socket://localhost:{proxy.port}" if proxy else t.url, reset_delay=0
+        )
         self.link.open()
         assert self.link.sync(PING), "the MCU did not answer the startup ping"
-        self.pump = event_pump.EventPump(self.link, t.uart_idle, on_event=self.console.event,
-                                         on_lost=lambda: self.lost.append(time.monotonic()))
+        self.pump = event_pump.EventPump(
+            self.link,
+            t.uart_idle,
+            on_event=self.console.event,
+            on_lost=lambda: self.lost.append(time.monotonic()),
+        )
         self.drained = self.pump.drain_stale_events()
         self.pump.start()
-        self.session = debug_session.DebugSession(model(), SPECS, command_client.CommandClient(self.link), self.console)
+        self.session = debug_session.DebugSession(
+            model(), SPECS, command_client.CommandClient(self.link), self.console
+        )
 
     def __enter__(self):
         return self
@@ -119,7 +127,7 @@ class Live:
         return self.events(kind, since)
 
     def quiet_for(self, kind, seconds: float) -> bool:
-        time.sleep(0.6)                                  # a sample already on the wire may still arrive
+        time.sleep(0.6)  # a sample already on the wire may still arrive
         since = time.monotonic()
         time.sleep(seconds)
         return not self.events(kind, since)
@@ -141,6 +149,7 @@ def _faulted(fault):
 
 # ---------------------------------------------------------------- 1. memory
 
+
 def test_long_writes_read_back_at_every_length_and_offset():
     if emu.skip():
         return
@@ -152,9 +161,13 @@ def test_long_writes_read_back_at_every_length_and_offset():
         for offset, length in ((1, 1), (3, 2), (5, 3), (7, 5), (13, 7), (0, 13), (50, 14)):
             data = bytes((offset + i) ^ 0xA5 for i in range(length))
             live.ok(f"WRITE_MEM RAM 0x{base + offset:X} {length} {data.hex()}")
-            got = b"".join(r.data for r in live.ok(f"READ_MEM RAM 0x{base + offset:X} {length}"))[:length]
+            got = b"".join(r.data for r in live.ok(f"READ_MEM RAM 0x{base + offset:X} {length}"))[
+                :length
+            ]
             assert_eq(got, data, offset=offset, length=length)
-        assert_eq(live.ok(f"READ_MEM RAM 0x{base + 49:X} 1")[0].data[0], pattern[49])    # neighbour untouched
+        assert_eq(
+            live.ok(f"READ_MEM RAM 0x{base + 49:X} 1")[0].data[0], pattern[49]
+        )  # neighbour untouched
 
 
 def test_the_firmware_runs_and_quiet_words_stay():
@@ -163,7 +176,9 @@ def test_the_firmware_runs_and_quiet_words_stay():
     with Live() as live:
         a = live.word("READ_MEM RAM loop_count 4")
         time.sleep(0.3)
-        assert live.word("READ_MEM RAM loop_count 4") != a, "loop_count did not move: the firmware is not running"
+        assert live.word("READ_MEM RAM loop_count 4") != a, (
+            "loop_count did not move: the firmware is not running"
+        )
         assert_eq(live.word("READ_MEM RAM quiet_word 4"), 0x11223344)
 
 
@@ -179,12 +194,15 @@ def test_symbols_and_local_statics():
 
 # ---------------------------------------------------------------- 2. flash
 
+
 def test_the_image_reads_back_and_is_protected():
     if emu.skip():
         return
     fw = model().firmware
     with Live() as live:
-        assert live.ok(f"READ_MEM FLASH 0x{fw.start:X} 4")[0].data != b"\xff" * 4     # vector table / reset jump
+        assert (
+            live.ok(f"READ_MEM FLASH 0x{fw.start:X} 4")[0].data != b"\xff" * 4
+        )  # vector table / reset jump
         live.refused(f"WRITE_MEM FLASH 0x{fw.start:X} 4 00000000", "overlaps firmware")
         live.refused(f"WRITE_MEM ERASE 0x{fw.start + fw.size - 1:X} 1 00", "overlaps firmware")
 
@@ -199,7 +217,9 @@ def test_erase_and_write_above_the_image():
     free = (fw.start + fw.size + fw.page - 1) & ~(fw.page - 1)
     with Live() as live:
         if live.run(f"WRITE_MEM ERASE 0x{free:X} 1 00")[0].is_error:
-            print("  [SKIP] the MCU reports the erase failed: Renode models no flash controller for this part")
+            print(
+                "  [SKIP] the MCU reports the erase failed: Renode models no flash controller for this part"
+            )
             return
         assert_eq(live.ok(f"READ_MEM FLASH 0x{free:X} 4")[0].data, b"\xff" * 4)
         live.ok(f"WRITE_MEM FLASH 0x{free:X} 4 CAFEBABE")
@@ -208,6 +228,7 @@ def test_erase_and_write_above_the_image():
 
 # ---------------------------------------------------------------- 3. registers
 
+
 def test_every_uart_register_reads():
     if emu.skip():
         return
@@ -215,7 +236,11 @@ def test_every_uart_register_reads():
     peripheral = next(p for p in model().peripherals if p.name == name)
     with Live() as live:
         for register in peripheral.registers:
-            if register.name not in ("UDR0", "DR", "RDR"):     # reading the data register takes a byte from the MCU
+            if register.name not in (
+                "UDR0",
+                "DR",
+                "RDR",
+            ):  # reading the data register takes a byte from the MCU
                 live.ok(f"READ_REG {peripheral.name}_{register.name}")
 
 
@@ -224,10 +249,14 @@ def test_avr_16_bit_register_both_bytes():
         return
     with Live() as live:
         low, high = live.ok("READ_REG 0xC4")[0], live.ok("READ_REG 0xC5")[0]
-    assert (low.data[0] | high.data[0] << 8) in (51, 103, 207), (low, high)      # UBRR0 for 19200 baud at 16 MHz
+    assert (low.data[0] | high.data[0] << 8) in (51, 103, 207), (
+        low,
+        high,
+    )  # UBRR0 for 19200 baud at 16 MHz
 
 
 # ---------------------------------------------------------------- 4. watchpoints
+
 
 def test_watchpoint_reports_masks_disables_and_resets():
     if emu.skip():
@@ -287,6 +316,7 @@ def test_watchpoint_on_a_register():
 
 # ---------------------------------------------------------------- 5. breakpoints
 
+
 def test_breakpoint_halts_next_steps_disabled_runs_free():
     if emu.skip():
         return
@@ -298,7 +328,7 @@ def test_breakpoint_halts_next_steps_disabled_runs_free():
             a = live.word("READ_MEM RAM slow_count 4")
             time.sleep(0.8)
             assert_eq(live.word("READ_MEM RAM slow_count 4"), a, what="slow_count while halted")
-            live.ok("WRITE_MEM RAM scratch 4 01020304")                  # still serving commands while halted
+            live.ok("WRITE_MEM RAM scratch 4 01020304")  # still serving commands while halted
             since = time.monotonic()
             live.ok("BREAKPOINT 0 NEXT")
             step = live.wait_events(BREAK, 1, timeout=8, since=since)
@@ -313,6 +343,7 @@ def test_breakpoint_halts_next_steps_disabled_runs_free():
 
 
 # ---------------------------------------------------------------- 6. a damaged line
+
 
 def test_corrupted_crc_is_resent():
     if emu.skip():
@@ -414,17 +445,20 @@ def test_unplugged_cable_reports_the_link_lost():
 
 # ---------------------------------------------------------------- 7. load
 
+
 def test_240_commands_with_events_flowing():
     if emu.skip():
         return
     base = sym("scratch")
     with Live() as live, logged_warnings("pc_tool") as logged:
-        live.ok("WATCHPOINT 3 ENABLED loop_count")                       # an event on every sample
+        live.ok("WATCHPOINT 3 ENABLED loop_count")  # an event on every sample
         try:
             for i in range(120):
                 data = bytes(((i + k) * 29) & 0xFF for k in range(8))
                 live.ok(f"WRITE_MEM RAM 0x{base:X} 8 {data.hex()}")
-                assert_eq(b"".join(r.data for r in live.ok(f"READ_MEM RAM 0x{base:X} 8")), data, i=i)
+                assert_eq(
+                    b"".join(r.data for r in live.ok(f"READ_MEM RAM 0x{base:X} 8")), data, i=i
+                )
         finally:
             live.run("WATCHPOINT 3 RESET")
         assert live.events(HIT), "no events during the run"
@@ -437,6 +471,6 @@ def test_stale_events_are_drained_at_the_next_start():
     with Live() as live:
         live.ok("WATCHPOINT 0 ENABLED loop_count")
         time.sleep(1.0)
-    with Live() as live:                                                   # events left pending by the last session
+    with Live() as live:  # events left pending by the last session
         live.ok("WATCHPOINT 0 RESET")
         assert_eq(live.word("READ_MEM RAM quiet_word 4"), 0x11223344)

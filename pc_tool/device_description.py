@@ -25,7 +25,7 @@ from pc_tool import MdtError
 
 log = logging.getLogger(__name__)
 
-_SVD_DEFAULT_PROPERTIES = {"size": "32", "access": "read-write"}   # when no level of the file says
+_SVD_DEFAULT_PROPERTIES = {"size": "32", "access": "read-write"}  # when no level of the file says
 
 
 class DescriptionError(MdtError):
@@ -34,17 +34,17 @@ class DescriptionError(MdtError):
 
 @dataclass(frozen=True, slots=True)
 class Register:
-    peripheral: str           # qualified names are PERIPHERAL_NAME
-    name: str                 # cluster and array parts already joined: CH0_CTRL
+    peripheral: str  # qualified names are PERIPHERAL_NAME
+    name: str  # cluster and array parts already joined: CH0_CTRL
     address: int
-    size: int                 # bytes
+    size: int  # bytes
     writable: bool
 
 
 @dataclass(frozen=True, slots=True)
 class Peripheral:
-    name: str                 # SVD: the peripheral (USART1). ATDF: the module (USART)
-    base: int                 # SVD: baseAddress. ATDF: the lowest register address
+    name: str  # SVD: the peripheral (USART1). ATDF: the module (USART)
+    base: int  # SVD: baseAddress. ATDF: the lowest register address
     description: str
     registers: tuple[Register, ...]
 
@@ -52,10 +52,10 @@ class Peripheral:
 @dataclass(frozen=True, slots=True)
 class Segment:
     name: str
-    kind: str                 # flash, ram, eeprom, ... as the build or the ATDF names it
+    kind: str  # flash, ram, eeprom, ... as the build or the ATDF names it
     start: int
     size: int
-    page: int | None = None   # flash erase page, when known
+    page: int | None = None  # flash erase page, when known
 
     def holds(self, address: int, length: int = 1) -> bool:
         return self.start <= address and address + length <= self.start + self.size
@@ -64,7 +64,7 @@ class Segment:
 @dataclass(frozen=True, slots=True)
 class Description:
     peripherals: tuple[Peripheral, ...]
-    segments: tuple[Segment, ...]     # an SVD has none: the build's memory map provides them
+    segments: tuple[Segment, ...]  # an SVD has none: the build's memory map provides them
 
 
 def read_description(path: Path, mcu: str) -> Description:
@@ -72,7 +72,9 @@ def read_description(path: Path, mcu: str) -> Description:
     readers = {".atdf": _read_atdf, ".svd": _read_svd}
     reader = readers.get(path.suffix.lower())
     if reader is None:
-        raise DescriptionError(f"No parser for '{path.name}': known file types are {', '.join(readers)}")
+        raise DescriptionError(
+            f"No parser for '{path.name}': known file types are {', '.join(readers)}"
+        )
     if not path.is_file():
         raise DescriptionError(f"MCU description file not found: {path}")
     try:
@@ -106,6 +108,7 @@ def _number(text: str | None, default: int = 0) -> int:
 
 # ATDF
 
+
 def _read_atdf(root: ET.Element, mcu: str) -> Description:
     device = root.find("devices/device")
     if device is None:
@@ -118,10 +121,15 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
     for seg in root.iterfind(".//memory-segment"):
         if seg.get("name"):
             page = seg.get("pagesize")
-            segments[seg.get("name")] = Segment(seg.get("name"), seg.get("type"), _number(seg.get("start")),
-                                                _number(seg.get("size")), _number(page) if page else None)
+            segments[seg.get("name")] = Segment(
+                seg.get("name"),
+                seg.get("type"),
+                _number(seg.get("start")),
+                _number(seg.get("size")),
+                _number(page) if page else None,
+            )
 
-    modules: dict[str, Peripheral] = {}                  # a repeated module replaces the earlier one
+    modules: dict[str, Peripheral] = {}  # a repeated module replaces the earlier one
     for module in root.iterfind(".//modules/module"):
         name = module.get("name")
         if not name:
@@ -132,20 +140,31 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
                 continue
             base = _number(group.get("offset"))
             groups[group.get("name")] = {
-                reg.get("name"): Register(name, reg.get("name"), base + _number(reg.get("offset")),
-                                          _number(reg.get("size"), 1), _writable(reg.get("rw")))
-                for reg in group.iterfind(".//register") if reg.get("name")
+                reg.get("name"): Register(
+                    name,
+                    reg.get("name"),
+                    base + _number(reg.get("offset")),
+                    _number(reg.get("size"), 1),
+                    _writable(reg.get("rw")),
+                )
+                for reg in group.iterfind(".//register")
+                if reg.get("name")
             }
         registers = tuple(reg for regs in groups.values() for reg in regs.values())
-        modules[name] = Peripheral(name, min((r.address for r in registers), default=0),
-                                   module.get("caption") or "", registers)
+        modules[name] = Peripheral(
+            name,
+            min((r.address for r in registers), default=0),
+            module.get("caption") or "",
+            registers,
+        )
     return Description(tuple(modules.values()), tuple(segments.values()))
 
 
 # SVD
 
+
 def _read_svd(root: ET.Element, mcu: str) -> Description:
-    for element in root.iter():                          # namespaced files: <svd:register> -> <register>
+    for element in root.iter():  # namespaced files: <svd:register> -> <register>
         element.tag = element.tag.rsplit("}", 1)[-1]
     return Description(_SvdReader(root).peripherals(), ())
 
@@ -154,7 +173,7 @@ class _SvdReader:
     """One SVD file. Kept as a class only to share the peripheral index and device defaults."""
 
     def __init__(self, root: ET.Element) -> None:
-        self._by_name: dict[str, ET.Element] = {}        # a repeated name replaces the earlier one
+        self._by_name: dict[str, ET.Element] = {}  # a repeated name replaces the earlier one
         for element in root.iter("peripheral"):
             if element.findtext("name"):
                 self._by_name[element.findtext("name")] = element
@@ -185,8 +204,15 @@ class _SvdReader:
                 return self._registers_block(source)
         return block
 
-    def _walk(self, container: ET.Element, peripheral: str, address: int, prefix: str,
-              properties: dict, out: dict[str, Register]) -> None:
+    def _walk(
+        self,
+        container: ET.Element,
+        peripheral: str,
+        address: int,
+        prefix: str,
+        properties: dict,
+        out: dict[str, Register],
+    ) -> None:
         for child in container:
             if child.tag not in ("register", "cluster"):
                 continue
@@ -199,13 +225,24 @@ class _SvdReader:
             for label, step in _dim(child):
                 full = prefix + _dim_name(name, label)
                 if child.tag == "cluster":
-                    self._walk(child, peripheral, address + offset + step, full + "_", child_properties, out)
+                    self._walk(
+                        child,
+                        peripheral,
+                        address + offset + step,
+                        full + "_",
+                        child_properties,
+                        out,
+                    )
                     continue
                 group = child.findtext("alternateGroup")
                 key = f"{full}_{group}" if full in out and group else full
-                out[key] = Register(peripheral, key, address + offset + step,
-                                    max(1, _number(child_properties["size"], 32) // 8),
-                                    _writable(child_properties["access"]))
+                out[key] = Register(
+                    peripheral,
+                    key,
+                    address + offset + step,
+                    max(1, _number(child_properties["size"], 32) // 8),
+                    _writable(child_properties["access"]),
+                )
 
     def _derived(self, element: ET.Element, scope: ET.Element, depth: int = 0) -> ET.Element:
         """*element* with what it derives from filled in; what it states itself wins."""
@@ -214,8 +251,11 @@ class _SvdReader:
             return element
         source = self._find(reference, scope)
         if source is None or depth > 8:
-            log.warning("SVD: '%s' derives from '%s', which was not found; using it as written",
-                        element.findtext("name"), reference)
+            log.warning(
+                "SVD: '%s' derives from '%s', which was not found; using it as written",
+                element.findtext("name"),
+                reference,
+            )
             return element
         merged = copy.deepcopy(self._derived(source, scope, depth + 1))
         merged.attrib.pop("derivedFrom", None)
@@ -224,7 +264,7 @@ class _SvdReader:
         for child in list(merged):
             is_item = child.tag in ("register", "cluster")
             if (is_item and own_items) or (not is_item and child.tag in own_tags):
-                merged.remove(child)                     # the derived element states its own
+                merged.remove(child)  # the derived element states its own
         for child in element:
             merged.append(copy.deepcopy(child))
         return merged
@@ -232,14 +272,31 @@ class _SvdReader:
     def _find(self, reference: str, scope: ET.Element) -> ET.Element | None:
         """A register or cluster named in a derivedFrom: a sibling name, or a PERIPH.CLUSTER.REG path."""
         if "." not in reference:
-            return next((c for c in scope if c.tag in ("register", "cluster") and c.findtext("name") == reference),
-                        None)
+            return next(
+                (
+                    c
+                    for c in scope
+                    if c.tag in ("register", "cluster") and c.findtext("name") == reference
+                ),
+                None,
+            )
         peripheral, *path = reference.split(".")
-        node = self._registers_block(self._by_name[peripheral]) if peripheral in self._by_name else None
+        node = (
+            self._registers_block(self._by_name[peripheral])
+            if peripheral in self._by_name
+            else None
+        )
         for part in path:
             if node is None:
                 return None
-            node = next((c for c in node if c.tag in ("register", "cluster") and c.findtext("name") == part), None)
+            node = next(
+                (
+                    c
+                    for c in node
+                    if c.tag in ("register", "cluster") and c.findtext("name") == part
+                ),
+                None,
+            )
         return node
 
 
@@ -273,7 +330,9 @@ def _dim_labels(text: str | None, count: int) -> list[str]:
             labels = [chr(c) for c in range(ord(letters[1]), ord(letters[2]) + 1)]
     if len(labels) != count:
         if labels:
-            log.warning("SVD dimIndex '%s' does not match dim=%d; using 0..%d.", text, count, count - 1)
+            log.warning(
+                "SVD dimIndex '%s' does not match dim=%d; using 0..%d.", text, count, count - 1
+            )
         labels = [str(i) for i in range(count)]
     return labels
 

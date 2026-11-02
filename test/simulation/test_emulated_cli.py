@@ -30,7 +30,9 @@ from test.common.asserts import assert_eq
 from test.simulation import emulated_target as emu
 
 LAUNCHER = emu.ROOT / "mcu_mdt.py"
-_SCREEN = re.compile(r"\x1b(\[[0-9;?]*[A-Za-z]|[=>]|\][^\x07]*\x07)|\r|\x07")   # terminal codes, CR, bell
+_SCREEN = re.compile(
+    r"\x1b(\[[0-9;?]*[A-Za-z]|[=>]|\][^\x07]*\x07)|\r|\x07"
+)  # terminal codes, CR, bell
 
 
 def _workdir(port: int | None = None) -> Path:
@@ -56,14 +58,16 @@ class _Terminal:
         if pid == 0:
             os.chdir(work)
             env = {**os.environ, "HOME": str(work / "home"), "TERM": "xterm", "COLUMNS": "100"}
-            os.execve(sys.executable, [sys.executable, str(LAUNCHER), "build_info.yaml", *args], env)
+            os.execve(
+                sys.executable, [sys.executable, str(LAUNCHER), "build_info.yaml", *args], env
+            )
         self.pid, self.fd, self.raw, self.rc = pid, fd, "", None
 
     def _read(self, timeout: float) -> None:
         if select.select([self.fd], [], [], timeout)[0]:
             try:
                 self.raw += os.read(self.fd, 65536).decode(errors="replace")
-            except OSError:                              # the tool closed the terminal
+            except OSError:  # the tool closed the terminal
                 time.sleep(timeout)
 
     @property
@@ -108,12 +112,19 @@ class _Terminal:
 
 def _script(work: Path, text: str, *args) -> tuple[int, str]:
     (work / "s.txt").write_text(text)
-    done = subprocess.run([sys.executable, str(LAUNCHER), "build_info.yaml", "--script", "s.txt", *args], cwd=work,
-                          capture_output=True, text=True, timeout=120, env={**os.environ, "HOME": str(work / "home")})
+    done = subprocess.run(
+        [sys.executable, str(LAUNCHER), "build_info.yaml", "--script", "s.txt", *args],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        timeout=120,
+        env={**os.environ, "HOME": str(work / "home")},
+    )
     return done.returncode, done.stdout + done.stderr
 
 
 # ---------------------------------------------------------------- 1. the prompt
+
 
 def test_tab_completion_history_and_ctrl_c():
     if emu.skip():
@@ -130,15 +141,17 @@ def test_tab_completion_history_and_ctrl_c():
         term.expect(r"READ_MEM\s+READ_REG")
         term.keys("MEM RAM quiet_word 4\n")
         term.expect(r"Data     : 44 33 22 11")
-        term.keys("\x1b[A")                               # up arrow: the last line again
+        term.keys("\x1b[A")  # up arrow: the last line again
         term.expect(r"Data     : 44 33 22 11(.|\n)*> READ_MEM RAM quiet_word 4")
-        term.keys("\x15")                                 # Ctrl-U clears it
-        term.keys("\x03")                                 # Ctrl-C at the prompt
+        term.keys("\x15")  # Ctrl-U clears it
+        term.keys("\x03")  # Ctrl-C at the prompt
         assert_eq(term.wait(), 0)
     finally:
         term.kill()
     assert "Exiting..." in term.screen and "Debugger closed." in term.screen, term.screen[-300:]
-    history = (work / "home" / ".mcu_mdt_history").read_text().replace("\\040", " ")    # libedit escapes spaces
+    history = (
+        (work / "home" / ".mcu_mdt_history").read_text().replace("\\040", " ")
+    )  # libedit escapes spaces
     assert "PING" in history and "READ_MEM RAM quiet_word 4" in history, history
     assert "MCU-MDT SESSION END" in _log(work)
 
@@ -159,6 +172,7 @@ def test_ctrl_d_exits_cleanly():
 
 # ---------------------------------------------------------------- 2. events at the prompt
 
+
 def test_an_event_keeps_the_half_typed_line():
     if emu.skip():
         return
@@ -168,8 +182,10 @@ def test_an_event_keeps_the_half_typed_line():
         term.keys("WATCHPOINT 0 ENABLED loop_count\n")
         term.expect(r"\[ACK\]")
         term.keys("READ_M")
-        term.expect(r"WATCHPOINT_HIT.*\n> READ_M", timeout=6)     # the event, then the prompt and what was typed
-        term.keys("EM RAM quiet_word 4\n")                         # readline still holds "READ_M"
+        term.expect(
+            r"WATCHPOINT_HIT.*\n> READ_M", timeout=6
+        )  # the event, then the prompt and what was typed
+        term.keys("EM RAM quiet_word 4\n")  # readline still holds "READ_M"
         term.expect(r"Data     : 44 33 22 11")
         term.keys("WATCHPOINT 0 RESET\nEXIT\n")
         assert_eq(term.wait(), 0)
@@ -178,6 +194,7 @@ def test_an_event_keeps_the_half_typed_line():
 
 
 # ---------------------------------------------------------------- 3. idle CPU
+
 
 def test_an_idle_session_uses_almost_no_cpu():
     if emu.skip():
@@ -197,6 +214,7 @@ def test_an_idle_session_uses_almost_no_cpu():
 
 
 # ---------------------------------------------------------------- 4. unplugged
+
 
 def test_unplugged_cable_at_the_prompt_exits_1_cleanly():
     if emu.skip():
@@ -220,11 +238,12 @@ def test_unplugged_cable_at_the_prompt_exits_1_cleanly():
 
 # ---------------------------------------------------------------- 5.-6. scripts
 
+
 def test_a_corrupted_reply_in_a_script_is_resent():
     if emu.skip():
         return
     proxy = fp.FaultProxy(emu.target().port)
-    proxy.fault = fp.nth_reply(2, fp.flip_crc)                # the 1st reply is the startup ping's echo
+    proxy.fault = fp.nth_reply(2, fp.flip_crc)  # the 1st reply is the startup ping's echo
     work = _workdir(proxy.port)
     try:
         rc, out = _script(work, "READ_MEM RAM quiet_word 4\nREAD_MEM RAM quiet_word 4\n")
@@ -239,19 +258,42 @@ def test_exit_status():
     if emu.skip():
         return
     work = _workdir()
-    script = "\n".join(["PING", "READ_MEM RAM quiet_word 4", "WRITE_MEM RAM scratch 8 0102030405060708",
-                        "READ_MEM RAM scratch 8", "BREAKPOINT 1 ENABLED", "BREAKPOINT 1 DISABLED",
-                        "WATCHPOINT 0 ENABLED quiet_word", "WATCHPOINT 0 MASK 000000FF", "WATCHPOINT 0 RESET",
-                        "HELP", "# a comment", "", "READ_MEM RAM calls 4"]) + "\n"
+    script = (
+        "\n".join(
+            [
+                "PING",
+                "READ_MEM RAM quiet_word 4",
+                "WRITE_MEM RAM scratch 8 0102030405060708",
+                "READ_MEM RAM scratch 8",
+                "BREAKPOINT 1 ENABLED",
+                "BREAKPOINT 1 DISABLED",
+                "WATCHPOINT 0 ENABLED quiet_word",
+                "WATCHPOINT 0 MASK 000000FF",
+                "WATCHPOINT 0 RESET",
+                "HELP",
+                "# a comment",
+                "",
+                "READ_MEM RAM calls 4",
+            ]
+        )
+        + "\n"
+    )
     assert_eq(_script(work, script)[0], 0)
     log = _log(work)
-    assert_eq(len(re.findall(r"Received ACK", log)), 12)       # the 8-byte write and read are 2 packets each
+    assert_eq(
+        len(re.findall(r"Received ACK", log)), 12
+    )  # the 8-byte write and read are 2 packets each
     assert "Skipping PC-only command at line 10: HELP" in log
     assert_eq(_script(work, "PING\nREAD_REG NOT_A_REGISTER\nPING\n")[0], 1)
     rc, out = _script(work, "PING\n", "--elf", "missing.elf")
     assert rc == 1 and "--elf missing.elf: no such file" in out, (rc, out[-300:])
-    missing = subprocess.run([sys.executable, str(LAUNCHER), "build_info.yaml", "--script", "nope.txt"], cwd=work,
-                             capture_output=True, text=True, timeout=60)
+    missing = subprocess.run(
+        [sys.executable, str(LAUNCHER), "build_info.yaml", "--script", "nope.txt"],
+        cwd=work,
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
     assert_eq(missing.returncode, 1)
-    rc, out = _script(_workdir(port=1), "PING\n")                # nothing listens on port 1
+    rc, out = _script(_workdir(port=1), "PING\n")  # nothing listens on port 1
     assert rc == 1 and "Failed to open serial link" in out, (rc, out[-300:])

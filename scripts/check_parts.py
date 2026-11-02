@@ -24,7 +24,11 @@ from build_system.generate import TREE, load_yaml, resolve  # noqa: E402
 def parts_by_platform() -> dict:
     platforms = {}
     for platform in load_yaml(TREE / "tree_root.yaml")["platform"]:
-        nodes = [n for p in sorted((TREE / platform).glob("tree_branch_*.yaml")) for n in load_yaml(p)["nodes"]]
+        nodes = [
+            n
+            for p in sorted((TREE / platform).glob("tree_branch_*.yaml"))
+            for n in load_yaml(p)["nodes"]
+        ]
         platforms[platform] = sorted(n.lower() for n in nodes)
     return platforms
 
@@ -32,7 +36,9 @@ def parts_by_platform() -> dict:
 def build(part: str) -> tuple:
     subprocess.run(["make", f"MCU={part}", "clean"], cwd=ROOT, capture_output=True)
     result = subprocess.run(["make", f"MCU={part}"], cwd=ROOT, capture_output=True, text=True)
-    errors = [line for line in (result.stdout + result.stderr).splitlines() if "error" in line.lower()]
+    errors = [
+        line for line in (result.stdout + result.stderr).splitlines() if "error" in line.lower()
+    ]
     return part, result.returncode == 0, (errors[0].strip()[:110] if errors else "")
 
 

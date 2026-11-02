@@ -44,15 +44,23 @@ RESET
 """
 
 PARTS = {
-    "atmega328p": dict(ram="0x0200", reg="PORTB",
-                       extra="READ_MEM EEPROM 0x0010 4\nREAD_MEM FLASH 0x0000 4\n"
-                             "WATCHPOINT 1 ENABLED rx_buffer"),
-    "f030f4": dict(ram="0x20000200", reg="GPIOA_ODR",
-                   extra="READ_MEM FLASH 0x08000000 8\nWRITE_MEM ERASE 0x08003C00 1 00\n"
-                         "WRITE_MEM FLASH 0x08003C00 4 CAFEBABE\nWATCHPOINT 1 ENABLED packet_buffer"),
-    "f103c8": dict(ram="0x20000200", reg="USART1_BRR",
-                   extra="READ_REG TIM1_CCMR1_Output\nWRITE_MEM ERASE 0x0800FC00 1 00\n"
-                         "WATCHPOINT 1 ENABLED packet_buffer"),
+    "atmega328p": dict(
+        ram="0x0200",
+        reg="PORTB",
+        extra="READ_MEM EEPROM 0x0010 4\nREAD_MEM FLASH 0x0000 4\nWATCHPOINT 1 ENABLED rx_buffer",
+    ),
+    "f030f4": dict(
+        ram="0x20000200",
+        reg="GPIOA_ODR",
+        extra="READ_MEM FLASH 0x08000000 8\nWRITE_MEM ERASE 0x08003C00 1 00\n"
+        "WRITE_MEM FLASH 0x08003C00 4 CAFEBABE\nWATCHPOINT 1 ENABLED packet_buffer",
+    ),
+    "f103c8": dict(
+        ram="0x20000200",
+        reg="USART1_BRR",
+        extra="READ_REG TIM1_CCMR1_Output\nWRITE_MEM ERASE 0x0800FC00 1 00\n"
+        "WATCHPOINT 1 ENABLED packet_buffer",
+    ),
 }
 
 
@@ -75,8 +83,13 @@ def run_tool(part: str, script: str, port: int, tool: list[str] = LAUNCHER) -> t
         info["elf"] = str(FIXTURES / part / info["elf"])
         (work / "build_info.yaml").write_text(yaml.safe_dump(info, sort_keys=False))
         (work / "script.txt").write_text(script)
-        done = subprocess.run([*tool, "build_info.yaml", "--script", "script.txt"], cwd=work,
-                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, timeout=120)
+        done = subprocess.run(
+            [*tool, "build_info.yaml", "--script", "script.txt"],
+            cwd=work,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            timeout=120,
+        )
         logs = sorted((work / "logs").glob("*.log"))
         return (logs[0].read_text() if logs else ""), done.returncode
 
@@ -93,8 +106,12 @@ def contract(log: str) -> list[str]:
     kept = []
     for line in log.splitlines():
         line = re.sub(r"^\[\d\d:\d\d:\d\d\] ", "", line)
-        if line.startswith(("[WARNING]", "[ERROR]")) or "Script aborted" in line or "Script complete" in line:
+        if (
+            line.startswith(("[WARNING]", "[ERROR]"))
+            or "Script aborted" in line
+            or "Script complete" in line
+        ):
             kept.append(line)
-        elif "Received packet" not in line:                 # the decoded repr of a packet already kept
+        elif "Received packet" not in line:  # the decoded repr of a packet already kept
             kept += [f"wire {packet}" for packet in _WIRE.findall(line)]
     return kept

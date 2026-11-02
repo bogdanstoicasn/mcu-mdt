@@ -22,8 +22,13 @@ log = logging.getLogger(__name__)
 
 
 class DebugSession:
-    def __init__(self, target: target_model.Target, specs: dict[str, command_parser.CommandSpec],
-                 client: command_client.CommandClient, console: user_console.Console) -> None:
+    def __init__(
+        self,
+        target: target_model.Target,
+        specs: dict[str, command_parser.CommandSpec],
+        client: command_client.CommandClient,
+        console: user_console.Console,
+    ) -> None:
         self._target = target
         self._specs = specs
         self._client = client

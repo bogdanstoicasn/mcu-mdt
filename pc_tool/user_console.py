@@ -41,11 +41,11 @@ def error_extra(code: int) -> dict:
 
 
 class Console:
-    SHOW = {"console": ""}              # extra= for an INFO line the user should see
+    SHOW = {"console": ""}  # extra= for an INFO line the user should see
     SUCCESS = {"console": "OK:    "}
 
     def __init__(self, completions: list[str] = (), history_file: Path = HISTORY_FILE) -> None:
-        self.quiet = False              # script mode: nothing on the screen
+        self.quiet = False  # script mode: nothing on the screen
         self._history_file = history_file
         self._completions = sorted({name.upper() for name in completions})
         if readline:
@@ -61,7 +61,7 @@ class Console:
         if readline:
             try:
                 readline.write_history_file(str(self._history_file))
-            except OSError as exc:      # a read-only home must not stop the shutdown
+            except OSError as exc:  # a read-only home must not stop the shutdown
                 log.debug("History not saved: %s", exc)
 
     def _start_readline(self) -> None:
@@ -74,8 +74,8 @@ class Console:
         if not self._completions:
             return
         readline.set_completer(self._complete)
-        readline.set_completer_delims(" \t\n")      # the whole first word ("READ_") is matched
-        if "libedit" in (readline.__doc__ or ""):    # macOS
+        readline.set_completer_delims(" \t\n")  # the whole first word ("READ_") is matched
+        if "libedit" in (readline.__doc__ or ""):  # macOS
             readline.parse_and_bind("bind ^I rl_complete")
         else:
             readline.parse_and_bind("tab: complete")
@@ -83,7 +83,7 @@ class Console:
     def _complete(self, text: str, state: int) -> str | None:
         """Complete the first word against the command names; arguments are left alone."""
         buffer = readline.get_line_buffer()
-        if buffer[:len(buffer) - len(text)].strip():
+        if buffer[: len(buffer) - len(text)].strip():
             return None
         matches = [name for name in self._completions if name.startswith(text.upper())]
         return matches[state] if state < len(matches) else None
@@ -98,8 +98,11 @@ class Console:
 
     def intro(self) -> None:
         width = shutil.get_terminal_size().columns
-        lines = ["MCU-MDT - Microcontroller Memory Debug Tool", "---------------------------------------",
-                 "Type 'HELP' to see available commands."]
+        lines = [
+            "MCU-MDT - Microcontroller Memory Debug Tool",
+            "---------------------------------------",
+            "Type 'HELP' to see available commands.",
+        ]
         self._write("\n" + "\n".join(line.center(width) for line in lines) + "\n\n")
 
     def help(self, specs: dict[str, command_parser.CommandSpec]) -> None:
@@ -155,7 +158,7 @@ class ConsoleHandler(logging.Handler):
                 sys.stdout.write(f"{prefix}{message}{' ' + code if code else ''}\n")
             elif hasattr(record, "console"):
                 sys.stdout.write(f"{record.console}{message}\n")
-        except Exception:               # logging must never raise into the caller
+        except Exception:  # logging must never raise into the caller
             self.handleError(record)
 
 
@@ -188,7 +191,9 @@ def _packet_box(packet: wire_protocol.Packet) -> str:
         status = "[NACK]" if packet.is_error else "[ACK]"
     else:
         status = "[COMMAND]"
-    mem = f"0x{packet.mem_id:02X} ({packet.mem_id})" if packet.mem_id is not None else "<not present>"
+    mem = (
+        f"0x{packet.mem_id:02X} ({packet.mem_id})" if packet.mem_id is not None else "<not present>"
+    )
     lines = [
         "┌─ Received Packet " + "─" * (_BOX_WIDTH - 19),
         f"│  Status   : {status}",

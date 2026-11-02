@@ -27,17 +27,43 @@ ROOT = Path(__file__).resolve().parents[1]
 TREE = ROOT / "build_system"
 
 # Sections a trunk, a branch or a node may carry; deeper levels add to shallower ones.
-SECTIONS = {"mdt_defaults", "features", "toolchain", "memory", "defines", "build", "commands", "dist", "host"}
+SECTIONS = {
+    "mdt_defaults",
+    "features",
+    "toolchain",
+    "memory",
+    "defines",
+    "build",
+    "commands",
+    "dist",
+    "host",
+}
 LEVEL_KEYS = {
     "tree_trunk": {"version", "type", "platform"} | SECTIONS,
     "tree_branch": {"version", "type", "platform", "branch", "nodes"} | SECTIONS,
     "node": SECTIONS,
 }
-REQUIRED = (("toolchain", "prefix"), ("features", "uart_idle"), ("build", "lib"), ("build", "hal_dir"),
-            ("build", "example"), ("build", "flags"), ("build", "outputs"), ("dist", "files"),
-            ("dist", "makefile"), ("host", "mcu_db"))
+REQUIRED = (
+    ("toolchain", "prefix"),
+    ("features", "uart_idle"),
+    ("build", "lib"),
+    ("build", "hal_dir"),
+    ("build", "example"),
+    ("build", "flags"),
+    ("build", "outputs"),
+    ("dist", "files"),
+    ("dist", "makefile"),
+    ("host", "mcu_db"),
+)
 REGION_KEYS = {"origin", "size", "page", "access"}
-MAKE_TARGETS = {"all", "lib", "clean", "wipe", "clean_logs", "help"}   # a command may not take these names
+MAKE_TARGETS = {
+    "all",
+    "lib",
+    "clean",
+    "wipe",
+    "clean_logs",
+    "help",
+}  # a command may not take these names
 
 
 class DescriptorError(Exception):
@@ -64,7 +90,9 @@ def merge(base, override, where: str = ""):
     if isinstance(base, list) and isinstance(override, list):
         return base + override
     if isinstance(base, (dict, list)) or isinstance(override, (dict, list)):
-        raise DescriptorError(f"{where.lstrip('.')}: a {type(override).__name__} cannot replace a {type(base).__name__}")
+        raise DescriptorError(
+            f"{where.lstrip('.')}: a {type(override).__name__} cannot replace a {type(base).__name__}"
+        )
     return override
 
 
@@ -76,7 +104,9 @@ def find_node(root: dict, part: str) -> tuple:
             for node in branch["nodes"]:
                 if node.lower() == part.lower():
                     return platform, branch_path, branch, node
-    raise DescriptorError(f"unsupported part {part!r}: not a node in build_system/*/tree_branch_*.yaml")
+    raise DescriptorError(
+        f"unsupported part {part!r}: not a node in build_system/*/tree_branch_*.yaml"
+    )
 
 
 def parse_leaf(pairs: list, defaults: dict) -> dict:
@@ -99,7 +129,7 @@ def _coerce(key: str, raw: str, kind: type):
             return False
     elif kind is int:
         try:
-            return int(raw.rstrip("uUlL"), 0)   # accepts 16000000UL as written in Makefiles
+            return int(raw.rstrip("uUlL"), 0)  # accepts 16000000UL as written in Makefiles
         except ValueError:
             pass
     elif raw:
@@ -126,7 +156,9 @@ def parse_memory(memory: dict) -> dict:
             raise DescriptorError(f"{where}: allowed keys are {', '.join(sorted(REGION_KEYS))}")
         missing = {"origin", "size", "access"} - set(region)
         if missing:
-            raise DescriptorError(f"{where}: missing {', '.join(sorted(missing))} (sizes belong on the node)")
+            raise DescriptorError(
+                f"{where}: missing {', '.join(sorted(missing))} (sizes belong on the node)"
+            )
         regions[name] = {
             "origin": parse_bytes(region["origin"], f"{where}.origin"),
             "size": parse_bytes(region["size"], f"{where}.size"),
@@ -144,7 +176,9 @@ def validate(config: dict, desc: dict, memory: dict, platform: str) -> None:
     if config["baudrate"] <= 0:
         problems.append("baudrate must be > 0")
     if config["buffer_size"] not in (32, 64, 128):
-        problems.append("buffer_size must be 32, 64 or 128 (power of two, uint8_t index, holds one 18-byte packet)")
+        problems.append(
+            "buffer_size must be 32, 64 or 128 (power of two, uint8_t index, holds one 18-byte packet)"
+        )
     for key in ("breakpoints", "watchpoints"):
         if not 1 <= config[key] <= 8:
             problems.append(f"{key} must be 1..8 (8-bit mask)")
@@ -159,14 +193,35 @@ def validate(config: dict, desc: dict, memory: dict, platform: str) -> None:
     for name in desc.get("commands", {}):
         if name in MAKE_TARGETS:
             problems.append(f"command {name!r} would hide the Makefile's own target")
-    generated = {"MDT_TARGET_H", "MDT_TARGET_MCU", "F_CPU", "MDT_FEATURE_UART_IDLE", "MDT_UART_BAUDRATE",
-                 "MDT_BUFFER_SIZE", "MDT_MAX_BREAKPOINTS", "MDT_MAX_WATCHPOINTS", f"PLATFORM_{platform.upper()}"}
-    generated |= {f"MDT_{name.upper()}_{suffix}" for name in memory for suffix in ("ORIGIN", "SIZE", "PAGE_SIZE")}
+    generated = {
+        "MDT_TARGET_H",
+        "MDT_TARGET_MCU",
+        "F_CPU",
+        "MDT_FEATURE_UART_IDLE",
+        "MDT_UART_BAUDRATE",
+        "MDT_BUFFER_SIZE",
+        "MDT_MAX_BREAKPOINTS",
+        "MDT_MAX_WATCHPOINTS",
+        f"PLATFORM_{platform.upper()}",
+    }
+    generated |= {
+        f"MDT_{name.upper()}_{suffix}"
+        for name in memory
+        for suffix in ("ORIGIN", "SIZE", "PAGE_SIZE")
+    }
     for name, value in desc.get("defines", {}).items():
-        if not re.fullmatch(r"[A-Za-z_]\w*", str(name)) or isinstance(value, (dict, list, bool)) or value is None:
-            problems.append(f"defines.{name}: needs a C identifier and a single number or string (1, not true)")
+        if (
+            not re.fullmatch(r"[A-Za-z_]\w*", str(name))
+            or isinstance(value, (dict, list, bool))
+            or value is None
+        ):
+            problems.append(
+                f"defines.{name}: needs a C identifier and a single number or string (1, not true)"
+            )
         elif name in generated:
-            problems.append(f"defines.{name}: already written by the generator; set it through its own key")
+            problems.append(
+                f"defines.{name}: already written by the generator; set it through its own key"
+            )
     if problems:
         raise DescriptorError("; ".join(problems))
 
@@ -190,23 +245,34 @@ def resolve(part: str, leaf_pairs: list = ()) -> dict:
     config = {**defaults, **parse_leaf(list(leaf_pairs), defaults)}
     missing = [f"{section}.{key}" for section, key in REQUIRED if key not in desc.get(section, {})]
     if missing:
-        raise DescriptorError(f"{node}: {', '.join(missing)} missing from its trunk, branch and node")
+        raise DescriptorError(
+            f"{node}: {', '.join(missing)} missing from its trunk, branch and node"
+        )
     memory = parse_memory(desc.get("memory", {}))
     validate(config, desc, memory, platform)
 
     part_lower = node.lower()
     build_dir = f"{root['files']['build']}/{part_lower}"
     return {
-        "root": root, "desc": desc, "platform": platform, "node": node, "part": part_lower,
-        "config": config, "memory": memory, "build_dir": build_dir,
+        "root": root,
+        "desc": desc,
+        "platform": platform,
+        "node": node,
+        "part": part_lower,
+        "config": config,
+        "memory": memory,
+        "build_dir": build_dir,
         "image": f"{build_dir}/{Path(config['elf']).stem}",
     }
 
 
 def placeholders(target: dict) -> dict:
     values = {
-        "mcu": target["part"], "node": target["node"], "build_dir": target["build_dir"],
-        "image": target["image"], "port": target["config"]["port"],
+        "mcu": target["part"],
+        "node": target["node"],
+        "build_dir": target["build_dir"],
+        "image": target["image"],
+        "port": target["config"]["port"],
     }
     for name, region in target["memory"].items():
         values[f"{name}_origin"] = f"0x{region['origin']:08X}"
@@ -216,10 +282,14 @@ def placeholders(target: dict) -> dict:
 
 def render(text, values: dict, where: str) -> str:
     """Fill {name} placeholders; '{ ...' with a space (shell grouping) is left alone."""
+
     def fill(match):
         if match.group(1) not in values:
-            raise DescriptorError(f"{where}: unknown placeholder {{{match.group(1)}}}; known: {', '.join(sorted(values))}")
+            raise DescriptorError(
+                f"{where}: unknown placeholder {{{match.group(1)}}}; known: {', '.join(sorted(values))}"
+            )
         return values[match.group(1)]
+
     return re.sub(r"\{(\w+)\}", fill, str(text))
 
 
@@ -237,7 +307,10 @@ def render_build_mk(target: dict) -> str:
         return " ".join(render(item, values, where) for item in items)
 
     variables = [
-        ("CC", f"{prefix}gcc"), ("AR", f"{prefix}ar"), ("OBJCOPY", f"{prefix}objcopy"), ("SIZE", f"{prefix}size"),
+        ("CC", f"{prefix}gcc"),
+        ("AR", f"{prefix}ar"),
+        ("OBJCOPY", f"{prefix}objcopy"),
+        ("SIZE", f"{prefix}size"),
         ("SRC_DIR", target["root"]["files"]["src"]),
         ("INC_DIR", target["root"]["files"]["inc"]),
         ("HAL_DIR", build["hal_dir"]),
@@ -252,11 +325,16 @@ def render_build_mk(target: dict) -> str:
         ("OUTPUTS", " ".join(build["outputs"])),
         *((f"OBJCOPY_FLAGS_{ext}", " ".join(args)) for ext, args in build["outputs"].items()),
         ("COMMANDS", " ".join(desc.get("commands", {}))),
-        *((f"CMD_{name}", render(cmd, values, f"commands.{name}")) for name, cmd in desc.get("commands", {}).items()),
+        *(
+            (f"CMD_{name}", render(cmd, values, f"commands.{name}"))
+            for name, cmd in desc.get("commands", {}).items()
+        ),
         ("DIST_FILES", " ".join(desc["dist"]["files"])),
         ("DIST_MAKEFILE", desc["dist"]["makefile"]),
     ]
-    lines = [f"# Generated by build_system/generate.py for {target['part']}. Do not edit: change the YAML instead."]
+    lines = [
+        f"# Generated by build_system/generate.py for {target['part']}. Do not edit: change the YAML instead."
+    ]
     lines += [f"{name} := {_make_value(value)}" for name, value in variables]
     return "\n".join(lines) + "\n"
 
@@ -271,22 +349,29 @@ def render_target_header(target: dict) -> str:
         if region["page"] is not None:
             memory_lines.append(f"#define {macro}_PAGE_SIZE".ljust(32) + f"0x{region['page']:X}UL")
     memory_block = ("\n" + "\n".join(memory_lines) + "\n") if memory_lines else ""
-    define_lines = [f"#define {name}".ljust(32) + str(value) for name, value in target["desc"].get("defines", {}).items()]
-    defines_block = ("\n/* Part facts (defines: in the YAML) */\n" + "\n".join(define_lines) + "\n") if define_lines else ""
+    define_lines = [
+        f"#define {name}".ljust(32) + str(value)
+        for name, value in target["desc"].get("defines", {}).items()
+    ]
+    defines_block = (
+        ("\n/* Part facts (defines: in the YAML) */\n" + "\n".join(define_lines) + "\n")
+        if define_lines
+        else ""
+    )
     return f"""\
 /* Generated by build_system/generate.py for {part}. Do not edit: change the YAML instead. */
 #ifndef MDT_TARGET_H
 #define MDT_TARGET_H
 
-#define PLATFORM_{target['platform'].upper()} 1
+#define PLATFORM_{target["platform"].upper()} 1
 #define MDT_TARGET_MCU "{part}"
 
-#define F_CPU                   {config['f_cpu']}UL
-#define MDT_FEATURE_UART_IDLE   {int(config['uart_idle'])}
-#define MDT_UART_BAUDRATE       {config['baudrate']}
-#define MDT_BUFFER_SIZE         {config['buffer_size']}
-#define MDT_MAX_BREAKPOINTS     {config['breakpoints']}
-#define MDT_MAX_WATCHPOINTS     {config['watchpoints']}
+#define F_CPU                   {config["f_cpu"]}UL
+#define MDT_FEATURE_UART_IDLE   {int(config["uart_idle"])}
+#define MDT_UART_BAUDRATE       {config["baudrate"]}
+#define MDT_BUFFER_SIZE         {config["buffer_size"]}
+#define MDT_MAX_BREAKPOINTS     {config["breakpoints"]}
+#define MDT_MAX_WATCHPOINTS     {config["watchpoints"]}
 {memory_block}{defines_block}
 /* Already checked by the generator; these catch a hand-edited copy of this file. */
 _Static_assert((MDT_BUFFER_SIZE & (MDT_BUFFER_SIZE - 1)) == 0, "MDT_BUFFER_SIZE must be a power of 2");
@@ -307,8 +392,10 @@ def render_memory_ld(target: dict) -> str:
         f"    {name} ({region['access']}) : ORIGIN = 0x{region['origin']:08X}, LENGTH = {_length(region['size'])}"
         for name, region in target["memory"].items()
     )
-    return (f"/* Generated by build_system/generate.py for {target['part']}. Do not edit: change the YAML instead. */\n"
-            f"MEMORY\n{{\n{regions}\n}}\n")
+    return (
+        f"/* Generated by build_system/generate.py for {target['part']}. Do not edit: change the YAML instead. */\n"
+        f"MEMORY\n{{\n{regions}\n}}\n"
+    )
 
 
 def render_build_info(target: dict) -> str:
@@ -324,12 +411,17 @@ def render_build_info(target: dict) -> str:
         "watchpoints": config["watchpoints"],
         "elf": config["elf"],
     }
-    lines = [f"{key}: {value if not isinstance(value, bool) else str(value).lower()}" for key, value in info.items()]
+    lines = [
+        f"{key}: {value if not isinstance(value, bool) else str(value).lower()}"
+        for key, value in info.items()
+    ]
     if target["memory"]:
         lines.append("memory:")
         for name, region in target["memory"].items():
             page = f", page: {region['page']}" if region["page"] is not None else ""
-            lines.append(f"  {name}: {{origin: 0x{region['origin']:08X}, size: {region['size']}{page}}}")
+            lines.append(
+                f"  {name}: {{origin: 0x{region['origin']:08X}, size: {region['size']}{page}}}"
+            )
     return "\n".join(lines) + "\n"
 
 

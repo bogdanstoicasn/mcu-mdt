@@ -17,7 +17,17 @@ from pc_tool import MdtError, device_description, elf_symbols
 log = logging.getLogger(__name__)
 
 MCU_DB = Path(__file__).parent / "mcu_db"
-BUILD_INFO_KEYS = ("platform", "mcu", "mcu_db", "port", "baudrate", "uart_idle", "breakpoints", "watchpoints", "elf")
+BUILD_INFO_KEYS = (
+    "platform",
+    "mcu",
+    "mcu_db",
+    "port",
+    "baudrate",
+    "uart_idle",
+    "breakpoints",
+    "watchpoints",
+    "elf",
+)
 
 
 class TargetError(MdtError):
@@ -63,8 +73,8 @@ class Target:
     symbols: dict[str, elf_symbols.Symbol]
     breakpoints: int
     watchpoints: int
-    firmware: device_description.Segment | None   # the flash the running image occupies, if known
-    build_info: dict                              # as read, for the session log
+    firmware: device_description.Segment | None  # the flash the running image occupies, if known
+    build_info: dict  # as read, for the session log
 
     def segment(self, kind: str, address: int, length: int) -> device_description.Segment | None:
         """The first memory segment of *kind* holding all of [address, address + length)."""
@@ -91,15 +101,26 @@ def load_target(build_info: str | Path, elf: str | Path | None = None) -> Target
         log.info("Loaded %d symbol(s) from %s", len(symbols), elf_path)
         firmware = _firmware(str(elf_path), segments)
     else:
-        log.warning("Firmware ELF %s not found: no symbols, and flash writes and erases are not checked "
-                    "against the running image. Give the ELF you flashed with --elf <file>.", elf_path)
+        log.warning(
+            "Firmware ELF %s not found: no symbols, and flash writes and erases are not checked "
+            "against the running image. Give the ELF you flashed with --elf <file>.",
+            elf_path,
+        )
 
     return Target(
-        mcu=info["mcu"], platform=info["platform"], port=info["port"], baudrate=int(info["baudrate"]),
-        uart_idle=bool(info["uart_idle"]), segments=tuple(segments), peripherals=description.peripherals,
-        registers=Registers(description.peripherals), symbols=symbols,
-        breakpoints=int(info["breakpoints"]), watchpoints=int(info["watchpoints"]),
-        firmware=firmware, build_info=info,
+        mcu=info["mcu"],
+        platform=info["platform"],
+        port=info["port"],
+        baudrate=int(info["baudrate"]),
+        uart_idle=bool(info["uart_idle"]),
+        segments=tuple(segments),
+        peripherals=description.peripherals,
+        registers=Registers(description.peripherals),
+        symbols=symbols,
+        breakpoints=int(info["breakpoints"]),
+        watchpoints=int(info["watchpoints"]),
+        firmware=firmware,
+        build_info=info,
     )
 
 
@@ -112,25 +133,38 @@ def _read_build_info(path: Path) -> dict:
         raise TargetError(f"Failed to parse YAML '{path}': {exc}") from exc
     missing = [key for key in BUILD_INFO_KEYS if key not in info]
     if missing:
-        raise TargetError(f"{path} has no {', '.join(missing)}: it is missing or comes from an older build. "
-                          f"Rebuild with: make MCU=<part>")
+        raise TargetError(
+            f"{path} has no {', '.join(missing)}: it is missing or comes from an older build. "
+            f"Rebuild with: make MCU=<part>"
+        )
     return info
 
 
 def _build_segments(memory: dict | None) -> list[device_description.Segment]:
     """The build's memory map (STM32); it replaces the description file's segments. A region's name is its kind."""
-    return [device_description.Segment(name.upper(), name, int(region["origin"]), int(region["size"]),
-                                       int(region["page"]) if region.get("page") else None)
-            for name, region in (memory or {}).items()]
+    return [
+        device_description.Segment(
+            name.upper(),
+            name,
+            int(region["origin"]),
+            int(region["size"]),
+            int(region["page"]) if region.get("page") else None,
+        )
+        for name, region in (memory or {}).items()
+    ]
 
 
-def _firmware(elf_path: str, segments: list[device_description.Segment]) -> device_description.Segment | None:
+def _firmware(
+    elf_path: str, segments: list[device_description.Segment]
+) -> device_description.Segment | None:
     """The flash the ELF's image occupies, with the erase page of the segment it starts in."""
     flash = [s for s in segments if s.kind == "flash"]
     extent = elf_symbols.image_extent(elf_path, [(s.start, s.start + s.size) for s in flash])
     if extent is None:
-        log.warning("Firmware range unknown (no ELF or no load segment in flash): "
-                    "flash writes and erases are not checked against the running image.")
+        log.warning(
+            "Firmware range unknown (no ELF or no load segment in flash): "
+            "flash writes and erases are not checked against the running image."
+        )
         return None
     start, end = extent
     page = next((s.page for s in flash if s.holds(start)), None)

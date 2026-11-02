@@ -23,6 +23,8 @@ _TREE = _ROOT / "build_system"
 _ROOT_KEYS = {"version", "type", "platform", "mdt_defaults", "files"}
 _MDT_ROOT = {"port", "baudrate", "buffer_size", "breakpoints", "watchpoints", "elf"}
 _FILES = {"src", "inc", "build"}
+
+
 def _load(path: Path) -> dict:
     return yaml.safe_load(path.read_text())
 
@@ -36,12 +38,19 @@ def _trunk(platform: str) -> dict:
 
 
 def _branches(platform: str) -> dict:
-    return {p.stem.removeprefix("tree_branch_"): _load(p)
-            for p in sorted((_TREE / platform).glob("tree_branch_*.yaml"))}
+    return {
+        p.stem.removeprefix("tree_branch_"): _load(p)
+        for p in sorted((_TREE / platform).glob("tree_branch_*.yaml"))
+    }
 
 
 def _nodes(platform: str, branch: str = None) -> set:
-    return {n.lower() for name, doc in _branches(platform).items() if branch in (None, name) for n in doc["nodes"]}
+    return {
+        n.lower()
+        for name, doc in _branches(platform).items()
+        if branch in (None, name)
+        for n in doc["nodes"]
+    }
 
 
 def _all_nodes() -> list:
@@ -49,6 +58,7 @@ def _all_nodes() -> list:
 
 
 # ---------------------------------------------------------------- 1. structure
+
 
 def test_every_descriptor_has_a_known_type_and_only_known_keys():
     root = _root()
@@ -67,7 +77,9 @@ def test_every_descriptor_has_a_known_type_and_only_known_keys():
 
 def test_level_keys_are_the_sections_plus_identity():
     assert_eq(LEVEL_KEYS["node"], SECTIONS)
-    assert SECTIONS.issubset(LEVEL_KEYS["tree_trunk"]) and SECTIONS.issubset(LEVEL_KEYS["tree_branch"])
+    assert SECTIONS.issubset(LEVEL_KEYS["tree_trunk"]) and SECTIONS.issubset(
+        LEVEL_KEYS["tree_branch"]
+    )
 
 
 def test_root_defaults_are_valid():
@@ -85,7 +97,7 @@ def test_every_node_resolves_to_a_complete_valid_target():
     nodes = _all_nodes()
     assert nodes
     for part in nodes:
-        target = resolve(part)       # raises DescriptorError on a missing, unknown or invalid value
+        target = resolve(part)  # raises DescriptorError on a missing, unknown or invalid value
         assert_eq(target["part"], part)
 
 
@@ -107,11 +119,17 @@ def test_branches_point_back_to_their_platform_and_name():
 
 
 def test_node_names_are_unique_across_the_tree():
-    names = [n.lower() for platform in _root()["platform"] for doc in _branches(platform).values() for n in doc["nodes"]]
+    names = [
+        n.lower()
+        for platform in _root()["platform"]
+        for doc in _branches(platform).values()
+        for n in doc["nodes"]
+    ]
     assert_eq(len(names), len(set(names)))
 
 
 # ---------------------------------------------------------------- 2. cross-references
+
 
 def test_every_listed_platform_has_a_trunk_matching_its_directory():
     for platform in _root()["platform"]:
@@ -126,22 +144,35 @@ def test_referenced_paths_are_relative_and_exist():
     for part in _all_nodes():
         desc = resolve(part)["desc"]
         build, dist = desc["build"], desc["dist"]
-        paths = [build["hal_dir"], build["example"], build.get("startup"), *dist["files"], dist["makefile"]]
+        paths = [
+            build["hal_dir"],
+            build["example"],
+            build.get("startup"),
+            *dist["files"],
+            dist["makefile"],
+        ]
         for path in filter(None, paths):
-            assert not path.startswith("/"), f"{part}: {path!r} is absolute; descriptors use repo-relative paths"
+            assert not path.startswith("/"), (
+                f"{part}: {path!r} is absolute; descriptors use repo-relative paths"
+            )
             assert (_ROOT / path).exists(), f"{part}: {path} does not exist"
         if build.get("startup"):
-            assert build["startup"].startswith(build["hal_dir"] + "/"), f"{part}: startup outside hal_dir"
+            assert build["startup"].startswith(build["hal_dir"] + "/"), (
+                f"{part}: startup outside hal_dir"
+            )
 
 
 def test_every_node_has_its_host_description_file():
     for part in _all_nodes():
         target = resolve(part)
         mcu_db = render(target["desc"]["host"]["mcu_db"], placeholders(target), "host.mcu_db")
-        assert (_ROOT / "pc_tool" / "mcu_db" / mcu_db).is_file(), f"{part}: pc_tool/mcu_db/{mcu_db} missing"
+        assert (_ROOT / "pc_tool" / "mcu_db" / mcu_db).is_file(), (
+            f"{part}: pc_tool/mcu_db/{mcu_db} missing"
+        )
 
 
 # allow list
+
 
 def _cells(row: str) -> list:
     return [cell.strip() for cell in row.strip().strip("|").split("|")]
@@ -155,12 +186,22 @@ def _docs_parts(platform: str) -> set:
     for i, line in enumerate(lines):
         if not line.startswith("|"):
             columns = None
-        elif columns is None and i + 1 < len(lines) and set(lines[i + 1].replace("|", "").strip()) <= set("-: "):
+        elif (
+            columns is None
+            and i + 1 < len(lines)
+            and set(lines[i + 1].replace("|", "").strip()) <= set("-: ")
+        ):
             headers = _cells(line)
             columns = [k for k, header in enumerate(headers) if header == "MCU"] or []
         elif columns and not set(line.replace("|", "").strip()) <= set("-: "):
             cells = _cells(line)
-            parts |= {name.strip().lower() for k in columns if k < len(cells) for name in cells[k].split(",") if name.strip()}
+            parts |= {
+                name.strip().lower()
+                for k in columns
+                if k < len(cells)
+                for name in cells[k].split(",")
+                if name.strip()
+            }
     assert parts, f"docs/{platform}/info.md has no table with an MCU column"
     return parts
 

@@ -20,10 +20,10 @@ class FaultProxy:
     def __init__(self, upstream_port: int) -> None:
         self.upstream_port = upstream_port
         self.fault = lambda packet: packet
-        self.split_delay = 0.0                 # > 0: forward each byte alone with this gap
+        self.split_delay = 0.0  # > 0: forward each byte alone with this gap
         self.server = socket.create_server(("127.0.0.1", 0))
         self.port = self.server.getsockname()[1]
-        self.from_mcu: list[bytes] = []        # every packet the MCU sent, before any fault
+        self.from_mcu: list[bytes] = []  # every packet the MCU sent, before any fault
         self._conns: list[socket.socket] = []
         threading.Thread(target=self._accept, daemon=True).start()
 
@@ -61,13 +61,13 @@ class FaultProxy:
         try:
             while data := mcu.recv(256):
                 pending += data
-                while (start := pending.find(b"\xAA")) >= 0 and len(pending) - start >= PACKET:
+                while (start := pending.find(b"\xaa")) >= 0 and len(pending) - start >= PACKET:
                     if start:
                         self._send(client, pending[:start])
-                    packet, pending = pending[start:start + PACKET], pending[start + PACKET:]
+                    packet, pending = pending[start : start + PACKET], pending[start + PACKET :]
                     self.from_mcu.append(packet)
                     self._send(client, self.fault(packet))
-                if b"\xAA" not in pending:
+                if b"\xaa" not in pending:
                     self._send(client, pending)
                     pending = b""
         except OSError:
@@ -79,7 +79,7 @@ class FaultProxy:
             return
         if self.split_delay:
             for i in range(len(data)):
-                client.sendall(data[i:i + 1])
+                client.sendall(data[i : i + 1])
                 time.sleep(self.split_delay)
         else:
             client.sendall(data)
@@ -108,6 +108,7 @@ def nth_reply(n: int, change):
             if seen[0] == n:
                 return change(packet)
         return packet
+
     return fault
 
 
@@ -127,11 +128,12 @@ def delayed(seconds: float):
     def change(packet):
         time.sleep(seconds)
         return packet
+
     return change
 
 
 def with_noise(packet: bytes) -> bytes:
-    return b"\x00\x13\x55\xAA\x01" + packet                 # junk, including a false start byte
+    return b"\x00\x13\x55\xaa\x01" + packet  # junk, including a false start byte
 
 
 def doubled(packet: bytes) -> bytes:

@@ -20,15 +20,25 @@ from test.common.fake_mcu import FakeSerialPort, crc16
 
 
 def _packet(cmd_id=0, flags=0, seq=0, mem=0, address=0, length=0, data=0, crc_ok=True) -> bytes:
-    body = (bytes([cmd_id, flags, seq, mem]) + address.to_bytes(4, "little") + length.to_bytes(2, "little")
-            + data.to_bytes(4, "little"))
+    body = (
+        bytes([cmd_id, flags, seq, mem])
+        + address.to_bytes(4, "little")
+        + length.to_bytes(2, "little")
+        + data.to_bytes(4, "little")
+    )
     crc = crc16(body) ^ (0 if crc_ok else 0xFFFF)
     return bytes([0xAA]) + body + crc.to_bytes(2, "little") + bytes([0x55])
 
 
 def _watchpoint_event(slot=1, old=0x11, new=0x22) -> bytes:
-    return _packet(flags=Flag.EVENT_PACKET | Flag.ACK_NACK, seq=slot, mem=EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT,
-                   address=old, length=4, data=new)
+    return _packet(
+        flags=Flag.EVENT_PACKET | Flag.ACK_NACK,
+        seq=slot,
+        mem=EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT,
+        address=old,
+        length=4,
+        data=new,
+    )
 
 
 def _pump(uart_idle=False, port=None, **callbacks):
@@ -49,17 +59,20 @@ def _until(condition, timeout=2.0) -> bool:
 
 # ---------------------------------------------------------------- 1.-2. routing
 
+
 def test_packets_are_routed_by_kind():
     pump, link, port, events = _pump()
     pump.start()
     try:
         port.inject(_watchpoint_event())
-        port.inject(_packet(flags=Flag.ACK_NACK))                       # an empty poll answer
-        port.inject(_packet(cmd_id=0x05, flags=Flag.ACK_NACK))          # a reply to PING
+        port.inject(_packet(flags=Flag.ACK_NACK))  # an empty poll answer
+        port.inject(_packet(cmd_id=0x05, flags=Flag.ACK_NACK))  # a reply to PING
         assert _until(lambda: events and not link.replies.empty())
     finally:
         pump.stop()
-    assert_eq(events, [wire_protocol.Event(EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 1, 0x11, 4, 0x22)])
+    assert_eq(
+        events, [wire_protocol.Event(EventType.INTERNAL_MDT_EVENT_WATCHPOINT_HIT, 1, 0x11, 4, 0x22)]
+    )
     assert_eq([p.cmd_id for p in list(link.replies.queue)], [0x05])
 
 
@@ -80,10 +93,11 @@ def test_a_corrupted_packet_is_dropped_and_reading_goes_on():
 
 # ---------------------------------------------------------------- 3. polling
 
+
 def test_uart_idle_mode_polls_and_polls_again_after_an_event():
     pending = [_watchpoint_event(slot=0), _watchpoint_event(slot=1)]
 
-    def mcu(request):                                   # one pending event per poll, then empty answers
+    def mcu(request):  # one pending event per poll, then empty answers
         return pending.pop(0) if pending else _packet(flags=Flag.ACK_NACK)
 
     port = FakeSerialPort(answer=mcu)
@@ -93,7 +107,7 @@ def test_uart_idle_mode_polls_and_polls_again_after_an_event():
         assert _until(lambda: len(events) == 2, timeout=1.0)
     finally:
         pump.stop()
-    assert_eq([e.slot for e in events], [0, 1])          # the burst drained without waiting a poll period
+    assert_eq([e.slot for e in events], [0, 1])  # the burst drained without waiting a poll period
 
 
 def test_poll_mode_sends_nothing():
@@ -106,9 +120,12 @@ def test_poll_mode_sends_nothing():
 
 # ---------------------------------------------------------------- 4. stale events
 
+
 def _stale(count: int):
     pending = [_watchpoint_event() for _ in range(count)]
-    return FakeSerialPort(answer=lambda request: pending.pop(0) if pending else _packet(flags=Flag.ACK_NACK)), pending
+    return FakeSerialPort(
+        answer=lambda request: pending.pop(0) if pending else _packet(flags=Flag.ACK_NACK)
+    ), pending
 
 
 def test_drain_covers_a_full_burst():
@@ -127,6 +144,7 @@ def test_drain_respects_max_polls():
 
 
 # ---------------------------------------------------------------- 5. bug 4
+
 
 class _UnpluggedPort(FakeSerialPort):
     def read(self, size=1):

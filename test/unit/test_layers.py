@@ -44,8 +44,11 @@ def test_every_module_is_in_the_table():
     modules = {path.stem for path in _PC_TOOL.glob("*.py")} - {"__init__"}
     assert_eq(sorted(modules - set(LAYERS)), [], what="modules missing from LAYERS")
     assert_eq(sorted(set(LAYERS) - modules), [], what="LAYERS entries with no module")
-    assert_eq([p.name for p in _PC_TOOL.iterdir() if p.is_dir() and (p / "__init__.py").exists()], [],
-              what="subpackages (pc_tool is flat)")
+    assert_eq(
+        [p.name for p in _PC_TOOL.iterdir() if p.is_dir() and (p / "__init__.py").exists()],
+        [],
+        what="subpackages (pc_tool is flat)",
+    )
 
 
 def _pc_tool_imports(tree: ast.Module) -> list[tuple[str, int, bool]]:
@@ -59,8 +62,11 @@ def _pc_tool_imports(tree: ast.Module) -> list[tuple[str, int, bool]]:
             else:
                 found.append((f"names from {node.module}", node.lineno, id(node) in top_level))
         elif isinstance(node, ast.Import):
-            found += [(alias.name.split(".", 1)[1], node.lineno, id(node) in top_level)
-                      for alias in node.names if alias.name.startswith("pc_tool.")]
+            found += [
+                (alias.name.split(".", 1)[1], node.lineno, id(node) in top_level)
+                for alias in node.names
+                if alias.name.startswith("pc_tool.")
+            ]
     return found
 
 
@@ -69,7 +75,7 @@ def test_module_imports_only_lower_layers(module):
     tree = ast.parse((_PC_TOOL / f"{module}.py").read_text())
     problems = []
     for imported, line, top_level in _pc_tool_imports(tree):
-        if imported == "MdtError":                  # pc_tool/__init__.py: the base error, below every layer
+        if imported == "MdtError":  # pc_tool/__init__.py: the base error, below every layer
             continue
         if imported.startswith("names from "):
             problems.append(f"line {line}: imports {imported}; import the module instead")
@@ -78,5 +84,7 @@ def test_module_imports_only_lower_layers(module):
         elif imported not in LAYERS:
             problems.append(f"line {line}: imports {imported}, which is not in the layer table")
         elif LAYERS[imported] >= LAYERS[module]:
-            problems.append(f"line {line}: imports {imported} (layer {LAYERS[imported]}) from layer {LAYERS[module]}")
+            problems.append(
+                f"line {line}: imports {imported} (layer {LAYERS[imported]}) from layer {LAYERS[module]}"
+            )
     assert_eq(problems, [], module=module)

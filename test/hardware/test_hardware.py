@@ -73,15 +73,15 @@ from test.pymdtest import parametrize
 
 @dataclass(frozen=True)
 class HWConfig:
-    port:       str
-    baud:       int
-    timeout:    float
-    platform:   str
-    sram_base:  int      # first safe scratch word inside SRAM
-    flash_base: int      # start of flash region
-    target:     object   # the Target as the PC tool loads it, None without MCU
-    registers:  dict     # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
-    uart_idle:  bool = False  # True when MDT_FEATURE_UART_IDLE=1 (STM32 interrupt mode)
+    port: str
+    baud: int
+    timeout: float
+    platform: str
+    sram_base: int  # first safe scratch word inside SRAM
+    flash_base: int  # start of flash region
+    target: object  # the Target as the PC tool loads it, None without MCU
+    registers: dict  # { "PERIPH.REG": {addr, reset_value, reset_mask, access} }
+    uart_idle: bool = False  # True when MDT_FEATURE_UART_IDLE=1 (STM32 interrupt mode)
 
     @property
     def available(self) -> bool:
@@ -128,21 +128,16 @@ class HWConfig:
             # If we are from test directory, we go 1 directory back to find build/
             if os.path.basename(os.getcwd()) == "test":
                 os.chdir("..")
-            path = os.path.join("build", mcu.lower(), "build_info.yaml")   # build dirs are lowercase
+            path = os.path.join("build", mcu.lower(), "build_info.yaml")  # build dirs are lowercase
             if not os.path.exists(path):
-                raise FileNotFoundError(
-                    f"Build info not found for MCU='{mcu}' at {path}"
-                )
+                raise FileNotFoundError(f"Build info not found for MCU='{mcu}' at {path}")
             with open(path) as f:
                 data = yaml.safe_load(f) or {}
 
-        platform = (
-            os.environ.get("MDT_PLATFORM")
-            or data.get("platform", "avr")
-        ).lower()
+        platform = (os.environ.get("MDT_PLATFORM") or data.get("platform", "avr")).lower()
 
-        port    = os.environ.get("MDT_PORT",    data.get("port", ""))
-        baud    = int(os.environ.get("MDT_BAUD",    data.get("baudrate", 19200)))
+        port = os.environ.get("MDT_PORT", data.get("port", ""))
+        baud = int(os.environ.get("MDT_BAUD", data.get("baudrate", 19200)))
         timeout = float(os.environ.get("MDT_TIMEOUT", "2.0"))
 
         # Load the target when we have an MCU identifier; fall back to
@@ -178,21 +173,17 @@ def _resolve_memory_bases(target, platform: str) -> tuple[int, int]:
     The 0x200 guard on sram_base keeps test writes away from firmware
     variables that live at the bottom of SRAM.
     """
-    segments  = target.segments if target else ()
-    ram_seg   = next((s for s in segments if s.kind == "ram"),   None)
+    segments = target.segments if target else ()
+    ram_seg = next((s for s in segments if s.kind == "ram"), None)
     flash_seg = next((s for s in segments if s.kind == "flash"), None)
 
     stm32 = "stm32" in platform
 
-    if ram_seg:
-        sram_base = ram_seg.start + 0x200
-    else:
-        sram_base = 0x20000200 if stm32 else 0x0200
+    default_sram = 0x20000200 if stm32 else 0x0200
+    sram_base = ram_seg.start + 0x200 if ram_seg else default_sram
 
-    if flash_seg:
-        flash_base = flash_seg.start
-    else:
-        flash_base = 0x08000000 if stm32 else 0x0000
+    default_flash = 0x08000000 if stm32 else 0x0000
+    flash_base = flash_seg.start if flash_seg else default_flash
 
     return sram_base, flash_base
 
@@ -225,8 +216,7 @@ def _cmd(cmd_id, *, mem=None, address=0, length=0, data=None) -> Command:
     )
 
 
-def _send(link: SerialLink, cmd: Command,
-          seq=0, multi=False, last=False) -> bytes | None:
+def _send(link: SerialLink, cmd: Command, seq=0, multi=False, last=False) -> bytes | None:
     """Serialize, transmit, and return the raw 18-byte response (or None)."""
     pkt = encode(cmd, seq=seq, multi=multi, last=last)
     link.send(pkt)
@@ -243,10 +233,13 @@ def _send_parsed(link: SerialLink, cmd: Command, **kw):
     except PacketError:
         return None
 
+
 # CMD_ID=0 packet — identical to what _event_poll_worker sends every 500 ms.
 _POLL_PKT = encode(
     Command(name="POLL", id=0x00, mem=None, address=0, data=None),
-    seq=0, multi=False, last=False,
+    seq=0,
+    multi=False,
+    last=False,
 )
 
 
@@ -276,20 +269,21 @@ def _assert_clean_ack(raw: bytes, cmd_id: int):
     assert_eq(raw is not None, True)
     assert_eq(len(raw), PACKET_SIZE)
     # CRC must be correct
-    crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
-    crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
+    crc_recv = int.from_bytes(raw[Offset.CRC : Offset.CRC + 2], "little")
+    crc_calc = crc16(raw[Offset.CMD_ID : Offset.CRC])
     assert_eq(crc_recv, crc_calc)
     # ACK flag set, error flag clear, correct command echoed back
     flags = raw[Offset.FLAGS]
-    assert_eq(bool(flags & Flag.ACK_NACK),      True)
-    assert_eq(bool(flags & Flag.STATUS_ERROR),  False)
+    assert_eq(bool(flags & Flag.ACK_NACK), True)
+    assert_eq(bool(flags & Flag.STATUS_ERROR), False)
     assert_eq(raw[Offset.CMD_ID], cmd_id)
 
 
 # Health check
 def test_hw_ping_gets_response():
     """A PING command must get a response packet (ACK or NACK) rather than timing out."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
@@ -297,9 +291,11 @@ def test_hw_ping_gets_response():
     finally:
         link.close()
 
+
 def test_hw_ping_response_is_exactly_18_bytes():
     """The response to a PING must be exactly one MDT packet long (18 bytes)."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
@@ -308,34 +304,40 @@ def test_hw_ping_response_is_exactly_18_bytes():
     finally:
         link.close()
 
+
 def test_hw_ping_start_end_framing():
     """The response to a PING must have correct START and END framing bytes."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
         assert_eq(raw[Offset.START], 0xAA)
-        assert_eq(raw[Offset.END],   0x55)
+        assert_eq(raw[Offset.END], 0x55)
     finally:
         link.close()
 
+
 def test_hw_ping_response_crc_valid():
     """The response to a PING must have a valid CRC covering CMD_ID, FLAGS, and DATA."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
-        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
-        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
+        crc_recv = int.from_bytes(raw[Offset.CRC : Offset.CRC + 2], "little")
+        crc_calc = crc16(raw[Offset.CMD_ID : Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
 
+
 def test_hw_ping_echoes_cmd_id():
     """The response to a PING must echo back the PING command ID (0x05) in the CMD_ID field."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         pkt = _send_parsed(link, _cmd(CommandId.PING))
@@ -344,9 +346,11 @@ def test_hw_ping_echoes_cmd_id():
     finally:
         link.close()
 
+
 def test_hw_ping_ack_flag_set():
     """The response to a PING must have the ACK_NACK flag set (ACK) rather than clear (NACK)."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
@@ -355,9 +359,11 @@ def test_hw_ping_ack_flag_set():
     finally:
         link.close()
 
+
 def test_hw_ping_no_error_flag():
     """The response to a PING must not have the STATUS_ERROR flag set."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.PING))
@@ -370,57 +376,60 @@ def test_hw_ping_no_error_flag():
 # Memory read
 def test_hw_read_sram_returns_ack():
     """A READ_MEM command targeting SRAM must return a valid ACK packet rather than NACK or timing out."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.scratch(0), length=4)
+        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=HW.scratch(0), length=4)
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.READ_MEM)
     finally:
         link.close()
 
+
 def test_hw_read_sram_data_is_four_bytes():
     """A READ_MEM command targeting SRAM with length=4 must return a packet with exactly 4 bytes of data."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.scratch(0), length=4)
+        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=HW.scratch(0), length=4)
         pkt = _send_parsed(link, cmd)
         assert_eq(pkt is not None, True)
         assert_eq(len(pkt.data), WORD_SIZE)
     finally:
         link.close()
 
+
 def test_hw_read_flash_returns_valid_packet():
     """
     FLASH read may ACK or NACK depending on the MCU, but the response
     must always be a structurally sound 18-byte packet with a valid CRC.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.READ_MEM, mem=MemType.FLASH,
-                   address=HW.flash_base, length=4)
+        cmd = _cmd(CommandId.READ_MEM, mem=MemType.FLASH, address=HW.flash_base, length=4)
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
         assert_eq(len(raw), PACKET_SIZE)
         assert_eq(raw[Offset.START], 0xAA)
-        assert_eq(raw[Offset.END],   0x55)
-        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
-        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
+        assert_eq(raw[Offset.END], 0x55)
+        crc_recv = int.from_bytes(raw[Offset.CRC : Offset.CRC + 2], "little")
+        crc_calc = crc16(raw[Offset.CMD_ID : Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
 
+
 def test_hw_read_sram_mem_id_echoed():
     """A READ_MEM command targeting SRAM must return a packet echoing the RAM mem_id rather than FLASH or 0."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                   address=HW.scratch(0), length=4)
+        cmd = _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=HW.scratch(0), length=4)
         pkt = _send_parsed(link, cmd)
         assert_eq(pkt is not None, True)
         assert_eq(pkt.mem_id, MemType.RAM)
@@ -431,103 +440,140 @@ def test_hw_read_sram_mem_id_echoed():
 # Memory write / readback
 def test_hw_write_sram_returns_ack():
     """A WRITE_MEM command targeting SRAM must return a valid ACK packet rather than NACK or timing out."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                   address=HW.scratch(0), length=4,
-                   data=b'\x12\x34\x56\x78')
+        cmd = _cmd(
+            CommandId.WRITE_MEM,
+            mem=MemType.RAM,
+            address=HW.scratch(0),
+            length=4,
+            data=b"\x12\x34\x56\x78",
+        )
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.WRITE_MEM)
     finally:
         link.close()
 
+
 def test_hw_write_then_read_back_pattern():
     """A WRITE_MEM command followed by a READ_MEM command must return the written data."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        pattern = b'\xCA\xFE\xBA\xBE'
-        _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=HW.scratch(0), length=4, data=pattern))
+        pattern = b"\xca\xfe\xba\xbe"
+        _send(
+            link,
+            _cmd(
+                CommandId.WRITE_MEM, mem=MemType.RAM, address=HW.scratch(0), length=4, data=pattern
+            ),
+        )
         _flush(link)
-        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                      address=HW.scratch(0), length=4))
+        pkt = _send_parsed(
+            link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=HW.scratch(0), length=4)
+        )
         assert_eq(pkt is not None, True)
         assert_eq(pkt.data, pattern)
     finally:
         link.close()
 
+
 def test_hw_write_all_zeros_read_back():
     """A WRITE_MEM command with all zeros followed by a READ_MEM command must return the written data."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr = HW.scratch(1)
-        _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=addr, length=4, data=b'\x00\x00\x00\x00'))
+        _send(
+            link,
+            _cmd(
+                CommandId.WRITE_MEM,
+                mem=MemType.RAM,
+                address=addr,
+                length=4,
+                data=b"\x00\x00\x00\x00",
+            ),
+        )
         _flush(link)
-        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                      address=addr, length=4))
+        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=addr, length=4))
         assert_eq(pkt is not None, True)
-        assert_eq(pkt.data, b'\x00\x00\x00\x00')
+        assert_eq(pkt.data, b"\x00\x00\x00\x00")
     finally:
         link.close()
+
 
 def test_hw_write_all_ones_read_back():
     """A WRITE_MEM command with all ones followed by a READ_MEM command must return the written data."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr = HW.scratch(2)
-        _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=addr, length=4, data=b'\xFF\xFF\xFF\xFF'))
+        _send(
+            link,
+            _cmd(
+                CommandId.WRITE_MEM,
+                mem=MemType.RAM,
+                address=addr,
+                length=4,
+                data=b"\xff\xff\xff\xff",
+            ),
+        )
         _flush(link)
-        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                      address=addr, length=4))
+        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=addr, length=4))
         assert_eq(pkt is not None, True)
-        assert_eq(pkt.data, b'\xFF\xFF\xFF\xFF')
+        assert_eq(pkt.data, b"\xff\xff\xff\xff")
     finally:
         link.close()
 
+
 def test_hw_adjacent_writes_do_not_alias():
     """Two adjacent 4-byte words must not bleed into each other."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr_a, addr_b = HW.scratch(4), HW.scratch(5)
-        for addr, pat in [(addr_a, b'\xAA\xAA\xAA\xAA'),
-                          (addr_b, b'\xBB\xBB\xBB\xBB')]:
-            _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                             address=addr, length=4, data=pat))
+        for addr, pat in [(addr_a, b"\xaa\xaa\xaa\xaa"), (addr_b, b"\xbb\xbb\xbb\xbb")]:
+            _send(
+                link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM, address=addr, length=4, data=pat)
+            )
             _flush(link)
-        for addr, expected in [(addr_a, b'\xAA\xAA\xAA\xAA'),
-                               (addr_b, b'\xBB\xBB\xBB\xBB')]:
-            pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                          address=addr, length=4))
+        for addr, expected in [(addr_a, b"\xaa\xaa\xaa\xaa"), (addr_b, b"\xbb\xbb\xbb\xbb")]:
+            pkt = _send_parsed(
+                link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=addr, length=4)
+            )
             assert_eq(pkt is not None, True)
             assert_eq(pkt.data, expected)
             _flush(link)
     finally:
         link.close()
 
-@parametrize("pattern", [
-    (b'\xDE\xAD\xBE\xEF',),
-    (b'\x01\x02\x03\x04',),
-    (b'\xAA\x55\xAA\x55',),
-    (b'\x00\xFF\x00\xFF',),
-])
+
+@parametrize(
+    "pattern",
+    [
+        (b"\xde\xad\xbe\xef",),
+        (b"\x01\x02\x03\x04",),
+        (b"\xaa\x55\xaa\x55",),
+        (b"\x00\xff\x00\xff",),
+    ],
+)
 def test_hw_write_read_various_patterns(pattern):
     """A WRITE_MEM command with various patterns followed by a READ_MEM command must return the written data."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr = HW.scratch(8)
-        _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=addr, length=4, data=pattern))
+        _send(
+            link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM, address=addr, length=4, data=pattern)
+        )
         _flush(link)
-        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                      address=addr, length=4))
+        pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=addr, length=4))
         assert_eq(pkt is not None, True)
         assert_eq(pkt.data, pattern)
     finally:
@@ -540,29 +586,31 @@ def test_hw_read_reg_at_sram_returns_packet():
     READ_REG at a known-mapped SRAM address.
     The HAL maps register reads to SRAM, so any scratch address is valid.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         raw = _send(link, _cmd(CommandId.READ_REG, address=HW.scratch(0)))
         assert_eq(raw is not None, True)
         assert_eq(len(raw), PACKET_SIZE)
-        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
-        assert_eq(crc_recv, crc16(raw[Offset.CMD_ID:Offset.CRC]))
+        crc_recv = int.from_bytes(raw[Offset.CRC : Offset.CRC + 2], "little")
+        assert_eq(crc_recv, crc16(raw[Offset.CMD_ID : Offset.CRC]))
     finally:
         link.close()
+
 
 def test_hw_write_reg_read_reg_roundtrip():
     """
     Write a byte via WRITE_REG then read it back via READ_REG.
     Both route through hal_write_memory / hal_read_memory on SRAM.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr = HW.scratch(12)
         # Write 0xA5 via WRITE_REG (1-byte register write)
-        _send(link, _cmd(CommandId.WRITE_REG, address=addr,
-                         data=b'\xA5\x00\x00\x00'))
+        _send(link, _cmd(CommandId.WRITE_REG, address=addr, data=b"\xa5\x00\x00\x00"))
         _flush(link)
         # Read back via READ_REG
         pkt = _send_parsed(link, _cmd(CommandId.READ_REG, address=addr))
@@ -576,12 +624,12 @@ def test_hw_write_reg_read_reg_roundtrip():
 # Protocol robustness
 def test_hw_bad_crc_triggers_nack():
     """Corrupt one byte in the payload — the MCU must reply with NACK."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        pkt = bytearray(encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False))
-        pkt[Offset.DATA] ^= 0xFF          # corrupt without re-patching CRC
+        pkt = bytearray(encode(_cmd(CommandId.PING), seq=0, multi=False, last=False))
+        pkt[Offset.DATA] ^= 0xFF  # corrupt without re-patching CRC
         link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
@@ -589,31 +637,34 @@ def test_hw_bad_crc_triggers_nack():
     finally:
         link.close()
 
+
 def test_hw_nack_carries_valid_crc():
     """The NACK packet itself must be well-formed with a correct CRC."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        pkt = bytearray(encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False))
+        pkt = bytearray(encode(_cmd(CommandId.PING), seq=0, multi=False, last=False))
         pkt[Offset.DATA] ^= 0xFF
         link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
-        crc_recv = int.from_bytes(raw[Offset.CRC:Offset.CRC + 2], "little")
-        crc_calc  = crc16(raw[Offset.CMD_ID:Offset.CRC])
+        crc_recv = int.from_bytes(raw[Offset.CRC : Offset.CRC + 2], "little")
+        crc_calc = crc16(raw[Offset.CMD_ID : Offset.CRC])
         assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
 
+
 def test_hw_mcu_recovers_after_bad_packet():
     """After receiving a bad packet the MCU must still ACK valid ones."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         # Send all-zeros (no valid START byte - MCU ignores it)
         link.send(bytes(PACKET_SIZE))
-        link.read_packet(timeout=HW.timeout)   # may be None; we don't care
+        link.read_packet(timeout=HW.timeout)  # may be None; we don't care
         _flush(link)
         # Valid PING must get a clean ACK
         raw = _send(link, _cmd(CommandId.PING))
@@ -621,19 +672,20 @@ def test_hw_mcu_recovers_after_bad_packet():
     finally:
         link.close()
 
+
 def test_hw_resync_after_truncated_send():
     """
     Send only the first 9 bytes of a packet (half a packet).
     The MCU's byte-level state machine will time out waiting for the rest.
     After the link is re-synced a full PING must still succeed.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        half = encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False)[:9]
+        half = encode(_cmd(CommandId.PING), seq=0, multi=False, last=False)[:9]
         link.send(half)
-        time.sleep(0.5)     # let the MCU notice nothing more is coming
+        time.sleep(0.5)  # let the MCU notice nothing more is coming
         _flush(link)
         raw = _send(link, _cmd(CommandId.PING))
         assert_eq(raw is not None, True)
@@ -641,15 +693,16 @@ def test_hw_resync_after_truncated_send():
     finally:
         link.close()
 
+
 def test_hw_nack_seq_mirrors_request_seq():
     """The NACK packet must echo back the SEQ byte of the bad request."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         TEST_SEQ = 0x2A
-        pkt = bytearray(encode(
-            _cmd(CommandId.PING), seq=TEST_SEQ, multi=True, last=False))
-        pkt[Offset.DATA] ^= 0xFF          # corrupt data, keep seq
+        pkt = bytearray(encode(_cmd(CommandId.PING), seq=TEST_SEQ, multi=True, last=False))
+        pkt[Offset.DATA] ^= 0xFF  # corrupt data, keep seq
         link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
         assert_eq(raw is not None, True)
@@ -658,22 +711,24 @@ def test_hw_nack_seq_mirrors_request_seq():
     finally:
         link.close()
 
+
 def test_hw_unknown_cmd_id_triggers_error_response():
     """
     A packet with cmd_id=0xFF (unknown) must produce a response with the
     STATUS_ERROR flag set.  The firmware dispatches through the handler table;
     an out-of-range cmd_id returns 0 which sets the error flag.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         # Build a hand-crafted packet with cmd_id = 0xFF
         pkt = bytearray(PACKET_SIZE)
-        pkt[Offset.START]  = 0xAA
+        pkt[Offset.START] = 0xAA
         pkt[Offset.CMD_ID] = 0xFF
-        pkt[Offset.END]    = 0x55
-        crc = crc16(bytes(pkt[Offset.CMD_ID:Offset.CRC]))
-        pkt[Offset.CRC]     = crc & 0xFF
+        pkt[Offset.END] = 0x55
+        crc = crc16(bytes(pkt[Offset.CMD_ID : Offset.CRC]))
+        pkt[Offset.CRC] = crc & 0xFF
         pkt[Offset.CRC + 1] = (crc >> 8) & 0xFF
         link.send(bytes(pkt))
         raw = link.read_packet(timeout=HW.timeout)
@@ -686,17 +741,21 @@ def test_hw_unknown_cmd_id_triggers_error_response():
 
 
 # Breakpoints
-@parametrize("bp_id,control,ctrl_val", [
-    (0, BreakpointControl.ENABLED,  0x01),
-    (1, BreakpointControl.ENABLED,  0x01),
-    (2, BreakpointControl.DISABLED, 0x00),
-    (3, BreakpointControl.DISABLED, 0x00),
-    (0, BreakpointControl.RESET,    0x02),
-    (1, BreakpointControl.NEXT,     0x03),
-])
+@parametrize(
+    "bp_id,control,ctrl_val",
+    [
+        (0, BreakpointControl.ENABLED, 0x01),
+        (1, BreakpointControl.ENABLED, 0x01),
+        (2, BreakpointControl.DISABLED, 0x00),
+        (3, BreakpointControl.DISABLED, 0x00),
+        (0, BreakpointControl.RESET, 0x02),
+        (1, BreakpointControl.NEXT, 0x03),
+    ],
+)
 def test_hw_breakpoint_control_acked(bp_id, control, ctrl_val):
     """Every valid breakpoint control command must be ACKed."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         # mem_id carries the control value; address carries the slot id
@@ -706,9 +765,11 @@ def test_hw_breakpoint_control_acked(bp_id, control, ctrl_val):
     finally:
         link.close()
 
+
 def test_hw_breakpoint_invalid_slot_nacked():
     """A slot ID beyond the build's breakpoint count (at most 8) must be NACKed by the firmware."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         cmd = _cmd(CommandId.BREAKPOINT, mem=0x01, address=99)
@@ -719,137 +780,192 @@ def test_hw_breakpoint_invalid_slot_nacked():
     finally:
         link.close()
 
+
 def test_hw_enable_then_disable_breakpoint():
     """Enable a breakpoint then immediately disable it — both must ACK."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        for ctrl_val in (0x01, 0x00):   # ENABLE then DISABLE
-            raw = _send(link, _cmd(CommandId.BREAKPOINT,
-                                   mem=ctrl_val, address=0))
+        for ctrl_val in (0x01, 0x00):  # ENABLE then DISABLE
+            raw = _send(link, _cmd(CommandId.BREAKPOINT, mem=ctrl_val, address=0))
             _assert_clean_ack(raw, CommandId.BREAKPOINT)
             _flush(link)
     finally:
         link.close()
 
+
 def test_hw_reset_breakpoint_acked():
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        raw = _send(link, _cmd(CommandId.BREAKPOINT,
-                               mem=BreakpointControl.RESET, address=0))
+        raw = _send(link, _cmd(CommandId.BREAKPOINT, mem=BreakpointControl.RESET, address=0))
         _assert_clean_ack(raw, CommandId.BREAKPOINT)
     finally:
         link.close()
 
 
 # Watchpoints
-@parametrize("wp_id,control,payload", [
-    (0, WatchpointControl.DISABLED, 0x00000000),
-    (1, WatchpointControl.DISABLED, 0x00000000),
-    (2, WatchpointControl.DISABLED, 0x00000000),
-    (3, WatchpointControl.DISABLED, 0x00000000),
-])
+@parametrize(
+    "wp_id,control,payload",
+    [
+        (0, WatchpointControl.DISABLED, 0x00000000),
+        (1, WatchpointControl.DISABLED, 0x00000000),
+        (2, WatchpointControl.DISABLED, 0x00000000),
+        (3, WatchpointControl.DISABLED, 0x00000000),
+    ],
+)
 def test_hw_watchpoint_disable_acked(wp_id, control, payload):
     """Disable a watchpoint on a 4-byte aligned SRAM address."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         data = payload.to_bytes(4, "little")
-        cmd = _cmd(CommandId.WATCHPOINT, mem=int(control),
-                   address=wp_id, data=data)
+        cmd = _cmd(CommandId.WATCHPOINT, mem=int(control), address=wp_id, data=data)
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.WATCHPOINT)
     finally:
         link.close()
 
+
 def test_hw_watchpoint_enable_acked():
     """Enable a watchpoint on a 4-byte aligned SRAM address."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         watched_addr = HW.scratch(0)  # guaranteed 4-byte aligned
         data = watched_addr.to_bytes(4, "little")
-        cmd = _cmd(CommandId.WATCHPOINT, mem=int(WatchpointControl.ENABLED),
-                   address=0, data=data)
+        cmd = _cmd(CommandId.WATCHPOINT, mem=int(WatchpointControl.ENABLED), address=0, data=data)
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.WATCHPOINT)
         _flush(link)
         # Disable immediately so it does not fire during other tests
-        _send(link, _cmd(CommandId.WATCHPOINT,
-                         mem=int(WatchpointControl.DISABLED),
-                         address=0, data=b'\x00\x00\x00\x00'))
+        _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.DISABLED),
+                address=0,
+                data=b"\x00\x00\x00\x00",
+            ),
+        )
     finally:
         link.close()
 
+
 def test_hw_watchpoint_reset_acked():
     """Reset a watchpoint slot — this is like DISABLED but also clears the address and mask."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.WATCHPOINT, mem=int(WatchpointControl.RESET),
-                   address=0, data=b'\x00\x00\x00\x00')
+        cmd = _cmd(
+            CommandId.WATCHPOINT,
+            mem=int(WatchpointControl.RESET),
+            address=0,
+            data=b"\x00\x00\x00\x00",
+        )
         raw = _send(link, cmd)
         _assert_clean_ack(raw, CommandId.WATCHPOINT)
     finally:
         link.close()
+
 
 def test_hw_watchpoint_mask_on_active_slot_acked():
     """
     Set a bit-mask on a watchpoint that was just enabled.
     The firmware only accepts MASK on an active slot.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         watched_addr = HW.scratch(0)
         # Enable slot 1
-        _send(link, _cmd(CommandId.WATCHPOINT,
-                         mem=int(WatchpointControl.ENABLED),
-                         address=1,
-                         data=watched_addr.to_bytes(4, "little")))
+        _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.ENABLED),
+                address=1,
+                data=watched_addr.to_bytes(4, "little"),
+            ),
+        )
         _flush(link)
         # Set mask
         mask = 0x000000FF
-        raw = _send(link, _cmd(CommandId.WATCHPOINT,
-                               mem=int(WatchpointControl.MASK),
-                               address=1,
-                               data=mask.to_bytes(4, "little")))
+        raw = _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.MASK),
+                address=1,
+                data=mask.to_bytes(4, "little"),
+            ),
+        )
         _assert_clean_ack(raw, CommandId.WATCHPOINT)
         _flush(link)
         # Cleanup
-        _send(link, _cmd(CommandId.WATCHPOINT,
-                         mem=int(WatchpointControl.RESET),
-                         address=1, data=b'\x00\x00\x00\x00'))
+        _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.RESET),
+                address=1,
+                data=b"\x00\x00\x00\x00",
+            ),
+        )
     finally:
         link.close()
 
+
 def test_hw_watchpoint_mask_on_inactive_slot_nacked():
     """MASK on a disabled slot must return STATUS_ERROR."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         # Make sure slot 3 is disabled first
-        _send(link, _cmd(CommandId.WATCHPOINT,
-                         mem=int(WatchpointControl.DISABLED),
-                         address=3, data=b'\x00\x00\x00\x00'))
+        _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.DISABLED),
+                address=3,
+                data=b"\x00\x00\x00\x00",
+            ),
+        )
         _flush(link)
-        raw = _send(link, _cmd(CommandId.WATCHPOINT,
-                               mem=int(WatchpointControl.MASK),
-                               address=3,
-                               data=(0xFF).to_bytes(4, "little")))
+        raw = _send(
+            link,
+            _cmd(
+                CommandId.WATCHPOINT,
+                mem=int(WatchpointControl.MASK),
+                address=3,
+                data=(0xFF).to_bytes(4, "little"),
+            ),
+        )
         assert_eq(raw is not None, True)
         assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), True)
     finally:
         link.close()
 
+
 def test_hw_watchpoint_invalid_slot_nacked():
     """A slot ID beyond the build's watchpoint count (at most 8) must be NACKed by the firmware."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        cmd = _cmd(CommandId.WATCHPOINT, mem=int(WatchpointControl.DISABLED),
-                   address=99, data=b'\x00\x00\x00\x00')
+        cmd = _cmd(
+            CommandId.WATCHPOINT,
+            mem=int(WatchpointControl.DISABLED),
+            address=99,
+            data=b"\x00\x00\x00\x00",
+        )
         raw = _send(link, cmd)
         assert_eq(raw is not None, True)
         assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), True)
@@ -867,11 +983,11 @@ def test_hw_failed_packet_event_has_event_flag():
     In UART idle / interrupt mode it arrives in the response to a
     CMD_ID=0 poll packet — _read_event() handles both cases.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        bad = bytearray(encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False))
+        bad = bytearray(encode(_cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
         link.send(bytes(bad))
 
@@ -886,36 +1002,39 @@ def test_hw_failed_packet_event_has_event_flag():
     finally:
         link.close()
 
+
 def test_hw_event_packet_framing_is_valid():
     """NACK and the following FAILED_PACKET event must both have valid framing and CRC."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
-        bad = bytearray(encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False))
+        bad = bytearray(encode(_cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
         link.send(bytes(bad))
 
-        nack  = link.read_packet(timeout=HW.timeout)
+        nack = link.read_packet(timeout=HW.timeout)
         event = _read_event(link)
 
         for p in (nack, event):
             assert_eq(p is not None, True)
             assert_eq(len(p), PACKET_SIZE)
             assert_eq(p[Offset.START], 0xAA)
-            assert_eq(p[Offset.END],   0x55)
-            crc_recv = int.from_bytes(p[Offset.CRC:Offset.CRC + 2], "little")
-            crc_calc  = crc16(p[Offset.CMD_ID:Offset.CRC])
+            assert_eq(p[Offset.END], 0x55)
+            crc_recv = int.from_bytes(p[Offset.CRC : Offset.CRC + 2], "little")
+            crc_calc = crc16(p[Offset.CMD_ID : Offset.CRC])
             assert_eq(crc_recv, crc_calc)
     finally:
         link.close()
+
 
 def test_hw_event_pump_routes_nack_and_event():
     """
     Start the event pump, trigger an event via a bad packet, and verify the NACK
     reaches the replies and the event (if the firmware sends one) reaches on_event.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     events = []
     pump = event_pump.EventPump(link, HW.uart_idle, on_event=events.append)
@@ -923,8 +1042,7 @@ def test_hw_event_pump_routes_nack_and_event():
         pump.start()
 
         # Send a bad packet to provoke NACK + FAILED_PACKET event
-        bad = bytearray(encode(
-            _cmd(CommandId.PING), seq=0, multi=False, last=False))
+        bad = bytearray(encode(_cmd(CommandId.PING), seq=0, multi=False, last=False))
         bad[Offset.DATA] ^= 0xFF
         link.send(bytes(bad))
 
@@ -950,19 +1068,21 @@ def _start_pump(link: SerialLink) -> event_pump.EventPump:
     pump.start()
     return pump
 
+
 def test_hw_chunked_16_byte_write_all_acked():
     """
     CommandClient.run() splits a 16-byte write into 4 × 4-byte packets.
     Every chunk must receive an ACK from the real MCU.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     pump = _start_pump(link)
     try:
         payload = bytes(range(16))
-        cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                   address=HW.scratch(16),
-                   length=16, data=payload)
+        cmd = _cmd(
+            CommandId.WRITE_MEM, mem=MemType.RAM, address=HW.scratch(16), length=16, data=payload
+        )
         replies = command_client.CommandClient(link).run(cmd)
         assert_eq(len(replies), 4)
         assert_eq(any(r.is_error for r in replies), False)
@@ -970,28 +1090,33 @@ def test_hw_chunked_16_byte_write_all_acked():
         pump.stop()
         link.close()
 
+
 def test_hw_chunked_write_then_read_back():
     """
     Write 8 bytes in two chunks via CommandClient.run(), then read each
     4-byte word individually and verify the payload was stored correctly.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     pump = _start_pump(link)
     try:
         base = HW.scratch(20)
-        payload = b'\x10\x20\x30\x40\x50\x60\x70\x80'
+        payload = b"\x10\x20\x30\x40\x50\x60\x70\x80"
 
-        write_cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                         address=base, length=8, data=payload)
+        write_cmd = _cmd(CommandId.WRITE_MEM, mem=MemType.RAM, address=base, length=8, data=payload)
         command_client.CommandClient(link).run(write_cmd)
         time.sleep(0.2)
 
         # Now do a direct single-word read for verification
-        pkt = bytearray(encode(
-            _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                 address=base, length=4),
-            seq=0, multi=False, last=False))
+        pkt = bytearray(
+            encode(
+                _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=base, length=4),
+                seq=0,
+                multi=False,
+                last=False,
+            )
+        )
         link.send(bytes(pkt))
         resp = link.next_reply(timeout=HW.timeout)
         assert_eq(resp is not None, True)
@@ -1004,38 +1129,41 @@ def test_hw_chunked_write_then_read_back():
 # Stress tests
 def test_hw_20_pings_all_acked():
     """Send 20 PINGs in sequence — every one must get a clean ACK."""
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         for i in range(20):
             raw = _send(link, _cmd(CommandId.PING))
-            assert_eq(raw is not None, True,
-                      **{"iteration": i})
-            assert_eq(bool(raw[Offset.FLAGS] & Flag.ACK_NACK), True,
-                      **{"iteration": i})
-            assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), False,
-                      **{"iteration": i})
+            assert_eq(raw is not None, True, **{"iteration": i})
+            assert_eq(bool(raw[Offset.FLAGS] & Flag.ACK_NACK), True, **{"iteration": i})
+            assert_eq(bool(raw[Offset.FLAGS] & Flag.STATUS_ERROR), False, **{"iteration": i})
     finally:
         link.close()
+
 
 def test_hw_interleaved_write_read_stress():
     """
     Alternate 10 write/read pairs rapidly.
     The MCU must process all of them without dropping any.
     """
-    if not HW.available: return _skip()
+    if not HW.available:
+        return _skip()
     link = _link()
     try:
         addr = HW.scratch(24)
         for i in range(10):
             pattern = bytes([i, i ^ 0xFF, (i * 3) & 0xFF, (i * 7) & 0xFF])
-            _send(link, _cmd(CommandId.WRITE_MEM, mem=MemType.RAM,
-                             address=addr, length=4, data=pattern))
+            _send(
+                link,
+                _cmd(CommandId.WRITE_MEM, mem=MemType.RAM, address=addr, length=4, data=pattern),
+            )
             _flush(link, ms=50)
-            pkt = _send_parsed(link, _cmd(CommandId.READ_MEM, mem=MemType.RAM,
-                                          address=addr, length=4))
+            pkt = _send_parsed(
+                link, _cmd(CommandId.READ_MEM, mem=MemType.RAM, address=addr, length=4)
+            )
             assert_eq(pkt is not None, True, **{"iteration": i})
-            assert_eq(pkt.data, pattern,     **{"iteration": i})
+            assert_eq(pkt.data, pattern, **{"iteration": i})
             _flush(link, ms=50)
     finally:
         link.close()
