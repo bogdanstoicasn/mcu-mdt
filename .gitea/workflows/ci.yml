@@ -1,0 +1,34 @@
+name: ci
+on: [push, workflow_dispatch]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Python deps + ruff
+        run: bash scripts/install.sh --dev
+      - name: Lint
+        run: ruff check .
+      - name: Tests (unit, integration, golden; hardware/simulation skip)
+        run: python3 -m test.pymdtest
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install AVR + ARM toolchains
+        run: bash scripts/install.sh --avr --stm32
+      - name: Build the three reference parts
+        run: |
+          for mcu in atmega328p F030F4 F103C8; do
+            make MCU=$mcu
+          done
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware
+          path: |
+            build/*/*.elf
+            build/*/*.hex
+            build/*/*.bin
+            build/*/build_info.yaml
