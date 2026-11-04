@@ -311,6 +311,24 @@ def test_deserialize_rejects_one_extra_byte():
         raised = True
     assert_eq(raised, True)
 
+@parametrize(
+    "offset,expected",
+    [
+        (Offset.START, "Bad start byte: 0x00."),
+        (Offset.END, "Bad end byte: 0x00."),
+    ],
+)
+def test_deserialize_rejects_a_bad_fence_byte(offset, expected):
+    """A reply whose start or end byte is wrong is rejected by the fence check, not the CRC."""
+    pkt = bytearray(_serialize(_ping()))   # a valid packet, made changeable
+    pkt[offset] = 0x00                      # break one fence byte
+    try:
+        decode(bytes(pkt))
+    except PacketError as exc:
+        assert_eq(str(exc), expected)       # the right check fired
+    else:
+        raise AssertionError("no PacketError")
+
 
 # CRC16 against a trusted reference (binascii.crc_hqx)
 
