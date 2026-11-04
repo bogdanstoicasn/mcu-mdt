@@ -13,7 +13,7 @@ static mdt_watchpoint_state_t watchpoints_descriptor = {0};
  */
 static inline uint32_t mdt_read_u32(uint32_t address)
 {
-    const uint8_t *p = (const uint8_t *)(uintptr_t)address;
+    volatile const uint8_t *p = (const uint8_t *)(uintptr_t)address;
     return (uint32_t)p[0]
          | ((uint32_t)p[1] << 8)
          | ((uint32_t)p[2] << 16)

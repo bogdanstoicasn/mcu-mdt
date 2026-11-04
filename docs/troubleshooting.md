@@ -160,6 +160,8 @@ exits, you can no longer reach the MCU to release a breakpoint over UART,
 so power-cycle is the only recovery. The PC tool warns you of this at
 `BREAKPOINT <id> ENABLED` time.
 
+Don't use breakpoints in ISRs.
+
 
 ## Watchpoints
 

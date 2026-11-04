@@ -50,7 +50,7 @@ $(BUILD_DIR)/%.o: %.c $(BUILD_DIR)/build.mk
 
 $(LIB_A): $(OBJS)
 	@echo "  AR  $@"
-	@rm -f $@ && $(AR) rcs $@ $^
+	@rm -f $@ && $(AR) rcsD $@ $^
 
 # The startup file (vector table, reset handler) belongs to the program, not the library.
 $(IMAGE).elf: $(STARTUP_OBJ) $(MAIN) $(LIB_A)

@@ -23,7 +23,7 @@ build:
   example: examples/avr/main.c
   flags:                        # quote anything with a comma or a brace
     compile: ["-mmcu={mcu}", -Wall, -Wextra, -Os, -ffunction-sections, -fdata-sections]
-    link: ["-mmcu={mcu}", "-Wl,--gc-sections", "-Wl,--print-gc-sections"]
+    link: ["-mmcu={mcu}", "-Wl,--gc-sections", "-Wl,--print-gc-sections", "-Wl,--print-memory-usage", "-Wl,-Map={image}.map"]
   outputs:                      # image format -> objcopy arguments
     hex: [-O, ihex, -R, .eeprom]
 

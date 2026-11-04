@@ -83,6 +83,10 @@ SECTIONS
     /* End of RAM sections */
     . = ALIGN(4);
     end = .;
+
+    PROVIDE(_min_stack_size = 0x100);
+    ASSERT(end + _min_stack_size <= ORIGIN(ram) + LENGTH(ram),
+           "Not enough RAM left for the stack: reduce RAM use or _min_stack_size")
 }
 
 
