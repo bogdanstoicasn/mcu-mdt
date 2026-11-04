@@ -88,7 +88,7 @@ def test_root_defaults_are_valid():
     assert_eq(set(root["files"]), _FILES)
     d = root["mdt_defaults"]
     assert isinstance(d["baudrate"], int) and d["baudrate"] > 0
-    assert d["buffer_size"] in (64, 128), "ring buffer: power of two, holds one 18-byte packet"
+    assert d["buffer_size"] in (64, 128), "ring buffer: power of two, holds 2 packets"
     assert 1 <= d["breakpoints"] <= 8 and 1 <= d["watchpoints"] <= 8
     assert d["elf"].endswith(".elf") and d["port"].startswith("/dev/")
 

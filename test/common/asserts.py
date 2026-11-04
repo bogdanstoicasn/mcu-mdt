@@ -30,3 +30,6 @@ def logged_warnings(logger_name: str):
     finally:
         logger.removeHandler(handler)
         logger.level, logger.propagate = saved
+
+class TestSkip(Exception):
+    """Signaled by a test case to bypass the remaining assertions."""

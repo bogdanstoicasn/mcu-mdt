@@ -67,7 +67,7 @@ from pc_tool.wire_protocol import (
     encode,
     is_nack,
 )
-from test.common.asserts import assert_eq
+from test.common.asserts import TestSkip, assert_eq
 from test.pymdtest import parametrize
 
 
@@ -187,14 +187,14 @@ def _resolve_memory_bases(target, platform: str) -> tuple[int, int]:
 
     return sram_base, flash_base
 
+
 HW = HWConfig.from_sources()
 
 
 # Helpers
 def _skip(msg="MDT_PORT not set — connect a MCU and re-run"):
     """Print a skip message and return True so the test can do `if not HW.available: return _skip()`."""
-    print(f"  [SKIP] {msg}")
-    return True
+    raise TestSkip(msg)
 
 
 def _link() -> SerialLink:

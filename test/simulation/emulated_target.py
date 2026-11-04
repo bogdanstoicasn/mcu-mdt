@@ -28,6 +28,8 @@ import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from test.common.asserts import TestSkip
+
 ROOT = Path(__file__).resolve().parents[2]
 WORK = ROOT / "build" / "sim"
 
@@ -223,8 +225,7 @@ def _wait_for_port(port: int, process: subprocess.Popen, timeout: float) -> None
 def skip() -> bool:
     """True (after saying so) when no target is selected."""
     if selected() is None:
-        print("  [SKIP] MDT_SIM not set (f103c8, f030f4 or atmega328p)")
-        return True
+        raise TestSkip("MDT_SIM not set (f103c8, f030f4 or atmega328p)")
     return False
 
 
