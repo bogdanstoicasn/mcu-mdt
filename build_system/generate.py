@@ -177,7 +177,7 @@ def validate(config: dict, desc: dict, memory: dict, platform: str) -> None:
         problems.append("baudrate must be > 0")
     if config["buffer_size"] not in ( 64, 128):
         problems.append(
-            "buffer_size must be 64 or 128 (power of two, uint8_t index, holds one 18-byte packet)"
+            "buffer_size must be 64 or 128 (power of two, uint8_t index, holds event and reply (2 x 18 bytes))"
         )
     for key in ("breakpoints", "watchpoints"):
         if not 1 <= config[key] <= 8:

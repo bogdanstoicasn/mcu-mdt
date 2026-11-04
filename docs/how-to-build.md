@@ -55,7 +55,7 @@ parts listed in `build_system/<platform>/tree_branch_*.yaml` can be built.
 | `F_CPU` | no | 16 MHz (AVR), 8 MHz (STM32) | UART baud divisor, delay calculations | CPU frequency. Must match the actual clock the firmware runs at, otherwise the UART baud rate is wrong. |
 | `UART_IDLE` | no | `1` (STM32), `0` (AVR) | STM32 only | Selects packet processing mode. Explained below. |
 | `BAUDRATE` | no | `19200` | all | MDT UART baud rate; also written into `build_info.yaml` so the PC tool uses it. |
-| `BUFFER_SIZE` | no | `64` | all | Ring buffer size: 32, 64 or 128. |
+| `BUFFER_SIZE` | no | `64` | all | Ring buffer size: 64 or 128. |
 | `BREAKPOINTS`, `WATCHPOINTS` | no | `4` | all | Maximum breakpoints / watchpoints, 1 to 8; the PC tool takes the same numbers from `build_info.yaml`. |
 
 

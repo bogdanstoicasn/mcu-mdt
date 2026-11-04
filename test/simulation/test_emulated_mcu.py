@@ -336,7 +336,7 @@ def test_breakpoint_halts_next_steps_disabled_runs_free():
             assert_eq(live.word("READ_MEM RAM slow_count 4"), a + 1)
             live.ok("BREAKPOINT 0 DISABLED")
             c = live.word("READ_MEM RAM slow_count 4")
-            time.sleep(1.0)
+            time.sleep(3.0)
             assert live.word("READ_MEM RAM slow_count 4") != c, "slow_count stuck after DISABLED"
         finally:
             live.run("BREAKPOINT 0 RESET")

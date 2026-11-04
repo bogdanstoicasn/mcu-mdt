@@ -9,7 +9,7 @@
  * The buffer uses head and tail indices to manage data, and an overflow flag.
  */
 typedef struct {
-    uint8_t buf[MDT_BUFFER_SIZE];
+    volatile uint8_t buf[MDT_BUFFER_SIZE];
     volatile uint8_t head;
     volatile uint8_t tail;
     volatile uint8_t overflow_flag;
