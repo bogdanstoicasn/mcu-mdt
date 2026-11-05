@@ -1,5 +1,9 @@
 name: ci
-on: [push, workflow_dispatch]
+on:
+  push:
+  workflow_dispatch:
+  schedule:
+    - cron: 'TZ=Europe/Bucharest 0 22 * * *'   # every day at 22:00 Romanian time
 
 jobs:
   test:

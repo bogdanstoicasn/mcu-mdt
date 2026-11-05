@@ -193,7 +193,7 @@ HW = HWConfig.from_sources()
 
 # Helpers
 def _skip(msg="MDT_PORT not set — connect a MCU and re-run"):
-    """Print a skip message and return True so the test can do `if not HW.available: return _skip()`."""
+    """Paise a skip exception"""
     raise TestSkip(msg)
 
 
