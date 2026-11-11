@@ -8,8 +8,8 @@ unless the parameter says decimal: `10` as a slot id is slot 16, `10` as a lengt
 |---|---|
 | hex | `1F` or `0x1F` |
 | decimal | `10`, or hex with `0x` |
-| address | a hex address, or a RAM variable of the ELF (`rx_buffer`; a local static `count` matches `count.0`) |
-| register | a hex address, or a register name (see READ_REG) |
+| address | a RAM variable of the ELF (`rx_buffer`; a local static `count` matches `count.0`), a register name (`GPIOA_IDR`, or `GPIOA_IDR.IDR5` for the register a field is in), or a hex address |
+| register | a register name (see READ_REG), or a hex address |
 | bytes | a hex string: `DEADBEEF` or `0xDEADBEEF` |
 | choice | one of the names in the tables below |
 
@@ -235,12 +235,15 @@ monitored bits change value.
 |---------|--------|----------------------------------------------------------|
 | id      | hex     | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
 | control | choice  | Control value: DISABLED, ENABLED, RESET, MASK            |
-| value   | address | ENABLED: the address or RAM variable to watch. MASK: the 32-bit mask. Optional for DISABLED and RESET |
+| value   | address | ENABLED: the address, RAM variable or register to watch. MASK: the 32-bit mask, or a `REG.FIELD` for that field's bits. Optional for DISABLED and RESET |
 
 ```
 WATCHPOINT 0 ENABLED rx_count     # watch a variable of the ELF
 WATCHPOINT 0 MASK 000000FF        # only its low byte
 WATCHPOINT 0 RESET                # done; the value can be left out
+
+WATCHPOINT 1 ENABLED GPIOA_IDR.IDR5   # watch the register PA5 is in
+WATCHPOINT 1 MASK GPIOA_IDR.IDR5      # only PA5's bit (0x20, from the SVD)
 ```
 
 **Behavior:**

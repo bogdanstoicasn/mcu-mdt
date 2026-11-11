@@ -55,6 +55,17 @@ class Registers:
         key = re.sub(r"\[(\w+)\]", r"\1", name).upper()
         return self._qualified.get(key) or self._bare.get(key)
 
+    def field_by_name(
+        self, name: str
+    ) -> tuple[device_description.Register, device_description.Field] | None:
+        """REGISTER.FIELD, the register as by_name takes it, any case: GPIOA_CRL.MODE5."""
+        register_name, dot, field_name = name.rpartition(".")
+        register = self.by_name(register_name) if dot else None
+        if register is None:
+            return None
+        field = next((f for f in register.fields if f.name.upper() == field_name.upper()), None)
+        return (register, field) if field else None
+
     def at(self, address: int) -> device_description.Register | None:
         """The register whose bytes include *address*."""
         return next((r for r in self._all if r.address <= address < r.address + r.size), None)

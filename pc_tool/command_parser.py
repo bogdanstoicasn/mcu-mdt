@@ -34,6 +34,7 @@ class Param:
     hint: str
     values: dict[str, int] | None = None  # choice: name -> number sent
     optional: bool = False
+    mask_when: str | None = None  # after this choice, a REGISTER.FIELD is the field's bit mask
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,11 +88,16 @@ def parse(
         )
         raise CommandError(f"{name} expects {expected} parameter(s), got {len(args)}", code=2)
 
-    fields = {}
+    fields, choices = {}, set()
     for param, text in zip(
         spec.params, args, strict=False
     ):  # optional parameters left out are absent
         value = _READERS[param.type](text, param, target)
+        if param.type == "choice":
+            choices.add(text.upper())
+        if param.mask_when in choices:
+            bitfield = target.registers.field_by_name(text)
+            value = bitfield[1].mask if bitfield else value
         # every number goes into a 32-bit packet field (a slot, an address, a length, a word)
         if isinstance(value, int) and not 0 <= value <= 0xFFFFFFFF:
             raise CommandError(f"Invalid value '{text}' for {param.name}", code=2)
@@ -124,41 +130,57 @@ def _decimal(text: str, param: Param, target: target_model.Target) -> int:
 
 
 def _address(text: str, param: Param, target: target_model.Target) -> int:
-    """A hex address, else a RAM symbol; a local static `name` matches its mangled `name.N`.
-    A symbol spelled like hex (`cafe`) is the symbol."""
+    """A RAM symbol (a local static `name` matches its mangled `name.N`), a register (REGISTER, or
+    REGISTER.FIELD for the register it is in), else a hex address. A name wins over hex: a
+    variable `cafe` or the AVR register ADC is not an address."""
     if text not in target.symbols:
-        try:
-            return int(text, 16)
-        except ValueError:
-            pass
+        register = _named_register(text, target)
+        if register is not None:
+            return register.address
+    symbol = target.symbols.get(text) or _local_static(text, target)
+    if symbol is not None:
+        hint = elf_symbols.narrow_symbol_hint(symbol)
+        if hint:
+            log.warning(hint)
+        return symbol.address
+    try:
+        return int(text, 16)
+    except ValueError:
+        pass
+    register_name, _, field_name = text.rpartition(".")
+    if target.registers.by_name(register_name):
+        raise CommandError(f"Register {register_name} has no field '{field_name}'", code=2)
     if not target.symbols:
         raise CommandError(
             f"Cannot resolve symbol '{text}': no ELF loaded. "
             f"Add 'elf: path/to/firmware.elf' to build_info.yaml.",
             code=2,
         )
-    symbol = target.symbols.get(text)
-    if symbol is None:
-        statics = [s for name, s in target.symbols.items() if name.startswith(text + ".")]
-        if not statics:
-            raise CommandError(
-                f"Symbol '{text}' not found in ELF symbol table. "
-                f"Tip: only static/global variables are watchable. "
-                f"Local variables live on the stack and have no fixed address.",
-                code=2,
-            )
-        if len(statics) > 1:
-            raise CommandError(
-                f"Ambiguous symbol '{text}': multiple local statics found: "
-                f"{', '.join(s.name for s in statics)}. Use the full mangled name.",
-                code=2,
-            )
-        symbol = statics[0]
-        log.info("Resolved '%s' -> '%s' (local static)", text, symbol.name)
-    hint = elf_symbols.narrow_symbol_hint(symbol)
-    if hint:
-        log.warning(hint)
-    return symbol.address
+    raise CommandError(
+        f"Symbol '{text}' not found in ELF symbol table. "
+        f"Tip: only static/global variables are watchable. "
+        f"Local variables live on the stack and have no fixed address.",
+        code=2,
+    )
+
+
+def _local_static(text: str, target: target_model.Target) -> elf_symbols.Symbol | None:
+    statics = [s for name, s in target.symbols.items() if name.startswith(text + ".")]
+    if len(statics) > 1:
+        raise CommandError(
+            f"Ambiguous symbol '{text}': multiple local statics found: "
+            f"{', '.join(s.name for s in statics)}. Use the full mangled name.",
+            code=2,
+        )
+    if statics:
+        log.info("Resolved '%s' -> '%s' (local static)", text, statics[0].name)
+        return statics[0]
+    return None
+
+
+def _named_register(text: str, target: target_model.Target):
+    bitfield = target.registers.field_by_name(text)
+    return bitfield[0] if bitfield else target.registers.by_name(text)
 
 
 def _register(text: str, param: Param, target: target_model.Target) -> int:

@@ -7,14 +7,14 @@ Coverage:
 3. Numbers: hex and decimal parameters, hex data
 4. Choices: each command takes only its own names (BREAKPOINT 0 MASK must not send NEXT)
 5. Registers by address or name (qualified, bare, any case, AVR names, 16-bit AVR registers);
-   a name wins over hex (ADC, a symbol `cafe`)
+   a name wins over hex (ADC, a symbol `cafe`); REG.FIELD names the register, or the field's mask after MASK
 6. Symbols: exact, local statics (name.N), ambiguous, missing, no ELF; narrow variables warn
 7. WATCHPOINT's value is optional; a number for the data field is sent as 4 little-endian bytes
 """
 
 from pc_tool import command_parser
 from pc_tool.command_parser import CommandError
-from pc_tool.device_description import Peripheral, Register
+from pc_tool.device_description import Field, Peripheral, Register
 from pc_tool.elf_symbols import Symbol
 from pc_tool.wire_protocol import BreakpointControl, CommandId, MemType, WatchpointControl
 from test.common.asserts import assert_eq, logged_warnings
@@ -73,7 +73,7 @@ def test_usage_lines():
     assert_eq(SPECS["READ_MEM"].usage, "READ_MEM <RAM|FLASH|EEPROM> <addr> <length>")
     assert_eq(
         SPECS["WATCHPOINT"].usage,
-        "WATCHPOINT <id> <ENABLED|DISABLED|RESET|MASK> [<symbol|addr|mask>]",
+        "WATCHPOINT <id> <ENABLED|DISABLED|RESET|MASK> [<symbol|addr|reg|mask>]",
     )
     assert_eq(SPECS["PING"].usage, "PING")
 
@@ -259,12 +259,42 @@ def test_unknown_register_names(name, target):
     assert_eq(_error(f"READ_REG {name}", target), (f"Unknown register name '{name}'", 2))
 
 
+GPIO = make_target(
+    peripherals=[
+        Peripheral(
+            "GPIOA",
+            0x40010800,
+            "",
+            (Register("GPIOA", "IDR", 0x40010808, 4, False, (Field("IDR5", 0x20),)),),
+        ),
+        Peripheral("ADC", 0x78, "", (Register("ADC", "ADC", 0x78, 2, True),)),
+    ]
+)
+
+
 def test_a_register_name_wins_over_hex():
-    adc = make_target(
-        peripherals=[Peripheral("ADC", 0x78, "", (Register("ADC", "ADC", 0x78, 2, True),))]
+    assert_eq(_parse("READ_REG ADC", GPIO).address, 0x78)  # not 0xADC
+    assert_eq(_parse("READ_REG ADD", GPIO).address, 0xADD)  # no such register: hex
+
+
+@parametrize(
+    "line,data",
+    [
+        ("WATCHPOINT 0 ENABLED GPIOA_IDR", 0x40010808),
+        ("WATCHPOINT 0 ENABLED GPIOA_IDR.IDR5", 0x40010808),  # the register the field is in
+        ("WATCHPOINT 0 MASK gpioa_idr.idr5", 0x20),  # the field's bits
+        ("WATCHPOINT 0 MASK 20", 0x20),
+    ],
+)
+def test_watchpoint_on_a_register_field(line, data):
+    assert_eq(_parse(line, GPIO).data, data.to_bytes(4, "little"))
+
+
+def test_unknown_field_of_a_known_register():
+    assert_eq(
+        _error("WATCHPOINT 0 MASK GPIOA_IDR.IDR9", GPIO),
+        ("Register GPIOA_IDR has no field 'IDR9'", 2),
     )
-    assert_eq(_parse("READ_REG ADC", adc).address, 0x78)  # not 0xADC
-    assert_eq(_parse("READ_REG ADD", adc).address, 0xADD)  # no such register: hex
 
 
 # ---------------------------------------------------------------- 6. symbols

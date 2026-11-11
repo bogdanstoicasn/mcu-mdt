@@ -5,11 +5,13 @@
 #   field     mem | address | length | data
 #   type      hex        a hex number: 1F or 0x1F
 #             decimal    a decimal number: 10, or hex with 0x: 0x0A
-#             address    a hex number, else a RAM symbol of the ELF (name.N statics too)
-#             register   a hex number, else a register name: USART1_BRR, UDR0, CH[2]
+#             address    a RAM symbol of the ELF (name.N statics too), a register name (REG or
+#                        REG.FIELD: the register's address), else a hex number
+#             register   a register name: USART1_BRR, UDR0, CH[2], else a hex number
 #             bytes      a hex string: DEADBEEF or 0xDEADBEEF
 #             choice     one of the parameter's values, any case
 #   optional  true when the parameter may be left out (last parameters only)
+#   mask_when after this choice, a REG.FIELD gives the field's bit mask instead of the address
 #
 # A number given for the data field is sent as 4 little-endian bytes.
 # A local command never leaves the PC.
@@ -66,7 +68,7 @@ commands:
     params:
       - {name: address,       type: hex,     field: address, hint: "<id>"}
       - {name: control_value, type: choice,  field: mem,     hint: "<ENABLED|DISABLED|RESET|MASK>", values: {DISABLED: 0, ENABLED: 1, RESET: 2, MASK: 3}}
-      - {name: wp_data,       type: address, field: data,    hint: "<symbol|addr|mask>", optional: true}
+      - {name: wp_data,       type: address, field: data,    hint: "<symbol|addr|reg|mask>", optional: true, mask_when: MASK}
 
   EXIT:
     local: true
