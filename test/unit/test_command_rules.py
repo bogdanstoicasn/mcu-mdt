@@ -4,7 +4,8 @@ COMMAND RULES TESTS (pc_tool/command_rules.py)
 Coverage:
 1. READ_MEM / WRITE_MEM stay inside a segment of the right kind, data length matches
 2. Flash writes and erases stay off the running firmware; an erase covers its whole page
-3. READ_REG / WRITE_REG land on a register, every byte of it; writes need a writable one
+3. READ_REG / WRITE_REG land on a register (a 32-bit one at its start); writes need a writable
+   register and data that fits it
 4. Breakpoint and watchpoint slots exist in the firmware built; control values are known
 5. WATCHPOINT ENABLED needs a watch address in RAM or on a register; unaligned ones warn
 """
@@ -184,9 +185,9 @@ def test_erase_errors():
     "address,ok",
     [
         (0x40013800, True),
-        (0x40013803, True),  # every byte of SR
+        (0x40013803, False),  # inside SR: the STM32 HAL refuses it
         (0x40013808, True),
-        (0x4001380B, True),  # BRR
+        (0x4001380B, False),  # inside BRR
         (0x4001380C, False),  # just past BRR
         (0x50000000, False),
     ],
@@ -211,12 +212,31 @@ def test_write_reg_needs_a_writable_register():
     )
     assert_eq(
         _reason(_command(CommandId.WRITE_REG, 0xDEADBEEF, data=bytes(4))),
-        "WRITE_REG address 0xDEADBEEF not found.",
+        "No register found at address 0xDEADBEEF.",
     )
     assert_eq(
         _reason(_command(CommandId.READ_REG, 0xDEADBEEF)),
         "No register found at address 0xDEADBEEF.",
     )
+
+
+def test_register_access_stays_inside_the_register():
+    avr = make_target(peripherals=AVR_PERIPHERALS)
+    assert_eq(
+        _reason(_command(CommandId.READ_REG, 0x40013802)),
+        "SR is a 32-bit register: access it at 0x40013800, not 0x40013802.",
+    )
+    assert_eq(
+        _reason(_command(CommandId.WRITE_REG, 0x40013804, data=bytes(5))),
+        "5 byte(s) do not fit DR: 4 byte(s) from 0x40013804.",
+    )
+    assert_eq(_ok(_command(CommandId.WRITE_REG, 0xC6, data=b"\x41"), avr), True)
+    assert_eq(
+        _reason(_command(CommandId.WRITE_REG, 0xC6, data=b"\x41\x42"), avr),
+        "2 byte(s) do not fit UDR0: 1 byte(s) from 0xC6.",
+    )
+    assert_eq(_ok(_command(CommandId.WRITE_REG, 0xC4, data=b"\x01\x00"), avr), True)  # UBRR0
+    assert_eq(_ok(_command(CommandId.WRITE_REG, 0xC5, data=b"\x00"), avr), True)  # its high byte
 
 
 # ---------------------------------------------------------------- 4. slots and controls

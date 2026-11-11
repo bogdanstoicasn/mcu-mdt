@@ -6,13 +6,15 @@ Coverage:
 2. Command names any case, unknown commands, blank lines, parameter counts, local commands
 3. Numbers: hex and decimal parameters, hex data
 4. Choices: each command takes only its own names (BREAKPOINT 0 MASK must not send NEXT)
-5. Registers by address or name (qualified, bare, any case, AVR names, 16-bit AVR registers)
+5. Registers by address or name (qualified, bare, any case, AVR names, 16-bit AVR registers);
+   a name wins over hex (ADC, a symbol `cafe`)
 6. Symbols: exact, local statics (name.N), ambiguous, missing, no ELF; narrow variables warn
 7. WATCHPOINT's value is optional; a number for the data field is sent as 4 little-endian bytes
 """
 
 from pc_tool import command_parser
 from pc_tool.command_parser import CommandError
+from pc_tool.device_description import Peripheral, Register
 from pc_tool.elf_symbols import Symbol
 from pc_tool.wire_protocol import BreakpointControl, CommandId, MemType, WatchpointControl
 from test.common.asserts import assert_eq, logged_warnings
@@ -29,6 +31,7 @@ SYMBOLS = make_target(
         "state.0": Symbol("state.0", 0x20000018, 4),
         "tick.1": Symbol("tick.1", 0x20000020, 4),
         "tick.2": Symbol("tick.2", 0x20000024, 4),
+        "cafe": Symbol("cafe", 0x20000028, 4),
     }
 )
 
@@ -256,6 +259,14 @@ def test_unknown_register_names(name, target):
     assert_eq(_error(f"READ_REG {name}", target), (f"Unknown register name '{name}'", 2))
 
 
+def test_a_register_name_wins_over_hex():
+    adc = make_target(
+        peripherals=[Peripheral("ADC", 0x78, "", (Register("ADC", "ADC", 0x78, 2, True),))]
+    )
+    assert_eq(_parse("READ_REG ADC", adc).address, 0x78)  # not 0xADC
+    assert_eq(_parse("READ_REG ADD", adc).address, 0xADD)  # no such register: hex
+
+
 # ---------------------------------------------------------------- 6. symbols
 
 
@@ -267,6 +278,11 @@ def test_symbols_exact_and_local_static():
     assert_eq(
         _parse("WATCHPOINT 0 ENABLED tick.2", SYMBOLS).data, (0x20000024).to_bytes(4, "little")
     )
+
+
+def test_a_symbol_spelled_like_hex_is_the_symbol():
+    assert_eq(_parse("WATCHPOINT 0 ENABLED cafe", SYMBOLS).data, (0x20000028).to_bytes(4, "little"))
+    assert_eq(_parse("WATCHPOINT 0 ENABLED beef", SYMBOLS).data, (0xBEEF).to_bytes(4, "little"))
 
 
 def test_symbol_errors():

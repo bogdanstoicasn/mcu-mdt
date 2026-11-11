@@ -129,6 +129,13 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
                 _number(page) if page else None,
             )
 
+    # Fuses and lock bits have address spaces of their own: their offsets are not data addresses
+    # (FUSE LOW at 0 would be r0), and READ_REG / WRITE_REG reach only the data space.
+    elsewhere = {
+        group.get("name-in-module")
+        for group in device.iterfind("peripherals/module/instance/register-group")
+        if group.get("address-space", "data") != "data"
+    }
     modules: dict[str, Peripheral] = {}  # a repeated module replaces the earlier one
     for module in root.iterfind(".//modules/module"):
         name = module.get("name")
@@ -136,7 +143,7 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
             continue
         groups: dict[str, dict[str, Register]] = {}
         for group in module.iterfind(".//register-group"):
-            if not group.get("name"):
+            if not group.get("name") or group.get("name") in elsewhere:
                 continue
             base = _number(group.get("offset"))
             groups[group.get("name")] = {
@@ -166,7 +173,19 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
 def _read_svd(root: ET.Element, mcu: str) -> Description:
     for element in root.iter():  # namespaced files: <svd:register> -> <register>
         element.tag = element.tag.rsplit("}", 1)[-1]
+    device = root.findtext("name")
+    if device and not _svd_names_part(device, mcu):
+        raise DescriptionError(f"SVD device mismatch: '{device}' does not describe '{mcu}'")
     return Description(_SvdReader(root).peripherals(), ())
+
+
+def _svd_names_part(device: str, mcu: str) -> bool:
+    """An SVD names a family (STM32F0x0, STM32F103), the build a part without its vendor prefix
+    (f070cb, f103c8): they match when the part starts with a tail of 4+ characters of the
+    SVD name, an x in the SVD name standing for any character."""
+    name = device.lower()
+    tails = (name[i:] for i in range(max(1, len(name) - 3)))
+    return any(re.match(re.escape(tail).replace("x", "."), mcu.lower()) for tail in tails)
 
 
 class _SvdReader:

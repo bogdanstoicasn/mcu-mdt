@@ -2,7 +2,7 @@
 
 Every command, its parameters, and what it does. Names are case-insensitive. Numbers are hex
 unless the parameter says decimal: `10` as a slot id is slot 16, `10` as a length is ten bytes.
-`0x` works on both.
+`0x` works on both. A name wins over hex: on AVR, `ADC` is the ADC register, not address 0xADC.
 
 | Parameter type | Accepts |
 |---|---|
@@ -158,7 +158,9 @@ joined with `_`, as the vendor headers join them (`CTIMER0_MR0`, `CH0_CTRL`).
   ```
 
 **Behavior:** Returns the register value in DATA. On AVR, registers are 8-bit and
-1 byte is returned. On STM32, registers are 32-bit and 4 bytes are returned.
+1 byte is returned. On STM32, registers are 32-bit and 4 bytes are returned. A 32-bit register is
+read whole, at its own address: an address inside it is refused. Each byte of a 16-bit AVR
+register can be read on its own.
 
 
 ### WRITE_REG (ID: 0x04)
@@ -173,7 +175,7 @@ joined with `_`, as the vendor headers join them (`CTIMER0_MR0`, `CH0_CTRL`).
 | data    | bytes    | Value to write                                 |
 
 **Behavior:** Accepts the same name formats as READ_REG. A register the description file marks
-read-only is refused.
+read-only is refused, and so is data longer than the register (from the address given).
 
 ```
 WRITE_REG RCC_CR   00000081   # STM32: by qualified name

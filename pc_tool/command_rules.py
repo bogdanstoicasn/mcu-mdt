@@ -127,10 +127,22 @@ def _erase(command: wire_protocol.Command, target: target_model.Target) -> None:
 # ---------------------------------------------------------------- registers
 
 
-def _read_reg(command: wire_protocol.Command, target: target_model.Target) -> None:
+def _register(command: wire_protocol.Command, target: target_model.Target):
+    """The register *command* lands on. A 32-bit register is accessed whole: the STM32 HAL refuses
+    unaligned addresses, so only its first byte is accepted. An AVR register is read byte by byte."""
     register = target.registers.at(command.address)
     if register is None:
         raise _refused(f"No register found at address 0x{command.address:X}.")
+    if register.size >= 4 and command.address != register.address:
+        raise _refused(
+            f"{register.name} is a {register.size * 8}-bit register: "
+            f"access it at 0x{register.address:X}, not 0x{command.address:X}."
+        )
+    return register
+
+
+def _read_reg(command: wire_protocol.Command, target: target_model.Target) -> None:
+    register = _register(command, target)
     log.info(
         "READ_REG valid: %s in %s at 0x%X..0x%X.",
         register.name,
@@ -141,11 +153,15 @@ def _read_reg(command: wire_protocol.Command, target: target_model.Target) -> No
 
 
 def _write_reg(command: wire_protocol.Command, target: target_model.Target) -> None:
-    register = target.registers.at(command.address)
-    if register is None:
-        raise _refused(f"WRITE_REG address 0x{command.address:X} not found.")
+    register = _register(command, target)
     if not register.writable:
         raise _refused(f"Register {register.name} at 0x{register.address:X} is read-only.")
+    room = register.address + register.size - command.address
+    if command.data is not None and len(command.data) > room:
+        raise _refused(
+            f"{len(command.data)} byte(s) do not fit {register.name}: "
+            f"{room} byte(s) from 0x{command.address:X}."
+        )
     log.info(
         "WRITE_REG valid: %s in %s at 0x%X..0x%X.",
         register.name,

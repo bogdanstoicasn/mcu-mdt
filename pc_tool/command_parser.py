@@ -124,11 +124,13 @@ def _decimal(text: str, param: Param, target: target_model.Target) -> int:
 
 
 def _address(text: str, param: Param, target: target_model.Target) -> int:
-    """A hex address, else a RAM symbol; a local static `name` matches its mangled `name.N`."""
-    try:
-        return int(text, 16)
-    except ValueError:
-        pass
+    """A hex address, else a RAM symbol; a local static `name` matches its mangled `name.N`.
+    A symbol spelled like hex (`cafe`) is the symbol."""
+    if text not in target.symbols:
+        try:
+            return int(text, 16)
+        except ValueError:
+            pass
     if not target.symbols:
         raise CommandError(
             f"Cannot resolve symbol '{text}': no ELF loaded. "
@@ -160,14 +162,14 @@ def _address(text: str, param: Param, target: target_model.Target) -> int:
 
 
 def _register(text: str, param: Param, target: target_model.Target) -> int:
+    """A register name, else a hex address. The name wins: the AVR register ADC is not 0xADC."""
+    register = target.registers.by_name(text)
+    if register is not None:
+        return register.address
     try:
         return int(text, 16)
     except ValueError:
-        pass
-    register = target.registers.by_name(text)
-    if register is None:
-        raise CommandError(f"Unknown register name '{text}'", code=2)
-    return register.address
+        raise CommandError(f"Unknown register name '{text}'", code=2) from None
 
 
 def _bytes(text: str, param: Param, target: target_model.Target) -> bytes:

@@ -9,7 +9,7 @@ Coverage:
 2. A real NXP MCX file (excerpt of MCXA256.svd, BSD-3-Clause): derived peripherals, alternate
    registers, cluster arrays, dimIndex
 3. ATDF: memory segments, sizes in bytes (16-bit registers cover 2 addresses), rw access
-4. Errors: unknown file type, missing file, broken XML, an ATDF for another part
+4. Errors: unknown file type, missing file, broken XML, an ATDF or SVD for another part
 """
 
 import tempfile
@@ -18,6 +18,7 @@ from pathlib import Path
 from pc_tool import device_description, target_model
 from pc_tool.device_description import DescriptionError
 from test.common.asserts import assert_eq
+from test.pymdtest import parametrize
 
 _FIXTURES = Path(__file__).parent / "fixtures"
 _MCU_DB = target_model.MCU_DB
@@ -238,6 +239,15 @@ def test_atdf_segments_and_16_bit_registers():
     )  # 0xC5 (high byte) is in it too
 
 
+def test_atdf_fuses_and_lock_bits_are_not_data_registers():
+    d = device_description.read_description(
+        _MCU_DB / "avr" / "atmega" / "ATmega328P.atdf", "atmega328p"
+    )
+    registers = target_model.Registers(d.peripherals)
+    assert_eq((registers.by_name("FUSE_LOW"), registers.by_name("LOCKBIT")), (None, None))
+    assert_eq(registers.at(0x00), None)  # r0, not FUSE LOW
+
+
 def test_atdf_rw_attribute():
     d = device_description.read_description(
         _MCU_DB / "avr" / "atmega" / "ATmega4809.atdf", "atmega4809"
@@ -261,6 +271,7 @@ def test_errors_name_the_problem():
             (Path(tmp) / "missing.svd", "x", "MCU description file not found"),
             (broken, "x", "Invalid SVD XML"),
             (_MCU_DB / "avr" / "atmega" / "ATmega328P.atdf", "atmega48", "ATDF device mismatch"),
+            (_MCU_DB / "stm32" / "cortex-m3" / "STM32F103.svd", "f030f4", "SVD device mismatch"),
         ]
         for path, mcu, message in cases:
             try:
@@ -269,3 +280,20 @@ def test_errors_name_the_problem():
                 assert message in str(exc), (message, str(exc))
                 continue
             raise AssertionError(f"{path.name} for {mcu} was accepted")
+
+
+@parametrize(
+    "device,mcu,ok",
+    [
+        ("STM32F0x0", "f030f4", True),  # x stands for any character
+        ("STM32F0x0", "f070cb", True),
+        ("STM32F0x0", "f103c8", False),
+        ("STM32F103", "f103c8", True),  # the build drops the vendor prefix
+        ("STM32F103", "stm32f103c8", True),
+        ("STM32F103", "f030f4", False),
+        ("MCXA256", "mcxa256", True),
+        ("TEST", "test", True),
+    ],
+)
+def test_svd_device_name_matches_the_part(device, mcu, ok):
+    assert_eq(device_description._svd_names_part(device, mcu), ok, device=device, mcu=mcu)
