@@ -17,7 +17,7 @@ import sys
 import time
 from pathlib import Path
 
-from pc_tool import command_parser, wire_protocol
+from pc_tool import command_parser, device_description, wire_protocol
 
 try:
     import readline
@@ -135,6 +135,11 @@ class Console:
         self._write(_packet_box(packet))
         log.info("Received packet: %s", packet)
 
+    def register(self, register: device_description.Register, value: int) -> None:
+        text = _register_lines(register, value)
+        self._write(text)
+        log.info("Register fields:\n%s", text.rstrip())
+
     def _write(self, text: str) -> None:
         if not self.quiet:
             sys.stdout.write(text)
@@ -209,3 +214,23 @@ def _packet_box(packet: wire_protocol.Packet) -> str:
         "└" + "─" * (_BOX_WIDTH - 1),
     ]
     return "\n".join(lines) + "\n"
+
+
+def _register_lines(register: device_description.Register, value: int) -> str:
+    """RCC_CR = 0x00005A83, then one line per field: name, bits, value and its enumerated name."""
+    lines = [f"{register.peripheral}_{register.name} = 0x{value:0{register.size * 2}X}"]
+    width = max(len(f.name) for f in register.fields)
+    for field in register.fields:
+        field_value = field.value_in(value)
+        shown = str(field_value) if field.mask.bit_count() == 1 else f"0x{field_value:X}"
+        name = dict(field.values).get(field_value, "")
+        lines.append(f"  {field.name:<{width}}  {_bits(field.mask):<9} = {shown} {name}".rstrip())
+    return "\n".join(lines) + "\n"
+
+
+def _bits(mask: int) -> str:
+    """[7:3] or [0] for contiguous bits, else the mask (AVR WDTCSR.WDP is 0x27)."""
+    low, high = (mask & -mask).bit_length() - 1, mask.bit_length() - 1
+    if mask != ((1 << (high - low + 1)) - 1) << low:
+        return f"0x{mask:X}"
+    return f"[{low}]" if low == high else f"[{high}:{low}]"

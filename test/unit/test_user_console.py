@@ -17,6 +17,7 @@ import tempfile
 from pathlib import Path
 
 from pc_tool import user_console, wire_protocol
+from pc_tool.device_description import Field, Register
 from pc_tool.wire_protocol import Command, CommandId, EventType, MemType
 from test.common.asserts import assert_eq
 
@@ -102,6 +103,33 @@ def test_log_file_format():
 
 
 # ---------------------------------------------------------------- 3. packets and events
+
+
+def test_register_shown_field_by_field():
+    register = Register(
+        "TC0",
+        "TCCR0B",
+        0x45,
+        1,
+        True,
+        (
+            Field("FOC0A", 0x80),
+            Field("CS0", 0x07, ((0, "STOPPED"), (5, "PRESCALE_1024"))),
+            Field("WDP", 0x27),
+        ),
+    )
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        _console().register(register, 0x85)
+    assert_eq(
+        out.getvalue().splitlines(),
+        [
+            "TC0_TCCR0B = 0x85",
+            "  FOC0A  [7]       = 1",
+            "  CS0    [2:0]     = 0x5 PRESCALE_1024",
+            "  WDP    0x27      = 0x5",
+        ],
+    )
 
 
 def test_packet_box():

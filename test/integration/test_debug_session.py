@@ -5,7 +5,8 @@ A line goes through the real parser, rules, client, link and event pump; the fak
 like the firmware. Nothing is mocked but the serial port.
 
 Coverage:
-1. Every command reaches the wire as the right packets, and its replies are shown
+1. Every command reaches the wire as the right packets, and its replies are shown; a register
+   read is also shown field by field
 2. Long reads and writes are split into words; what is written reads back
 3. A line the parser or the rules refuse sends nothing
 4. Local commands: EXIT ends the session, HELP and CLEAR don't
@@ -27,6 +28,7 @@ from pc_tool import (
     wire_protocol,
 )
 from pc_tool.command_parser import CommandError
+from pc_tool.device_description import Field, Peripheral, Register
 from pc_tool.wire_protocol import CommandId, EventType, MemType, WatchpointControl
 from test.common.asserts import assert_eq, logged_warnings
 from test.common.fake_mcu import FakeSerialPort
@@ -43,12 +45,16 @@ class _Console(user_console.Console):
     def __init__(self):
         super().__init__(history_file=Path(tempfile.gettempdir()) / "mdt-test-history")
         self.packets, self.events, self.helps, self.clears = [], [], 0, 0
+        self.registers = []
 
     def packet(self, packet):
         self.packets.append(packet)
 
     def event(self, event):
         self.events.append(event)
+
+    def register(self, register, value):
+        self.registers.append((register.name, value))
 
     def help(self, specs):
         self.helps += 1
@@ -131,6 +137,20 @@ def test_every_command_reaches_the_wire_and_its_reply_is_shown(line, cmd_id, mem
         [(cmd_id, True, False)],
         line=line,
     )
+
+
+def test_a_register_read_is_shown_by_its_fields():
+    sr = Register("USART1", "SR", 0x40013800, 4, True, (Field("RXNE", 0x20),))
+    target = make_target(peripherals=[Peripheral("USART1", 0x40013800, "", (sr,))])
+    with _Session() as s:
+        s.session._target = target
+        s.session.run_line("READ_REG USART1_SR")
+        s.session.run_line("READ_REG 0x40013800")
+    value = int.from_bytes(s.console.packets[0].data, "little")
+    assert_eq(s.console.registers, [("SR", value), ("SR", value)])
+    with _Session() as s:  # no fields in TARGET's USART1: the packet only
+        s.session.run_line("READ_REG USART1_SR")
+    assert_eq(s.console.registers, [])
 
 
 # ---------------------------------------------------------------- 2. words

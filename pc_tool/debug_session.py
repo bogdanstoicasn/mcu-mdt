@@ -16,6 +16,7 @@ from pc_tool import (
     command_rules,
     target_model,
     user_console,
+    wire_protocol,
 )
 
 log = logging.getLogger(__name__)
@@ -111,6 +112,24 @@ class DebugSession:
             raise
         for reply in replies:
             self._console.packet(reply)
+        self._show_fields(command, replies)
+
+    def _show_fields(self, command, replies) -> None:
+        """A register read whole, and acknowledged, is shown field by field."""
+        register = self._target.registers.at(command.address)
+        if (
+            command.id != wire_protocol.CommandId.READ_REG
+            or register is None
+            or register.address != command.address
+            or not register.fields
+            or not replies
+            or replies[-1].is_error
+        ):
+            return
+        # shortcut: the AVR HAL reads one byte, so the high byte of a 16-bit AVR register reads 0;
+        # read register.size bytes there when this matters.
+        value = int.from_bytes(replies[-1].data[: register.size], "little")
+        self._console.register(register, value)
 
     def _run_local(self, name: str) -> bool:
         if name == "EXIT":

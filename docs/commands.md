@@ -157,8 +157,18 @@ joined with `_`, as the vendor headers join them (`CTIMER0_MR0`, `CH0_CTRL`).
   READ_REG 0x40013800    # raw hex address always works on both platforms
   ```
 
-**Behavior:** Returns the register value in DATA. On AVR, registers are 8-bit and
-1 byte is returned. On STM32, registers are 32-bit and 4 bytes are returned. A 32-bit register is
+**Behavior:** Returns the register value in DATA. A register the description file splits into
+bitfields is also shown field by field, with the enumerated value names where the file has them:
+
+```
+RCC_CR = 0x03035A83
+  HSION    [0]       = 1
+  HSIRDY   [1]       = 1
+  HSITRIM  [7:3]     = 0x10
+  ...
+```
+
+On AVR, registers are 8-bit and 1 byte is returned (only the low byte of a 16-bit register). On STM32, registers are 32-bit and 4 bytes are returned. A 32-bit register is
 read whole, at its own address: an address inside it is refused. Each byte of a 16-bit AVR
 register can be read on its own.
 
