@@ -245,22 +245,23 @@ monitored bits change value.
 |---------|--------|----------------------------------------------------------|
 | id      | hex     | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
 | control | choice  | Control value: DISABLED, ENABLED, RESET, MASK            |
-| value   | address | ENABLED: the address, RAM variable or register to watch. MASK: the 32-bit mask, or a `REG.FIELD` for that field's bits. Optional for DISABLED and RESET |
+| value   | address | ENABLED: the address, RAM variable or register to watch; a `REG.FIELD`, or a register narrower than 4 bytes, also sets the mask to its bits. MASK: the 32-bit mask, or a `REG.FIELD` for that field's bits. Optional for DISABLED and RESET |
 
 ```
 WATCHPOINT 0 ENABLED rx_count     # watch a variable of the ELF
 WATCHPOINT 0 MASK 000000FF        # only its low byte
 WATCHPOINT 0 RESET                # done; the value can be left out
 
-WATCHPOINT 1 ENABLED GPIOA_IDR.IDR5   # watch the register PA5 is in
-WATCHPOINT 1 MASK GPIOA_IDR.IDR5      # only PA5's bit (0x20, from the SVD)
+WATCHPOINT 1 ENABLED GPIOA_IDR.IDR5   # only PA5: sends ENABLED, then MASK 0x20 (from the SVD)
+WATCHPOINT 2 ENABLED PINB             # AVR: PINB only (MASK 0xFF), not DDRB/PORTB after it
 ```
 
 **Behavior:**
 
 - **ENABLED**: arms the watchpoint at the address provided in `data`. Takes an initial snapshot
-  and fires a `WATCHPOINT_HIT` event whenever any masked bits at that address change. Default mask
-  is `0xFFFFFFFF` (all bits).
+  and fires a `WATCHPOINT_HIT` event whenever any masked bits at that address change. Every
+  ENABLED resets the mask to `0xFFFFFFFF` (all bits). Given a `REG.FIELD`, or a register narrower
+  than the 4 bytes watched, the PC sends a MASK with its bits right after the ENABLED is acknowledged.
 - **DISABLED**: disarms the watchpoint. The slot address and snapshot are preserved.
 - **RESET**: disarms and clears the slot (address, snapshot, mask all zeroed).
 - **MASK**: sets the bit mask for an already-active slot. Only the bits set in the mask are

@@ -6,7 +6,7 @@ like the firmware. Nothing is mocked but the serial port.
 
 Coverage:
 1. Every command reaches the wire as the right packets, and its replies are shown; a register
-   read is also shown field by field
+   read is also shown field by field; a watch on a field is enabled, then masked
 2. Long reads and writes are split into words; what is written reads back
 3. A line the parser or the rules refuse sends nothing
 4. Local commands: EXIT ends the session, HELP and CLEAR don't
@@ -151,6 +151,23 @@ def test_a_register_read_is_shown_by_its_fields():
     with _Session() as s:  # no fields in TARGET's USART1: the packet only
         s.session.run_line("READ_REG USART1_SR")
     assert_eq(s.console.registers, [])
+
+
+def test_a_watch_on_a_field_is_enabled_then_masked():
+    idr = Register("GPIOA", "IDR", 0x20000100, 4, False, (Field("IDR5", 0x20),))
+    target = make_target(
+        segments=TARGET.segments, peripherals=[Peripheral("GPIOA", 0x20000100, "", (idr,))]
+    )
+    with _Session() as s:
+        s.session._target = target
+        s.session.run_line("WATCHPOINT 0 ENABLED GPIOA_IDR.IDR5")
+    assert_eq(
+        [(p.cmd_id, p.mem_id, p.data) for p in s.console.packets],
+        [
+            (CommandId.WATCHPOINT, WatchpointControl.ENABLED, (0x20000100).to_bytes(4, "little")),
+            (CommandId.WATCHPOINT, WatchpointControl.MASK, (0x20).to_bytes(4, "little")),
+        ],
+    )
 
 
 # ---------------------------------------------------------------- 2. words

@@ -96,6 +96,7 @@ class Command:
     address: int = 0  # address or breakpoint/watchpoint slot
     data: bytes | None = None
     length: int | None = None
+    then: "Command | None" = None  # sent once this one is acknowledged
 
 
 @dataclass

@@ -35,6 +35,7 @@ class Param:
     values: dict[str, int] | None = None  # choice: name -> number sent
     optional: bool = False
     mask_when: str | None = None  # after this choice, a REGISTER.FIELD is the field's bit mask
+    implied_mask_when: str | None = None  # after this choice, a register name also sends mask_when
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,7 @@ def parse(
         )
         raise CommandError(f"{name} expects {expected} parameter(s), got {len(args)}", code=2)
 
-    fields, choices = {}, set()
+    fields, choices, implied_mask = {}, set(), None
     for param, text in zip(
         spec.params, args, strict=False
     ):  # optional parameters left out are absent
@@ -98,6 +99,8 @@ def parse(
         if param.mask_when in choices:
             bitfield = target.registers.field_by_name(text)
             value = bitfield[1].mask if bitfield else value
+        elif param.implied_mask_when in choices:
+            implied_mask = _implied_mask(text, target)
         # every number goes into a 32-bit packet field (a slot, an address, a length, a word)
         if isinstance(value, int) and not 0 <= value <= 0xFFFFFFFF:
             raise CommandError(f"Invalid value '{text}' for {param.name}", code=2)
@@ -105,7 +108,7 @@ def parse(
     data = fields.get("data")
     if isinstance(data, int):
         data = data.to_bytes(wire_protocol.WORD_SIZE, "little")
-    return wire_protocol.Command(
+    command = wire_protocol.Command(
         name=name,
         id=spec.id,
         mem=fields.get("mem"),
@@ -113,6 +116,33 @@ def parse(
         length=fields.get("length"),
         data=data,
     )
+    if implied_mask is not None:
+        mask_param = next(p for p in spec.params if p.implied_mask_when)
+        control = next(
+            p.values for p in spec.params if p.values and mask_param.mask_when in p.values
+        )
+        command.then = wire_protocol.Command(
+            name=name,
+            id=spec.id,
+            mem=control[mask_param.mask_when],
+            address=command.address,
+            data=implied_mask.to_bytes(wire_protocol.WORD_SIZE, "little"),
+        )
+    return command
+
+
+def _implied_mask(text: str, target: target_model.Target) -> int | None:
+    """The bits a register name stands for in a 4-byte watch: a field's, or the bytes of a register
+    narrower than 4 (an AVR PINB would else also watch DDRB and PORTB). None: all 4 bytes."""
+    if text in target.symbols:
+        return None
+    bitfield = target.registers.field_by_name(text)
+    if bitfield:
+        return bitfield[1].mask
+    register = target.registers.by_name(text)
+    if register is not None and register.size < wire_protocol.WORD_SIZE:
+        return (1 << 8 * register.size) - 1
+    return None
 
 
 def _hex(text: str, param: Param, target: target_model.Target) -> int:

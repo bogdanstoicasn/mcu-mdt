@@ -12,6 +12,8 @@
 #             choice     one of the parameter's values, any case
 #   optional  true when the parameter may be left out (last parameters only)
 #   mask_when after this choice, a REG.FIELD gives the field's bit mask instead of the address
+#   implied_mask_when  after this choice, a REG.FIELD (or a register narrower than 4 bytes) also
+#             sends the mask_when choice with its bits, once this command is acknowledged
 #
 # A number given for the data field is sent as 4 little-endian bytes.
 # A local command never leaves the PC.
@@ -68,7 +70,7 @@ commands:
     params:
       - {name: address,       type: hex,     field: address, hint: "<id>"}
       - {name: control_value, type: choice,  field: mem,     hint: "<ENABLED|DISABLED|RESET|MASK>", values: {DISABLED: 0, ENABLED: 1, RESET: 2, MASK: 3}}
-      - {name: wp_data,       type: address, field: data,    hint: "<symbol|addr|reg|mask>", optional: true, mask_when: MASK}
+      - {name: wp_data,       type: address, field: data,    hint: "<symbol|addr|reg|mask>", optional: true, mask_when: MASK, implied_mask_when: ENABLED}
 
   EXIT:
     local: true

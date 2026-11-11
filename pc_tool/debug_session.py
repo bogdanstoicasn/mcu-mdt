@@ -113,6 +113,10 @@ class DebugSession:
         for reply in replies:
             self._console.packet(reply)
         self._show_fields(command, replies)
+        if command.then is not None and replies and not replies[-1].is_error:
+            log.info("Then: %s", command.then)
+            command_rules.check(command.then, self._target)
+            self._send(command.then)
 
     def _show_fields(self, command, replies) -> None:
         """A register read whole, and acknowledged, is shown field by field."""
