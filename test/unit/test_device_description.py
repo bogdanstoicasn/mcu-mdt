@@ -5,10 +5,12 @@ Coverage:
 1. SVD by the CMSIS-SVD rules: dim arrays and dimIndex labels, clusters (nested, arrays),
    derivedFrom on peripherals, clusters and registers (same scope and full path), peripheral
    arrays, size/access inherited device -> peripheral -> cluster -> register, alternateGroup
-   names, namespaced files, scaled numbers
+   names, namespaced files, scaled numbers,
+   fields (bitOffset/bitWidth, lsb/msb, bitRange, dim) with their enumerated values
 2. A real NXP MCX file (excerpt of MCXA256.svd, BSD-3-Clause): derived peripherals, alternate
    registers, cluster arrays, dimIndex
-3. ATDF: memory segments, sizes in bytes (16-bit registers cover 2 addresses), rw access
+3. ATDF: memory segments, sizes in bytes (16-bit registers cover 2 addresses), rw access,
+   bitfields (non-contiguous masks) with their value groups, fuses kept out of the data space
 4. Errors: unknown file type, missing file, broken XML, an ATDF or SVD for another part
 """
 
@@ -223,6 +225,30 @@ def test_nxp_mcx_excerpt():
     assert_eq(fccob[:3], ["FCCOB0", "FCCOB1", "FCCOB2"])
 
 
+def test_svd_fields_in_every_spelling():
+    d = _svd("""
+<peripheral><name>GPIO</name><baseAddress>0x40000000</baseAddress><registers>
+  <register><name>CTRL</name><addressOffset>0x0</addressOffset><fields>
+    <field><name>EN</name><bitOffset>0</bitOffset><bitWidth>1</bitWidth></field>
+    <field><name>MODE</name><lsb>4</lsb><msb>6</msb>
+      <enumeratedValues>
+        <enumeratedValue><name>OFF</name><value>0</value></enumeratedValue>
+        <enumeratedValue><name>FAST</name><value>0x5</value></enumeratedValue>
+        <enumeratedValue><name>ANY</name><value>#1x1</value></enumeratedValue>
+      </enumeratedValues></field>
+    <field><name>DIV</name><bitRange>[15:8]</bitRange></field>
+    <field><name>PIN%s</name><dim>2</dim><dimIncrement>2</dimIncrement><bitOffset>16</bitOffset><bitWidth>2</bitWidth></field>
+  </fields></register>
+</registers></peripheral>""")
+    fields = {f.name: f for f in d.peripherals[0].registers[0].fields}
+    assert_eq(
+        {name: f.mask for name, f in fields.items()},
+        {"EN": 0x1, "MODE": 0x70, "DIV": 0xFF00, "PIN0": 0x30000, "PIN1": 0xC0000},
+    )
+    assert_eq(fields["MODE"].values, ((0, "OFF"), (5, "FAST")))  # the don't-care value is skipped
+    assert_eq(fields["MODE"].value_in(0x50), 5)
+
+
 # ---------------------------------------------------------------- 3. ATDF
 
 
@@ -237,6 +263,20 @@ def test_atdf_segments_and_16_bit_registers():
     assert_eq(
         (ubrr0.peripheral, ubrr0.address, ubrr0.size), ("USART", 0xC4, 2)
     )  # 0xC5 (high byte) is in it too
+
+
+def test_atdf_bitfields_and_value_groups():
+    d = device_description.read_description(
+        _MCU_DB / "avr" / "atmega" / "ATmega328P.atdf", "atmega328p"
+    )
+    registers = target_model.Registers(d.peripherals)
+    cs0 = next(f for f in registers.by_name("TCCR0B").fields if f.name == "CS0")
+    assert_eq(
+        (cs0.mask, cs0.values[:2]),
+        (0x07, ((0, "NO_CLOCK_SOURCE_STOPPED"), (1, "RUNNING_NO_PRESCALING"))),
+    )
+    wdp = next(f for f in registers.by_name("WDTCSR").fields if f.name == "WDP")
+    assert_eq((wdp.mask, wdp.value_in(0b0010_0101)), (0x27, 0b1101))  # bit 5 is WDP3
 
 
 def test_atdf_fuses_and_lock_bits_are_not_data_registers():

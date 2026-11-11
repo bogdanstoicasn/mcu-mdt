@@ -11,7 +11,8 @@ The format is picked by the file suffix:
             alternateGroup becomes NAME_GROUP.
 
 Only what the tool uses is kept: peripherals (name, base address, description), their registers
-(absolute address, size in bytes, whether writable) and, from an ATDF, the memory segments.
+(absolute address, size in bytes, whether writable, bitfields with their enumerated values) and,
+from an ATDF, the memory segments.
 """
 
 import copy
@@ -33,12 +34,29 @@ class DescriptionError(MdtError):
 
 
 @dataclass(frozen=True, slots=True)
+class Field:
+    name: str
+    mask: int  # the field's bits in the register; not always contiguous (AVR WDTCSR.WDP is 0x27)
+    values: tuple[tuple[int, str], ...] = ()  # enumerated values: (value, name)
+
+    def value_in(self, register_value: int) -> int:
+        """The field's bits of *register_value*, packed down to bit 0."""
+        value, bit = 0, 0
+        for position in range(self.mask.bit_length()):
+            if self.mask >> position & 1:
+                value |= (register_value >> position & 1) << bit
+                bit += 1
+        return value
+
+
+@dataclass(frozen=True, slots=True)
 class Register:
     peripheral: str  # qualified names are PERIPHERAL_NAME
     name: str  # cluster and array parts already joined: CH0_CTRL
     address: int
     size: int  # bytes
     writable: bool
+    fields: tuple[Field, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,6 +159,12 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
         name = module.get("name")
         if not name:
             continue
+        value_groups = {
+            group.get("name"): tuple(
+                (_number(v.get("value")), v.get("name")) for v in group.iterfind("value")
+            )
+            for group in module.iterfind("value-group")
+        }
         groups: dict[str, dict[str, Register]] = {}
         for group in module.iterfind(".//register-group"):
             if not group.get("name") or group.get("name") in elsewhere:
@@ -153,6 +177,15 @@ def _read_atdf(root: ET.Element, mcu: str) -> Description:
                     base + _number(reg.get("offset")),
                     _number(reg.get("size"), 1),
                     _writable(reg.get("rw")),
+                    tuple(
+                        Field(
+                            f.get("name"),
+                            _number(f.get("mask")),
+                            value_groups.get(f.get("values"), ()),
+                        )
+                        for f in reg.iterfind("bitfield")
+                        if f.get("name") and _number(f.get("mask"))
+                    ),
                 )
                 for reg in group.iterfind(".//register")
                 if reg.get("name")
@@ -261,6 +294,7 @@ class _SvdReader:
                     address + offset + step,
                     max(1, _number(child_properties["size"], 32) // 8),
                     _writable(child_properties["access"]),
+                    _svd_fields(child),
                 )
 
     def _derived(self, element: ET.Element, scope: ET.Element, depth: int = 0) -> ET.Element:
@@ -317,6 +351,36 @@ class _SvdReader:
                 None,
             )
         return node
+
+
+def _svd_fields(register: ET.Element) -> tuple[Field, ...]:
+    """A register's <fields>: bitOffset + bitWidth, lsb + msb or bitRange [msb:lsb]; dim arrays step
+    by dimIncrement bits. derivedFrom on a field or on its enumeratedValues is not followed."""
+    out = []
+    for element in register.iterfind("fields/field"):
+        name = element.findtext("name")
+        if not name:
+            continue
+        bit_range = re.fullmatch(r"\[(\d+):(\d+)\]", (element.findtext("bitRange") or "").strip())
+        if bit_range:
+            lsb, width = int(bit_range[2]), int(bit_range[1]) - int(bit_range[2]) + 1
+        elif element.findtext("lsb") is not None:
+            lsb = _number(element.findtext("lsb"))
+            width = _number(element.findtext("msb")) - lsb + 1
+        else:
+            lsb, width = (
+                _number(element.findtext("bitOffset")),
+                _number(element.findtext("bitWidth"), 1),
+            )
+        values = tuple(
+            (_number(v.findtext("value"), -1), v.findtext("name"))
+            for v in element.iterfind("enumeratedValues/enumeratedValue")
+            if v.findtext("name")
+            and _number(v.findtext("value"), -1) >= 0  # skips #1x0 don't-cares
+        )
+        for label, step in _dim(element):
+            out.append(Field(_dim_name(name, label), ((1 << width) - 1) << (lsb + step), values))
+    return tuple(out)
 
 
 def _properties(element: ET.Element, inherited: dict) -> dict:
