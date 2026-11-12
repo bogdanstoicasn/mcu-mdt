@@ -151,8 +151,7 @@ def _faulted(fault):
 
 
 def test_long_writes_read_back_at_every_length_and_offset():
-    if emu.skip():
-        return
+    emu.skip()
     base = sym("scratch")
     pattern = bytes((i * 37 + 11) & 0xFF for i in range(64))
     with Live() as live:
@@ -171,8 +170,7 @@ def test_long_writes_read_back_at_every_length_and_offset():
 
 
 def test_the_firmware_runs_and_quiet_words_stay():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         a = live.word("READ_MEM RAM loop_count 4")
         time.sleep(0.3)
@@ -183,8 +181,7 @@ def test_the_firmware_runs_and_quiet_words_stay():
 
 
 def test_symbols_and_local_statics():
-    if emu.skip():
-        return
+    emu.skip()
     static = next(name for name in model().symbols if name.startswith("calls."))
     with Live() as live, logged_warnings("pc_tool") as logged:
         assert_eq(live.ok("READ_MEM RAM calls 4")[0].address, sym(static))
@@ -196,8 +193,7 @@ def test_symbols_and_local_statics():
 
 
 def test_the_image_reads_back_and_is_protected():
-    if emu.skip():
-        return
+    emu.skip()
     fw = model().firmware
     with Live() as live:
         assert (
@@ -208,8 +204,7 @@ def test_the_image_reads_back_and_is_protected():
 
 
 def test_erase_and_write_above_the_image():
-    if emu.skip():
-        return
+    emu.skip()
     if not emu.target().flash:
         print("  [SKIP] no flash writes on this platform")
         return
@@ -230,8 +225,7 @@ def test_erase_and_write_above_the_image():
 
 
 def test_every_uart_register_reads():
-    if emu.skip():
-        return
+    emu.skip()
     name = "USART" if emu.target().name == "atmega328p" else "USART1"
     peripheral = next(p for p in model().peripherals if p.name == name)
     with Live() as live:
@@ -245,7 +239,8 @@ def test_every_uart_register_reads():
 
 
 def test_avr_16_bit_register_both_bytes():
-    if emu.skip() or emu.target().name != "atmega328p":
+    emu.skip()
+    if emu.target().name != "atmega328p":
         return
     with Live() as live:
         low, high = live.ok("READ_REG 0xC4")[0], live.ok("READ_REG 0xC5")[0]
@@ -259,8 +254,7 @@ def test_avr_16_bit_register_both_bytes():
 
 
 def test_watchpoint_reports_masks_disables_and_resets():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         live.ok("WATCHPOINT 0 ENABLED loop_count")
         hits = live.wait_events(HIT, 2)
@@ -275,8 +269,7 @@ def test_watchpoint_reports_masks_disables_and_resets():
 
 
 def test_watchpoint_mask_needs_its_value():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         live.ok("WATCHPOINT 0 ENABLED quiet_word")
         try:
@@ -286,8 +279,7 @@ def test_watchpoint_mask_needs_its_value():
 
 
 def test_watchpoint_on_a_quiet_word_fires_once_per_write():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         live.ok("WATCHPOINT 1 ENABLED quiet_word")
         try:
@@ -302,8 +294,7 @@ def test_watchpoint_on_a_quiet_word_fires_once_per_write():
 
 
 def test_watchpoint_on_a_register():
-    if emu.skip():
-        return
+    emu.skip()
     # the MCU samples 4 bytes: they must not reach a register that changes when read (UBRR0's 4 hold UDR0)
     register = "OCR0A" if emu.target().name == "atmega328p" else "USART1_BRR"
     with Live() as live:
@@ -318,8 +309,7 @@ def test_watchpoint_on_a_register():
 
 
 def test_breakpoint_halts_next_steps_disabled_runs_free():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         try:
             live.ok("BREAKPOINT 0 ENABLED")
@@ -346,36 +336,31 @@ def test_breakpoint_halts_next_steps_disabled_runs_free():
 
 
 def test_corrupted_crc_is_resent():
-    if emu.skip():
-        return
+    emu.skip()
     value, logged = _faulted(fp.nth_reply(1, fp.flip_crc))
     assert_eq(value, 0x11223344)
     assert any("corrupted packet" in line for line in logged), logged
 
 
 def test_corrupted_data_is_caught_by_the_crc():
-    if emu.skip():
-        return
+    emu.skip()
     assert_eq(_faulted(fp.nth_reply(1, fp.flip_data))[0], 0x11223344)
 
 
 def test_dropped_reply_is_resent():
-    if emu.skip():
-        return
+    emu.skip()
     value, logged = _faulted(fp.nth_reply(1, fp.drop))
     assert_eq(value, 0x11223344)
     assert any("No response from MCU for seq=0 (attempt 1/3)" in line for line in logged), logged
 
 
 def test_noise_and_a_false_start_byte_resync():
-    if emu.skip():
-        return
+    emu.skip()
     assert_eq(_faulted(fp.nth_reply(1, fp.with_noise))[0], 0x11223344)
 
 
 def test_late_reply_does_not_desync_the_next_commands():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     try:
         with Live(proxy) as live:
@@ -391,8 +376,7 @@ def test_late_reply_does_not_desync_the_next_commands():
 
 
 def test_doubled_and_byte_by_byte_replies():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     try:
         with Live(proxy) as live:
@@ -408,8 +392,7 @@ def test_doubled_and_byte_by_byte_replies():
 
 
 def test_every_reply_corrupted_is_a_no_reply_error_then_recovers():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     try:
         with Live(proxy) as live:
@@ -427,8 +410,7 @@ def test_every_reply_corrupted_is_a_no_reply_error_then_recovers():
 
 
 def test_unplugged_cable_reports_the_link_lost():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     try:
         with Live(proxy) as live:
@@ -447,8 +429,7 @@ def test_unplugged_cable_reports_the_link_lost():
 
 
 def test_240_commands_with_events_flowing():
-    if emu.skip():
-        return
+    emu.skip()
     base = sym("scratch")
     with Live() as live, logged_warnings("pc_tool") as logged:
         live.ok("WATCHPOINT 3 ENABLED loop_count")  # an event on every sample
@@ -466,8 +447,7 @@ def test_240_commands_with_events_flowing():
 
 
 def test_stale_events_are_drained_at_the_next_start():
-    if emu.skip():
-        return
+    emu.skip()
     with Live() as live:
         live.ok("WATCHPOINT 0 ENABLED loop_count")
         time.sleep(1.0)

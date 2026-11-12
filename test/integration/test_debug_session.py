@@ -6,7 +6,8 @@ like the firmware. Nothing is mocked but the serial port.
 
 Coverage:
 1. Every command reaches the wire as the right packets, and its replies are shown; a register
-   read is also shown field by field; a watch on a field is enabled, then masked
+   read is also shown field by field; a watch on a field is enabled, then masked, and a refused
+   mask is reported
 2. Long reads and writes are split into words; what is written reads back
 3. A line the parser or the rules refuse sends nothing
 4. Local commands: EXIT ends the session, HELP and CLEAR don't
@@ -30,6 +31,7 @@ from pc_tool import (
 from pc_tool.command_parser import CommandError
 from pc_tool.device_description import Field, Peripheral, Register
 from pc_tool.wire_protocol import CommandId, EventType, MemType, WatchpointControl
+from test.common import fake_mcu
 from test.common.asserts import assert_eq, logged_warnings
 from test.common.fake_mcu import FakeSerialPort
 from test.common.target_fixtures import firmware, flash, make_target, ram, usart1
@@ -166,6 +168,33 @@ def test_a_watch_on_a_field_is_enabled_then_masked():
         [
             (CommandId.WATCHPOINT, WatchpointControl.ENABLED, (0x20000100).to_bytes(4, "little")),
             (CommandId.WATCHPOINT, WatchpointControl.MASK, (0x20).to_bytes(4, "little")),
+        ],
+    )
+
+
+def test_a_refused_follow_up_mask_is_reported():
+    def refuse_the_mask(request):
+        reply = bytearray(fake_mcu.FakeMcu().handle(request))
+        if request[1] == CommandId.WATCHPOINT and request[4] == WatchpointControl.MASK:
+            reply[2] |= fake_mcu.ERROR
+        return fake_mcu._seal(reply)
+
+    idr = Register("GPIOA", "IDR", 0x20000100, 4, False, (Field("IDR5", 0x20),))
+    target = make_target(
+        segments=TARGET.segments, peripherals=[Peripheral("GPIOA", 0x20000100, "", (idr,))]
+    )
+    with (
+        _Session(answer=refuse_the_mask) as s,
+        logged_warnings("pc_tool.debug_session") as warnings,
+    ):
+        s.session._target = target
+        s.session.run_line("WATCHPOINT 0 ENABLED GPIOA_IDR.IDR5")
+    assert_eq([p.is_error for p in s.console.packets], [False, True])
+    assert_eq(
+        warnings,
+        [
+            "Watchpoint 0 is enabled, but its mask 0x20 was not set: it watches all 4 bytes. "
+            "Send WATCHPOINT 0 MASK 20, or WATCHPOINT 0 DISABLED."
         ],
     )
 

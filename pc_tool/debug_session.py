@@ -102,7 +102,7 @@ class DebugSession:
         log.error("Script aborted: %s", why, extra=user_console.error_extra(code))
         return False
 
-    def _send(self, command) -> None:
+    def _send(self, command) -> list:
         """Send *command* and show every reply, also the ones before a NoReplyError."""
         try:
             replies = self._client.run(command)
@@ -114,9 +114,30 @@ class DebugSession:
             self._console.packet(reply)
         self._show_fields(command, replies)
         if command.then is not None and replies and not replies[-1].is_error:
-            log.info("Then: %s", command.then)
+            self._send_then(command)
+        return replies
+
+    def _send_then(self, command) -> None:
+        """Send the follow-up of an acknowledged *command*; if it doesn't go through, say so,
+        because *command* already took effect (today: a WATCHPOINT ENABLED and its MASK)."""
+        log.info("Then: %s", command.then)
+        done = False
+        try:
             command_rules.check(command.then, self._target)
-            self._send(command.then)
+            replies = self._send(command.then)
+            done = bool(replies) and not replies[-1].is_error
+        finally:
+            if not done:
+                mask = int.from_bytes(command.then.data, "little")
+                log.warning(
+                    "Watchpoint %d is enabled, but its mask 0x%X was not set: it watches all "
+                    "4 bytes. Send WATCHPOINT %d MASK %X, or WATCHPOINT %d DISABLED.",
+                    command.address,
+                    mask,
+                    command.address,
+                    mask,
+                    command.address,
+                )
 
     def _show_fields(self, command, replies) -> None:
         """A register read whole, and acknowledged, is shown field by field."""

@@ -222,11 +222,10 @@ def _wait_for_port(port: int, process: subprocess.Popen, timeout: float) -> None
     raise RuntimeError(f"nothing listened on port {port} after {timeout:.0f} s")
 
 
-def skip() -> bool:
-    """True (after saying so) when no target is selected."""
+def skip() -> None:
+    """Skip the calling test (raise TestSkip) when no target is selected."""
     if selected() is None:
         raise TestSkip("MDT_SIM not set (f103c8, f030f4 or atmega328p)")
-    return False
 
 
 def temp_dir() -> Path:

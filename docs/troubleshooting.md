@@ -160,7 +160,11 @@ exits, you can no longer reach the MCU to release a breakpoint over UART,
 so power-cycle is the only recovery. The PC tool warns you of this at
 `BREAKPOINT <id> ENABLED` time.
 
-Don't use breakpoints in ISRs.
+Don't call `MDT_BREAKPOINT()` inside an interrupt handler or while interrupts are disabled: the
+MCU then hangs until a power cycle. The breakpoint waits for the PC's NEXT or DISABLED, and that
+command only arrives through the UART receive interrupt (in UART-idle mode, also through PendSV,
+which has the lowest priority and so never runs while another handler is active). With interrupts
+off, or inside a handler that blocks them, the command is never received.
 
 
 ## Watchpoints

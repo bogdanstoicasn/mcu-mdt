@@ -127,8 +127,7 @@ def _script(work: Path, text: str, *args) -> tuple[int, str]:
 
 
 def test_tab_completion_history_and_ctrl_c():
-    if emu.skip():
-        return
+    emu.skip()
     work = _workdir()
     term = _Terminal(work)
     try:
@@ -157,8 +156,7 @@ def test_tab_completion_history_and_ctrl_c():
 
 
 def test_ctrl_d_exits_cleanly():
-    if emu.skip():
-        return
+    emu.skip()
     work = _workdir()
     term = _Terminal(work)
     try:
@@ -174,8 +172,7 @@ def test_ctrl_d_exits_cleanly():
 
 
 def test_an_event_keeps_the_half_typed_line():
-    if emu.skip():
-        return
+    emu.skip()
     term = _Terminal(_workdir())
     try:
         term.expect(r"> $")
@@ -197,8 +194,7 @@ def test_an_event_keeps_the_half_typed_line():
 
 
 def test_an_idle_session_uses_almost_no_cpu():
-    if emu.skip():
-        return
+    emu.skip()
     term = _Terminal(_workdir())
     try:
         term.expect(r"> $")
@@ -217,8 +213,7 @@ def test_an_idle_session_uses_almost_no_cpu():
 
 
 def test_unplugged_cable_at_the_prompt_exits_1_cleanly():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     work = _workdir(proxy.port)
     term = _Terminal(work)
@@ -240,8 +235,7 @@ def test_unplugged_cable_at_the_prompt_exits_1_cleanly():
 
 
 def test_a_corrupted_reply_in_a_script_is_resent():
-    if emu.skip():
-        return
+    emu.skip()
     proxy = fp.FaultProxy(emu.target().port)
     proxy.fault = fp.nth_reply(2, fp.flip_crc)  # the 1st reply is the startup ping's echo
     work = _workdir(proxy.port)
@@ -255,8 +249,7 @@ def test_a_corrupted_reply_in_a_script_is_resent():
 
 
 def test_exit_status():
-    if emu.skip():
-        return
+    emu.skip()
     work = _workdir()
     script = (
         "\n".join(

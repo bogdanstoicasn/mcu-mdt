@@ -11,7 +11,8 @@
 #             bytes      a hex string: DEADBEEF or 0xDEADBEEF
 #             choice     one of the parameter's values, any case
 #   optional  true when the parameter may be left out (last parameters only)
-#   mask_when after this choice, a REG.FIELD gives the field's bit mask instead of the address
+#   mask_when after this choice, a REG.FIELD gives the field's bit mask instead of the address;
+#             any other name (a register, a symbol) is refused, because its address is no mask
 #   implied_mask_when  after this choice, a REG.FIELD (or a register narrower than 4 bytes) also
 #             sends the mask_when choice with its bits, once this command is acknowledged
 #

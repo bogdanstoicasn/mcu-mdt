@@ -97,8 +97,7 @@ def parse(
         if param.type == "choice":
             choices.add(text.upper())
         if param.mask_when in choices:
-            bitfield = target.registers.field_by_name(text)
-            value = bitfield[1].mask if bitfield else value
+            value = _mask(text, value, target)
         elif param.implied_mask_when in choices:
             implied_mask = _implied_mask(text, target)
         # every number goes into a 32-bit packet field (a slot, an address, a length, a word)
@@ -129,6 +128,20 @@ def parse(
             data=implied_mask.to_bytes(wire_protocol.WORD_SIZE, "little"),
         )
     return command
+
+
+def _mask(text: str, value: int, target: target_model.Target) -> int:
+    """A mask: a REGISTER.FIELD gives the field's bits, a hex number is itself. Any other name is
+    refused: the reader turned it into an address (USART1_SR -> 0x40013800), and that is no mask."""
+    bitfield = target.registers.field_by_name(text)
+    if bitfield:
+        return bitfield[1].mask
+    try:
+        if int(text, 16) == value:
+            return value
+    except ValueError:
+        pass
+    raise CommandError(f"MASK takes a hex number or REGISTER.FIELD, not the name '{text}'", code=2)
 
 
 def _implied_mask(text: str, target: target_model.Target) -> int | None:

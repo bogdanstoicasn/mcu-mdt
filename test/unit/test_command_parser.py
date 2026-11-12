@@ -7,7 +7,8 @@ Coverage:
 3. Numbers: hex and decimal parameters, hex data
 4. Choices: each command takes only its own names (BREAKPOINT 0 MASK must not send NEXT)
 5. Registers by address or name (qualified, bare, any case, AVR names, 16-bit AVR registers);
-   a name wins over hex (ADC, a symbol `cafe`); REG.FIELD names the register, or the field's mask after MASK; ENABLED on a field also sends its mask
+   a name wins over hex (ADC, a symbol `cafe`); REG.FIELD names the register, or the field's mask after MASK; ENABLED on a field also sends its mask;
+   MASK refuses any other name (its address is no mask)
 6. Symbols: exact, local statics (name.N), ambiguous, missing, no ELF; narrow variables warn
 7. WATCHPOINT's value is optional; a number for the data field is sent as 4 little-endian bytes
 """
@@ -310,6 +311,27 @@ def test_enabling_a_watch_on_a_field_also_sends_its_mask(line, mask):
         (then.id, then.mem, then.address, then.data),
         (CommandId.WATCHPOINT, WatchpointControl.MASK, 0, mask.to_bytes(4, "little")),
     )
+
+
+@parametrize(
+    "line,target",
+    [
+        ("WATCHPOINT 0 MASK GPIOA_IDR", GPIO),  # used to send 0x40010808 as the mask
+        ("WATCHPOINT 0 MASK ADC", GPIO),  # the register wins over hex here too
+        ("WATCHPOINT 0 MASK counter", SYMBOLS),
+        ("WATCHPOINT 0 MASK cafe", SYMBOLS),
+    ],
+)
+def test_mask_refuses_a_name_whose_address_would_be_sent(line, target):
+    name = line.split()[-1]
+    assert_eq(
+        _error(line, target),
+        (f"MASK takes a hex number or REGISTER.FIELD, not the name '{name}'", 2),
+    )
+
+
+def test_mask_takes_the_number_when_written_with_0x():
+    assert_eq(_parse("WATCHPOINT 0 MASK 0xADC", GPIO).data, (0xADC).to_bytes(4, "little"))
 
 
 def test_unknown_field_of_a_known_register():

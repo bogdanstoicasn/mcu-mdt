@@ -245,7 +245,7 @@ monitored bits change value.
 |---------|--------|----------------------------------------------------------|
 | id      | hex     | Watchpoint slot (0 to `MDT_MAX_WATCHPOINTS-1`, `watchpoints` in `build_info.yaml`) |
 | control | choice  | Control value: DISABLED, ENABLED, RESET, MASK            |
-| value   | address | ENABLED: the address, RAM variable or register to watch; a `REG.FIELD`, or a register narrower than 4 bytes, also sets the mask to its bits. MASK: the 32-bit mask, or a `REG.FIELD` for that field's bits. Optional for DISABLED and RESET |
+| value   | address | ENABLED: the address, RAM variable or register to watch; a `REG.FIELD`, or a register narrower than 4 bytes, also sets the mask to its bits. MASK: the 32-bit mask, or a `REG.FIELD` for that field's bits; any other name is refused, since its address is not a mask (write `0xADC` for the number when ADC is also a register). Optional for DISABLED and RESET |
 
 ```
 WATCHPOINT 0 ENABLED rx_count     # watch a variable of the ELF
