@@ -167,7 +167,7 @@ def test_f0_node_merges_trunk_branch_and_node():
         assert flag in make["CFLAGS"].split() and flag in make["LDFLAGS"].split(), flag
     assert "-Thal/stm32/cortex-m0/linker.ld" in make["LDFLAGS"].split()
     assert "-Wl,-Map=build/f030f4/mcu_mdt_example.map" in make["LDFLAGS"].split()
-    assert_eq(make["CMD_flash"], "st-flash write build/f030f4/mcu_mdt_example.bin 0x08000000")
+    assert_eq(make["CMD_flash"], "st-flash --reset write build/f030f4/mcu_mdt_example.bin 0x08000000")
     assert_eq(make["COMMANDS"], "flash erase flash-recover")
     assert "verify_image build/f030f4/mcu_mdt_example.elf" in make["CMD_flash-recover"]
 

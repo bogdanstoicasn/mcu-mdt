@@ -33,7 +33,7 @@ build:
     hex: [-O, ihex]
 
 commands:
-  flash: st-flash write {image}.bin {flash_origin}
+  flash: st-flash --reset write {image}.bin {flash_origin}
 
 dist:
   files: [inc/mcu_mdt.h, examples/stm32/main.c]
