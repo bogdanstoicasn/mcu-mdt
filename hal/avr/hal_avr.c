@@ -21,10 +21,8 @@
 #include <avr/wdt.h>
 #include <util/delay.h>
 
-/* Time to send a full TX ring at this baud (10 bits per byte), in 100 us steps, plus 10 ms. */
-#define DRAIN_STEPS_100US ((MDT_BUFFER_SIZE * 10UL * 10000UL) / MDT_UART_BAUDRATE + 100UL)
-/* The last bytes are still in UDR0 and the shift register when the ring is empty. */
-#define LAST_TWO_BYTES_US (2UL * 10UL * 1000000UL / MDT_UART_BAUDRATE)
+/* Baud rate: avr-libc computes UBRR (rounded) and decides whether U2X is needed. */
+#define BAUD MDT_UART_BAUDRATE
 
 #include <util/setbaud.h>
 
@@ -39,7 +37,10 @@
 static ring_buffer_t rx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 static ring_buffer_t tx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 
-#define DRAIN_TIMEOUT_MAX 0xFFFFU /* max value for uint16_t, ~3.3 s at 19200 baud */
+/* Time to send a full TX ring at this baud (10 bits per byte), in 100 us steps, plus 10 ms. */
+#define DRAIN_STEPS_100US ((MDT_BUFFER_SIZE * 10UL * 10000UL) / MDT_UART_BAUDRATE + 100UL)
+/* The last bytes are still in UDR0 and the shift register when the ring is empty. */
+#define LAST_TWO_BYTES_US (2UL * 10UL * 1000000UL / MDT_UART_BAUDRATE)
 
 /* UART vector portability — single/multi-UART AVR families */
 
