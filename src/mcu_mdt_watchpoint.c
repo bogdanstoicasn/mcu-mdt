@@ -22,20 +22,30 @@ static inline uint32_t mdt_read_u32(uint32_t address)
 
 uint8_t mdt_watchpoint_take_change(uint8_t *slot, uint32_t *old_value, uint32_t *new_value)
 {
-    for (uint8_t i = 0; i < MDT_MAX_WATCHPOINTS; i++)
+    /* Round robin */
+    uint8_t i = watchpoints_descriptor.next_slot;
+
+    for (uint8_t step = 0; step < MDT_MAX_WATCHPOINTS; step++)
     {
-        if (!(watchpoints_descriptor.active_mask & (1u << i)))
+        uint8_t this_slot = i;
+
+        /* compare, not %: MDT_MAX_WATCHPOINTS may not be a power of 2 (division call) */
+        if (++i == MDT_MAX_WATCHPOINTS)
+            i = 0;
+
+        if (!(watchpoints_descriptor.active_mask & (1u << this_slot)))
             continue;
 
-        mdt_watchpoint_t *wp = &watchpoints_descriptor.slots[i];
+        mdt_watchpoint_t *wp = &watchpoints_descriptor.slots[this_slot];
         uint32_t current = mdt_read_u32(wp->address);
 
         if ((current & wp->mask) != (wp->snapshot & wp->mask))
         {
-            *slot      = i;
+            *slot      = this_slot;
             *old_value = wp->snapshot;
             *new_value = current;
             wp->snapshot = current;
+            watchpoints_descriptor.next_slot = i;   /* the slot after this one goes first next time */
             return 1;
         }
     }

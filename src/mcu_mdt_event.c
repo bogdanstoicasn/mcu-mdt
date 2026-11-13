@@ -66,9 +66,9 @@ static uint8_t take_watchpoint(mdt_event_t *ev)
 uint8_t mdt_event_next(mdt_event_t *ev)
 {
     return take_breakpoint(ev)
-        || take_watchpoint(ev)
         || take_error(&overflow_count, INTERNAL_MDT_EVENT_BUFFER_OVERFLOW, ev)
-        || take_error(&failed_count,   INTERNAL_MDT_EVENT_FAILED_PACKET,   ev);
+        || take_error(&failed_count,   INTERNAL_MDT_EVENT_FAILED_PACKET,   ev)
+        || take_watchpoint(ev);
 }
 
 /* Serialize the event payload fields into a packet buffer. */

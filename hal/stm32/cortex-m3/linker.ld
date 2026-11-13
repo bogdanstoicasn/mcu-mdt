@@ -42,6 +42,14 @@ SECTIONS
         . = ALIGN(4);
     } > flash
 
+    /* C constructors are not run by the startup: refuse them instead of dropping them silently */
+    .init_array :
+    {
+        KEEP(*(.init_array*))
+    } > flash
+    ASSERT(SIZEOF(.init_array) == 0, "__attribute__((constructor)) is not supported: call the init function from main()")
+
+
     . = ALIGN(4);
     _etext = .;
 
@@ -68,6 +76,15 @@ SECTIONS
 
         . = ALIGN(4);
         _ebss = .;
+    } > ram
+
+
+    /* RAM the startup neither copies nor zeroes: survives a reset. Before `end`, so the stack check counts it */
+    .noinit (NOLOAD) :
+    {
+        . = ALIGN(4);
+        *(.noinit*)
+        . = ALIGN(4);
     } > ram
 
 

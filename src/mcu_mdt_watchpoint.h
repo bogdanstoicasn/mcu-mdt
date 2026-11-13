@@ -14,6 +14,7 @@ typedef struct {
 typedef struct {
     mdt_watchpoint_t slots[MDT_MAX_WATCHPOINTS];
     uint8_t          active_mask;
+    uint8_t          next_slot;
 } mdt_watchpoint_state_t;
 
 typedef enum {
