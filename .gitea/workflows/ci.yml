@@ -42,11 +42,23 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Debug - is the board visible?
-        run: ls -l /dev/ttyACM0
       - name: Install AVR toolchain
         run: bash scripts/install.sh --avr
       - name: Build and flash
         run: make MCU=atmega328p PORT=/dev/ttyACM0 flash
       - name: Hardware tests on the real board
         run: MCU=atmega328p MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest hardware
+
+  hardware-f030f4:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM toolchain + st-flash
+        run: bash scripts/install.sh --stm32
+      - name: Check the ST-Link is visible
+        run: st-info --probe
+      - name: Build and flash
+        run: make MCU=F030F4 PORT=/dev/ttyUSB0 flash
+      - name: Hardware tests on the real board
+        run: MCU=F030F4 MDT_PORT=/dev/ttyUSB0 python3 -m test.pymdtest hardware
