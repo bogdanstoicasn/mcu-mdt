@@ -152,7 +152,7 @@ void hal_reset(void)
     for (uint32_t step = 0; step < DRAIN_STEPS_100US && !rb_is_empty(&tx_buffer); step++)
         _delay_us(100);
     
-        _delay_us(LAST_TWO_BYTES_US);
+    _delay_us(LAST_TWO_BYTES_US);
 
     wdt_enable(WDTO_15MS);
     while (1);

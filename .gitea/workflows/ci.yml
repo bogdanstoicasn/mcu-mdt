@@ -25,7 +25,7 @@ jobs:
         run: bash scripts/install.sh --avr --stm32
       - name: Build the three reference parts
         run: |
-          for mcu in atmega328p F030F4 F103C8; do
+          for mcu in atmega328p f030f4 f103c8; do
             make MCU=$mcu
           done
       - uses: actions/upload-artifact@v4
@@ -57,11 +57,11 @@ jobs:
       - name: Install ARM toolchain + st-flash
         run: bash scripts/install.sh --stm32
       - name: Build
-        run: make MCU=F030F4 PORT=/dev/ttyUSB0
+        run: make MCU=f030f4 PORT=/dev/ttyUSB0
       - name: Flash via its own ST-Link
-        run: st-flash --serial 460064000B0000353339594E --reset write build/F030F4/mcu_mdt_example.bin 0x08000000
+        run: st-flash --serial 460064000B0000353339594E --reset write build/f030f4/mcu_mdt_example.bin 0x08000000
       - name: Hardware tests on the real board
-        run: MCU=F030F4 MDT_PORT=/dev/ttyUSB0 python3 -m test.pymdtest hardware
+        run: MCU=f030f4 MDT_PORT=/dev/ttyUSB0 python3 -m test.pymdtest hardware
 
   hardware-f103c8:
     needs: build
@@ -71,8 +71,8 @@ jobs:
       - name: Install ARM toolchain + st-flash
         run: bash scripts/install.sh --stm32
       - name: Build
-        run: make MCU=F103C8 PORT=/dev/ttyUSB1
+        run: make MCU=f103c8 PORT=/dev/ttyUSB1
       - name: Flash via its own ST-Link
-        run: st-flash --serial 43006200070000325151524E --reset write build/F103C8/mcu_mdt_example.bin 0x08000000
+        run: st-flash --serial 43006200070000325151524E --reset write build/f103c8/mcu_mdt_example.bin 0x08000000
       - name: Hardware tests on the real board
-        run: MCU=F103C8 MDT_PORT=/dev/ttyUSB1 python3 -m test.pymdtest hardware
+        run: MCU=f103c8 MDT_PORT=/dev/ttyUSB1 python3 -m test.pymdtest hardware
