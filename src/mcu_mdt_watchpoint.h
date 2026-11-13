@@ -31,7 +31,7 @@ typedef enum {
  * @param address Watched address
  * @return 1 if the command was handled successfully, 0 otherwise
  */
-uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address);
+uint8_t mdt_watchpoint_dispatch(uint8_t control, uint32_t id, uint32_t address);
 
 /**
  * @brief Sample the active watchpoints. If one differs from the value last

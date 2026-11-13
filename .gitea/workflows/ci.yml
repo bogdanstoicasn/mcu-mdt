@@ -38,13 +38,15 @@ jobs:
             build/*/build_info.yaml
 
   hardware-atmega328p:
-    needs: build                    # don't flash if the build is broken
+    needs: build
     runs-on: ubuntu-latest
     container:
       image: docker.gitea.com/runner-images:ubuntu-latest
-      options: --device=/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_24235313636351516202-if00:/dev/ttyACM0
+      options: --device=/dev/ttyACM0:/dev/ttyACM0
     steps:
       - uses: actions/checkout@v4
+      - name: Debug - is the board visible?
+        run: ls -l /dev/ttyACM0
       - name: Install AVR toolchain
         run: bash scripts/install.sh --avr
       - name: Build and flash

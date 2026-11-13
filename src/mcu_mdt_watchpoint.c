@@ -68,29 +68,31 @@ static inline void mdt_watchpoint_setmask(uint8_t id, uint32_t mask)
     watchpoints_descriptor.slots[id].mask = mask;
 }
 
-uint8_t mdt_watchpoint_dispatch(uint8_t control, uint8_t id, uint32_t address)
+uint8_t mdt_watchpoint_dispatch(uint8_t control, uint32_t id, uint32_t address)
 {
     if (id >= MDT_MAX_WATCHPOINTS)
         return 0;
 
+    uint8_t wp_slot = (uint8_t)id;
+
     switch (control)
     {
         case INTERNAL_MDT_WP_ENABLE:
-            mdt_watchpoint_enable(id, address);
+            mdt_watchpoint_enable(wp_slot, address);
             return 1;
 
         case INTERNAL_MDT_WP_DISABLE:
-            mdt_watchpoint_disable(id);
+            mdt_watchpoint_disable(wp_slot);
             return 1;
 
         case INTERNAL_MDT_WP_RESET:
-            mdt_watchpoint_reset(id);
+            mdt_watchpoint_reset(wp_slot);
             return 1;
 
         case INTERNAL_MDT_WP_MASK:
-            if (!(watchpoints_descriptor.active_mask & (1u << id)))
+            if (!(watchpoints_descriptor.active_mask & (1u << wp_slot)))
                 return 0; /* watchpoint not active, mask ignored */
-            mdt_watchpoint_setmask(id, address);
+            mdt_watchpoint_setmask(wp_slot, address);
             return 1;
 
         default:

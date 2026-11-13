@@ -136,7 +136,7 @@ static uint8_t handle_watchpoint(uint8_t *buf)
      */
     return mdt_watchpoint_dispatch(
         buf[MDT_OFFSET_MEM_ID],
-        (uint8_t)mdt_get_u32(&buf[MDT_OFFSET_ADDRESS]),
+        mdt_get_u32(&buf[MDT_OFFSET_ADDRESS]),
         mdt_get_u32(&buf[MDT_OFFSET_DATA])
     );
 }
