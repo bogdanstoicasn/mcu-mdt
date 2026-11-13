@@ -56,9 +56,23 @@ jobs:
       - uses: actions/checkout@v4
       - name: Install ARM toolchain + st-flash
         run: bash scripts/install.sh --stm32
-      - name: Check the ST-Link is visible
-        run: st-info --probe
-      - name: Build and flash
-        run: make MCU=F030F4 PORT=/dev/ttyUSB0 flash
+      - name: Build
+        run: make MCU=F030F4 PORT=/dev/ttyUSB0
+      - name: Flash via its own ST-Link
+        run: st-flash --serial 460064000B0000353339594E --reset write build/F030F4/mcu_mdt_example.bin 0x08000000
       - name: Hardware tests on the real board
         run: MCU=F030F4 MDT_PORT=/dev/ttyUSB0 python3 -m test.pymdtest hardware
+
+  hardware-f103c8:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install ARM toolchain + st-flash
+        run: bash scripts/install.sh --stm32
+      - name: Build
+        run: make MCU=F103C8 PORT=/dev/ttyUSB1
+      - name: Flash via its own ST-Link
+        run: st-flash --serial 43006200070000325151524E --reset write build/F103C8/mcu_mdt_example.bin 0x08000000
+      - name: Hardware tests on the real board
+        run: MCU=F103C8 MDT_PORT=/dev/ttyUSB1 python3 -m test.pymdtest hardware

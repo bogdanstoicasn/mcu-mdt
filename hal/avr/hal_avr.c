@@ -19,9 +19,12 @@
 #include <avr/pgmspace.h>
 #include <avr/eeprom.h>
 #include <avr/wdt.h>
+#include <util/delay.h>
 
-/* Baud rate: avr-libc computes UBRR (rounded) and decides whether U2X is needed. */
-#define BAUD MDT_UART_BAUDRATE
+/* Time to send a full TX ring at this baud (10 bits per byte), in 100 us steps, plus 10 ms. */
+#define DRAIN_STEPS_100US ((MDT_BUFFER_SIZE * 10UL * 10000UL) / MDT_UART_BAUDRATE + 100UL)
+/* The last bytes are still in UDR0 and the shift register when the ring is empty. */
+#define LAST_TWO_BYTES_US (2UL * 10UL * 1000000UL / MDT_UART_BAUDRATE)
 
 #include <util/setbaud.h>
 
@@ -145,12 +148,10 @@ void hal_reset(void)
 {
     /* Drain TX ring buffer so the ACK packet is fully sent before reset.
      * Bounded: a stuck TX path must not prevent the reset itself. */
-    uint16_t drain_timeout = DRAIN_TIMEOUT_MAX;
-    while (!rb_is_empty(&tx_buffer))
-    {
-        if (--drain_timeout == 0)
-            break;
-    }
+    for (uint32_t step = 0; step < DRAIN_STEPS_100US && !rb_is_empty(&tx_buffer); step++)
+        _delay_us(100);
+    
+        _delay_us(LAST_TWO_BYTES_US);
 
     wdt_enable(WDTO_15MS);
     while (1);
