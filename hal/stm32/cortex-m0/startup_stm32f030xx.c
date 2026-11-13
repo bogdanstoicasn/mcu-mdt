@@ -38,6 +38,7 @@ void TIM1_BRK_UP_TRG_COM_IRQHandler(void)   __attribute__((weak, alias("Default_
 void TIM1_CC_IRQHandler(void)               __attribute__((weak, alias("Default_Handler")));
 void TIM3_IRQHandler(void)                  __attribute__((weak, alias("Default_Handler")));
 void TIM6_IRQHandler(void)                  __attribute__((weak, alias("Default_Handler")));
+void TIM7_IRQHandler(void)                  __attribute__((weak, alias("Default_Handler")));
 void TIM14_IRQHandler(void)                 __attribute__((weak, alias("Default_Handler")));
 void TIM15_IRQHandler(void)                 __attribute__((weak, alias("Default_Handler")));
 void TIM16_IRQHandler(void)                 __attribute__((weak, alias("Default_Handler")));
@@ -90,7 +91,7 @@ const void* const vector_table[] = {
     0,                                /* IRQ 15 - RESERVED */           /* 0x7C */
     TIM3_IRQHandler,                  /* IRQ 16 - TIM3 */               /* 0x80 */
     TIM6_IRQHandler,                  /* IRQ 17 - TIM6 */               /* 0x84 */
-    0,                                /* IRQ 18 - RESERVED */           /* 0x88 */
+    TIM7_IRQHandler,                  /* IRQ 18 - TIM7 (F030xC, F070xB) */ /* 0x88 */
     TIM14_IRQHandler,                 /* IRQ 19 - TIM14 */              /* 0x8C */
     TIM15_IRQHandler,                 /* IRQ 20 - TIM15 */              /* 0x90 */
     TIM16_IRQHandler,                 /* IRQ 21 - TIM16 */              /* 0x94 */

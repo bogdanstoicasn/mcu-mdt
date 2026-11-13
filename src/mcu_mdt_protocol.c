@@ -13,8 +13,7 @@ uint16_t mdt_crc16(const uint8_t *data, uint16_t len)
     {
         uint8_t x = (uint8_t)(crc >> 8) ^ *data++;
         x ^= (x >> 4);
-        x &= 0xFF;
-        crc = (crc << 8) ^ ((uint16_t)(x << 12)) ^ ((uint16_t)(x << 5)) ^ ((uint16_t)x);
+        crc = (crc << 8) ^ ((uint16_t)((uint16_t)x << 12)) ^ ((uint16_t)(x << 5)) ^ ((uint16_t)x);
     }
 
     return crc;
