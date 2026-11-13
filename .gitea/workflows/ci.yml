@@ -3,7 +3,7 @@ on:
   push:
   workflow_dispatch:
   schedule:
-    - cron: 'TZ=Europe/Bucharest 0 22 * * *'   # every day at 22:00 Romanian time
+    - cron: 'TZ=Europe/Bucharest 0 22 * * *'
 
 jobs:
   test:
@@ -14,7 +14,7 @@ jobs:
         run: bash scripts/install.sh --dev
       - name: Lint
         run: ruff check .
-      - name: Tests (unit, integration, golden; hardware/simulation skip)
+      - name: Tests (unit, integration, golden)
         run: python3 -m test.pymdtest
 
   build:
@@ -36,3 +36,18 @@ jobs:
             build/*/*.hex
             build/*/*.bin
             build/*/build_info.yaml
+
+  hardware-atmega328p:
+    needs: build                    # don't flash if the build is broken
+    runs-on: ubuntu-latest
+    container:
+      image: docker.gitea.com/runner-images:ubuntu-latest
+      options: --device=/dev/serial/by-id/usb-Arduino__www.arduino.cc__0043_24235313636351516202-if00:/dev/ttyACM0
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install AVR toolchain
+        run: bash scripts/install.sh --avr
+      - name: Build and flash
+        run: make MCU=atmega328p PORT=/dev/ttyACM0 flash
+      - name: Hardware tests on the real board
+        run: MCU=atmega328p MDT_PORT=/dev/ttyACM0 python3 -m test.pymdtest hardware
