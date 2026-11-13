@@ -7,22 +7,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: mdt-ci
     steps:
       - uses: actions/checkout@v4
-      - name: Install Python deps + ruff
-        run: bash scripts/install.sh --dev
       - name: Lint
         run: ruff check .
       - name: Tests (unit, integration, golden)
         run: python3 -m test.pymdtest
 
   build:
-    runs-on: ubuntu-latest
+    runs-on: mdt-ci
     steps:
       - uses: actions/checkout@v4
-      - name: Install AVR + ARM toolchains
-        run: bash scripts/install.sh --avr --stm32
       - name: Build the three reference parts
         run: |
           for mcu in atmega328p f030f4 f103c8; do
@@ -39,11 +35,9 @@ jobs:
 
   hardware-atmega328p:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: mdt-ci
     steps:
       - uses: actions/checkout@v4
-      - name: Install AVR toolchain
-        run: bash scripts/install.sh --avr
       - name: Build and flash
         run: make MCU=atmega328p PORT=/dev/ttyACM0 flash
       - name: Hardware tests on the real board
@@ -51,13 +45,13 @@ jobs:
 
   hardware-f030f4:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: mdt-ci
     steps:
       - uses: actions/checkout@v4
-      - name: Install ARM toolchain + st-flash
-        run: bash scripts/install.sh --stm32
       - name: Build
         run: make MCU=f030f4 PORT=/dev/ttyUSB0
+      # shortcut: st-flash called directly because the repo's flash command has no --serial;
+      # move the serial into build_system/stm32 YAML if you ever flash multiple boards locally
       - name: Flash via its own ST-Link
         run: st-flash --serial 460064000B0000353339594E --reset write build/f030f4/mcu_mdt_example.bin 0x08000000
       - name: Hardware tests on the real board
@@ -65,11 +59,9 @@ jobs:
 
   hardware-f103c8:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: mdt-ci
     steps:
       - uses: actions/checkout@v4
-      - name: Install ARM toolchain + st-flash
-        run: bash scripts/install.sh --stm32
       - name: Build
         run: make MCU=f103c8 PORT=/dev/ttyUSB1
       - name: Flash via its own ST-Link

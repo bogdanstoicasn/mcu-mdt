@@ -52,7 +52,10 @@ void USART1_IRQHandler(void)
     uint32_t isr = USART1->isr;
 
     if (isr & USART_ISR_ORE)
+    {
         USART1->icr = USART_ICR_ORECF;
+        rx_buffer.overflow_flag = 1; /* lost byte befre the ISR ran*/
+    }
 
     if (isr & USART_ISR_RXNE)
     {

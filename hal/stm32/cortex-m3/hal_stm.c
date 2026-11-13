@@ -80,14 +80,17 @@ void USART1_IRQHandler(void)
             USART1->cr1 &= ~USART_CR1_TXEIE;
     }
 
-    /* Clear overrun error — must read DR to dismiss ORE when RXNE is not also set */
-    if ((sr & USART_SR_ORE) && !(sr & USART_SR_RXNE))
+    /* ORE: hardware byte loss. SR then DR clears the flag. */
+    if (sr & USART_SR_ORE)
     {
-        volatile uint32_t tmp = USART1->dr;
-        (void)tmp;
+        rx_buffer.overflow_flag = 1;
+        if (!(sr & USART_SR_RXNE))
+        {
+            volatile uint32_t tmp = USART1->dr;
+            (void)tmp;
+        }
     }
 }
-
 
 /* HAL: UART*/
 

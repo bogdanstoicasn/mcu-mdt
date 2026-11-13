@@ -62,8 +62,14 @@ static ring_buffer_t tx_buffer = { .head = 0, .tail = 0, .overflow_flag = 0 };
 
 ISR(USART_RX_vect_name)
 {
-    uint8_t byte = UDR0; /* always read to clear RXC flag */
-    if (!rb_push(&rx_buffer, byte))
+    /* Status first: DOR0 describes the byte in UDR0, and reading UDR0 clears it. */
+    uint8_t status = UCSR0A;
+    uint8_t byte   = UDR0; /* always read to clear RXC flag */
+
+    if (status & (1 << DOR0))
+        rx_buffer.overflow_flag = 1; /* a byte was lost in the hardware before this ISR ran */
+
+    if (!rb_push(&rx_buffer, byte))  /* this byte is valid: always try to keep it */
         rx_buffer.overflow_flag = 1;
 }
 
@@ -151,7 +157,7 @@ void hal_reset(void)
      * Bounded: a stuck TX path must not prevent the reset itself. */
     for (uint32_t step = 0; step < DRAIN_STEPS_100US && !rb_is_empty(&tx_buffer); step++)
         _delay_us(100);
-    
+
     _delay_us(LAST_TWO_BYTES_US);
 
     wdt_enable(WDTO_15MS);

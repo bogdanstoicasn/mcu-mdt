@@ -78,10 +78,12 @@ class PyMDTest:
                 module = importlib.import_module(module_name)
                 self.run_module(module)
             except Exception as e:
-                print(f"[ERROR] Failed to import {module_name}: {e}")
+                print(f"{RED}[ERROR]{RESET} Failed to import {module_name}: {e}")
                 traceback.print_exc()
+                # its tests never ran: count the module as failed
+                self.results.append((module_name, FAIL))
 
-        self.report()
+        return self.report()
 
     def run_module(self, module):
         """Run all test functions in a given module."""
@@ -142,9 +144,17 @@ class PyMDTest:
             else f"{RED}Passed: {passed}/{total}{skip_note} — {failed} failed{RESET}"
         )
 
+        if total == 0:
+            print(f"{RED}No tests ran: check the category name{RESET}")
+
+        return failed == 0 and total > 0
+
 
 if __name__ == "__main__":
     category = sys.argv[1] if len(sys.argv) > 1 else None
 
     testRunner = PyMDTest(category=category)
-    testRunner.run()
+
+    all_passed = testRunner.run()
+
+    sys.exit(0 if all_passed else 1)
